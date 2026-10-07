@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChannel, WS_FORBIDDEN } from "@/hooks/useChannel";
-import { formatInviteCode, inviteLink } from "@/lib/rooms";
+import { formatInviteCode, inviteLink, isLocalOnly } from "@/lib/rooms";
 import { cn } from "@/lib/utils";
 import { KIND_LABELS } from "./CharacterEditor";
 
@@ -204,6 +204,13 @@ function InviteCard({ room, onUpdate }: { room: Room; onUpdate: Act }) {
           api.POST("/api/rooms/{room_id}/invite-code", path(room.id)), "Impossible de changer le code")}>
           <RefreshCw data-icon="inline-start" />Nouveau code
         </Button>
+        {isLocalOnly() && (
+          <p className="basis-full text-xs text-muted-foreground">
+            Tu as ouvert l'app avec <code>{location.host}</code> : le lien ne marchera que sur cette machine.
+            Pour les joueurs sur le même wifi, ouvre l'app avec l'adresse réseau de la machine
+            (par ex. <code>http://192.168.x.x:{location.port || 80}</code>, voir le README), puis copie le lien.
+          </p>
+        )}
       </CardContent>
     </Card>
   );

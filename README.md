@@ -21,6 +21,20 @@ docker compose up -d --build
 - Application : http://localhost:8080
 - Doc de l'API (générée automatiquement) : http://localhost:8080/docs (Swagger) ou `/redoc`
 
+### Jouer à plusieurs sur le même wifi
+
+Les autres appareils du réseau ouvrent l'app avec l'adresse de la machine qui la fait tourner :
+
+```bash
+hostname -I      # ex. 192.168.1.24  →  http://192.168.1.24:8080   (en dev : :5173)
+```
+
+- Avec Docker, le port 8080 est publié sur toutes les interfaces. Le pare-feu de Fedora Workstation laisse passer les ports au-dessus de 1024 ; sur une autre configuration : `sudo firewall-cmd --add-port=8080/tcp` (ou `5173/tcp` en dev).
+- Le nom mDNS marche aussi s'il est résolu sur le réseau : `http://<nom-de-la-machine>.local:8080`.
+- **Le MJ doit lui aussi ouvrir l'app avec cette adresse** (pas `localhost`) avant de copier un lien d'invitation : le lien reprend l'adresse de la barre du navigateur. La carte Invitation le signale.
+- L'IP peut changer (DHCP) : une réservation d'adresse dans la box évite de redonner un nouveau lien.
+- C'est du HTTP sans chiffrement, fait pour un réseau de confiance. Pour une exposition sur Internet, passer en HTTPS et mettre `COOKIE_SECURE=true`.
+
 ### En développement (rechargement à chaud)
 
 ```bash

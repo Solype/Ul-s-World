@@ -10,7 +10,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
   server: {
+    // Écoute sur le réseau local (joueurs sur le même wifi), par IP ou par nom mDNS (`machine.local`).
     host: true,
+    allowedHosts: [".local"],
     proxy: {
       "/api": target,
       "/ws": { target, ws: true },
