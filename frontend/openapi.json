@@ -1,0 +1,2222 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NewMannheim",
+    "description": "API de création de personnages. Doc interactive : /docs (Swagger) ou /redoc.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/rules": {
+      "get": {
+        "tags": [
+          "rules"
+        ],
+        "summary": "Toutes les règles de création",
+        "description": "Source unique des règles : le frontend construit ses formulaires à partir de cette réponse.",
+        "operationId": "get_rules_api_rules_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rules"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rules/validate": {
+      "post": {
+        "tags": [
+          "rules"
+        ],
+        "summary": "Vérifier un personnage sans le sauvegarder",
+        "operationId": "validate_api_rules_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterBase"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/characters": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Lister les personnages",
+        "description": "`kind` filtre par type : `pj`, `pnj` ou `monstre`. Sans filtre, tout est renvoyé.",
+        "operationId": "list_characters_api_characters_get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/CharacterKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CharacterRead"
+                  },
+                  "title": "Response List Characters Api Characters Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Créer un personnage",
+        "operationId": "create_character_api_characters_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/characters/{character_id}": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Lire un personnage",
+        "operationId": "get_character_api_characters__character_id__get",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Character Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Modifier un personnage",
+        "operationId": "update_character_api_characters__character_id__patch",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Character Id"
+            }
+          },
+          {
+            "name": "sync_roles",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Recalculer les PCR à partir des rôles et des choix actuels. Sinon, les PCR stockés sont conservés (les valeurs envoyées par le client sont ignorées).",
+              "default": false,
+              "title": "Sync Roles"
+            },
+            "description": "Recalculer les PCR à partir des rôles et des choix actuels. Sinon, les PCR stockés sont conservés (les valeurs envoyées par le client sont ignorées)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Supprimer un personnage",
+        "operationId": "delete_character_api_characters__character_id__delete",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Character Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/characters/{character_id}/validation": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Vérifier un personnage sauvegardé",
+        "operationId": "validate_saved_api_characters__character_id__validation_get",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Character Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Attribute": {
+        "type": "string",
+        "enum": [
+          "resistance",
+          "force",
+          "agilite",
+          "dexterite",
+          "vivacite",
+          "intellect",
+          "social"
+        ],
+        "title": "Attribute"
+      },
+      "AttributeLimit": {
+        "properties": {
+          "min": {
+            "type": "integer",
+            "title": "Min"
+          },
+          "max": {
+            "type": "integer",
+            "title": "Max"
+          },
+          "superhuman": {
+            "type": "integer",
+            "title": "Superhuman"
+          }
+        },
+        "type": "object",
+        "required": [
+          "min",
+          "max",
+          "superhuman"
+        ],
+        "title": "AttributeLimit"
+      },
+      "CatalogEntry": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "effect": {
+            "type": "string",
+            "title": "Effect"
+          },
+          "skill": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points",
+            "default": 0
+          },
+          "mana": {
+            "type": "integer",
+            "title": "Mana",
+            "default": 0
+          },
+          "free_knowledge": {
+            "type": "integer",
+            "title": "Free Knowledge",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "effect"
+        ],
+        "title": "CatalogEntry"
+      },
+      "CharacterBase": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CharacterKind",
+            "default": "pj"
+          },
+          "creation_mode": {
+            "$ref": "#/components/schemas/CreationMode",
+            "default": "rules"
+          },
+          "species": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Species"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "attributes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Attribute"
+            },
+            "type": "object",
+            "title": "Attributes",
+            "default": {}
+          },
+          "magic": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Magic",
+            "default": 0
+          },
+          "bottes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Bottes",
+            "default": 0
+          },
+          "roles": {
+            "$ref": "#/components/schemas/Roles",
+            "default": {
+              "primary": [],
+              "secondary": []
+            }
+          },
+          "skill_groups": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SkillScore"
+            },
+            "type": "object",
+            "title": "Skill Groups",
+            "default": {}
+          },
+          "skills": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SkillScore"
+            },
+            "type": "object",
+            "title": "Skills",
+            "default": {}
+          },
+          "pools": {
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            "type": "object",
+            "title": "Pools",
+            "default": {}
+          },
+          "knowledges": {
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            "propertyNames": {
+              "maxLength": 100,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Knowledges",
+            "default": {}
+          },
+          "mana": {
+            "$ref": "#/components/schemas/Mana",
+            "default": {
+              "current": 0,
+              "max": 0
+            }
+          },
+          "resources": {
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            "type": "object",
+            "title": "Resources",
+            "default": {}
+          },
+          "selections": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/SelectionItem"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Selections",
+            "default": {}
+          },
+          "equipment": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Equipment",
+            "default": []
+          },
+          "relations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Relations",
+            "default": []
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes",
+            "default": ""
+          },
+          "creation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Creation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CharacterBase"
+      },
+      "CharacterCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CharacterKind",
+            "default": "pj"
+          },
+          "creation_mode": {
+            "$ref": "#/components/schemas/CreationMode",
+            "default": "rules"
+          },
+          "species": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Species"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "attributes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Attribute"
+            },
+            "type": "object",
+            "title": "Attributes",
+            "default": {}
+          },
+          "magic": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Magic",
+            "default": 0
+          },
+          "bottes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Bottes",
+            "default": 0
+          },
+          "roles": {
+            "$ref": "#/components/schemas/Roles",
+            "default": {
+              "primary": [],
+              "secondary": []
+            }
+          },
+          "skill_groups": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SkillScore"
+            },
+            "type": "object",
+            "title": "Skill Groups",
+            "default": {}
+          },
+          "skills": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SkillScore"
+            },
+            "type": "object",
+            "title": "Skills",
+            "default": {}
+          },
+          "pools": {
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            "type": "object",
+            "title": "Pools",
+            "default": {}
+          },
+          "knowledges": {
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            "propertyNames": {
+              "maxLength": 100,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Knowledges",
+            "default": {}
+          },
+          "mana": {
+            "$ref": "#/components/schemas/Mana",
+            "default": {
+              "current": 0,
+              "max": 0
+            }
+          },
+          "resources": {
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            "type": "object",
+            "title": "Resources",
+            "default": {}
+          },
+          "selections": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/SelectionItem"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Selections",
+            "default": {}
+          },
+          "equipment": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Equipment",
+            "default": []
+          },
+          "relations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Relations",
+            "default": []
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes",
+            "default": ""
+          },
+          "creation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Creation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CharacterCreate"
+      },
+      "CharacterKind": {
+        "type": "string",
+        "enum": [
+          "pj",
+          "pnj",
+          "monstre"
+        ],
+        "title": "CharacterKind"
+      },
+      "CharacterRead": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CharacterKind",
+            "default": "pj"
+          },
+          "creation_mode": {
+            "$ref": "#/components/schemas/CreationMode",
+            "default": "rules"
+          },
+          "species": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Species"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "attributes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Attribute"
+            },
+            "type": "object",
+            "title": "Attributes",
+            "default": {}
+          },
+          "magic": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Magic",
+            "default": 0
+          },
+          "bottes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Bottes",
+            "default": 0
+          },
+          "roles": {
+            "$ref": "#/components/schemas/Roles",
+            "default": {
+              "primary": [],
+              "secondary": []
+            }
+          },
+          "skill_groups": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SkillScore"
+            },
+            "type": "object",
+            "title": "Skill Groups",
+            "default": {}
+          },
+          "skills": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SkillScore"
+            },
+            "type": "object",
+            "title": "Skills",
+            "default": {}
+          },
+          "pools": {
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            "type": "object",
+            "title": "Pools",
+            "default": {}
+          },
+          "knowledges": {
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            "propertyNames": {
+              "maxLength": 100,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Knowledges",
+            "default": {}
+          },
+          "mana": {
+            "$ref": "#/components/schemas/Mana",
+            "default": {
+              "current": 0,
+              "max": 0
+            }
+          },
+          "resources": {
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            "type": "object",
+            "title": "Resources",
+            "default": {}
+          },
+          "selections": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/SelectionItem"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Selections",
+            "default": {}
+          },
+          "equipment": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Equipment",
+            "default": []
+          },
+          "relations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Relations",
+            "default": []
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes",
+            "default": ""
+          },
+          "creation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Creation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "CharacterRead"
+      },
+      "CharacterUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CharacterKind",
+            "default": "pj"
+          },
+          "creation_mode": {
+            "$ref": "#/components/schemas/CreationMode",
+            "default": "rules"
+          },
+          "species": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Species"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "attributes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Attribute"
+            },
+            "type": "object",
+            "title": "Attributes",
+            "default": {}
+          },
+          "magic": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Magic",
+            "default": 0
+          },
+          "bottes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Bottes",
+            "default": 0
+          },
+          "roles": {
+            "$ref": "#/components/schemas/Roles",
+            "default": {
+              "primary": [],
+              "secondary": []
+            }
+          },
+          "skill_groups": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SkillScore"
+            },
+            "type": "object",
+            "title": "Skill Groups",
+            "default": {}
+          },
+          "skills": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SkillScore"
+            },
+            "type": "object",
+            "title": "Skills",
+            "default": {}
+          },
+          "pools": {
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            "type": "object",
+            "title": "Pools",
+            "default": {}
+          },
+          "knowledges": {
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            "propertyNames": {
+              "maxLength": 100,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Knowledges",
+            "default": {}
+          },
+          "mana": {
+            "$ref": "#/components/schemas/Mana",
+            "default": {
+              "current": 0,
+              "max": 0
+            }
+          },
+          "resources": {
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            "type": "object",
+            "title": "Resources",
+            "default": {}
+          },
+          "selections": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/SelectionItem"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Selections",
+            "default": {}
+          },
+          "equipment": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Equipment",
+            "default": []
+          },
+          "relations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Relations",
+            "default": []
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes",
+            "default": ""
+          },
+          "creation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Creation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "CharacterUpdate",
+        "description": "PATCH : seuls les champs envoyés sont modifiés."
+      },
+      "Choice": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "enum": [
+              "skill",
+              "skill_group",
+              "knowledge"
+            ],
+            "title": "Target",
+            "default": "skill"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Options",
+            "default": []
+          },
+          "from_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Group"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Count",
+            "description": "Nombre d'éléments à choisir ; chacun reçoit `points`.",
+            "default": 1
+          },
+          "allow_repeat": {
+            "type": "boolean",
+            "title": "Allow Repeat",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "Choice",
+        "description": "Ce parmi quoi le joueur choisit.\n\nSans `options` ni `from_group` : tout le catalogue de `target`. Pour une connaissance, le choix\nest libre (le joueur écrit l'intitulé). Avec `allow_repeat`, le même élément peut être choisi\nplusieurs fois : c'est une répartition libre de `count` × `points`."
+      },
+      "ChoiceState": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "source_label": {
+            "type": "string",
+            "title": "Source Label"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points"
+          },
+          "target": {
+            "type": "string",
+            "enum": [
+              "skill",
+              "skill_group",
+              "knowledge"
+            ],
+            "title": "Target"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "allow_repeat": {
+            "type": "boolean",
+            "title": "Allow Repeat"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "picked": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Picked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "source_label",
+          "points",
+          "target",
+          "count",
+          "allow_repeat",
+          "options",
+          "picked"
+        ],
+        "title": "ChoiceState"
+      },
+      "Creation": {
+        "properties": {
+          "priorities": {
+            "$ref": "#/components/schemas/Priorities",
+            "default": {}
+          },
+          "extra_pc": {
+            "$ref": "#/components/schemas/ExtraPC",
+            "default": {
+              "relations": 0,
+              "magic": 0,
+              "bottes": 0
+            }
+          },
+          "money_spent": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Money Spent",
+            "default": 0
+          },
+          "role_choices": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Role Choices",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "title": "Creation",
+        "description": "Choix faits pendant la création selon les règles. Absent pour une saisie libre."
+      },
+      "CreationMode": {
+        "type": "string",
+        "enum": [
+          "rules",
+          "free"
+        ],
+        "title": "CreationMode",
+        "description": "`rules` : créé selon les règles de création, et vérifié. `free` : saisie libre (monstres, PNJ...)."
+      },
+      "ExtraPC": {
+        "properties": {
+          "relations": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Relations",
+            "default": 0
+          },
+          "magic": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Magic",
+            "default": 0
+          },
+          "bottes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Bottes",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "ExtraPC",
+        "description": "PC restants après les priorités, dépensés en relations, Magie ou bottes."
+      },
+      "Grant": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Obligatoire pour un choix : sert de clé dans `role_choices`."
+          },
+          "points": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Points"
+          },
+          "skill": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill"
+          },
+          "skill_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Group"
+          },
+          "knowledge": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Knowledge"
+          },
+          "stat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stat"
+          },
+          "choice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Choice"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Précision affichée, ex. « (sabre ou épée) » pour des bottes."
+          },
+          "imposed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Imposed",
+            "description": "Éléments du catalogue imposés parmi ceux que donne la stat, ex. la langue runique de l'Exorciste.",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "points"
+        ],
+        "title": "Grant"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Issue": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "message"
+        ],
+        "title": "Issue"
+      },
+      "Mana": {
+        "properties": {
+          "current": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Current",
+            "default": 0
+          },
+          "max": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Max",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "Mana",
+        "description": "Ressource commune à la magie et à la religion."
+      },
+      "Priorities": {
+        "properties": {
+          "roles": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attributes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "skill_groups": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "money": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "Priorities"
+      },
+      "Priority": {
+        "type": "string",
+        "enum": [
+          "A",
+          "B",
+          "C",
+          "D",
+          "E"
+        ],
+        "title": "Priority"
+      },
+      "PriorityRow": {
+        "properties": {
+          "cost": {
+            "type": "integer",
+            "title": "Cost"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/RoleCombo"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "attributes": {
+            "type": "integer",
+            "title": "Attributes"
+          },
+          "skill_groups": {
+            "type": "integer",
+            "title": "Skill Groups"
+          },
+          "money": {
+            "type": "integer",
+            "title": "Money"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cost",
+          "roles",
+          "attributes",
+          "skill_groups",
+          "money"
+        ],
+        "title": "PriorityRow"
+      },
+      "ResourceDef": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "count",
+              "min_total",
+              "score"
+            ],
+            "title": "Kind"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "kind",
+          "group"
+        ],
+        "title": "ResourceDef",
+        "description": "Comment une ressource s'utilise.\n\n- `count` : donne accès à autant de choix (N sorts, N langues...), stockés dans `selections` ;\n- `min_total` : limite que la somme des valeurs choisies doit atteindre ou dépasser (codes) ;\n- `score` : simple valeur, plafonnée par `max` (piété).\nLes choix sont des intitulés libres en attendant les catalogues (sorts, langues, dieux, codes...)."
+      },
+      "Role": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "primary": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Grant"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary"
+          },
+          "secondary": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Grant"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secondary"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "secondary_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secondary Value"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "category"
+        ],
+        "title": "Role"
+      },
+      "RoleCombo": {
+        "properties": {
+          "primary": {
+            "type": "integer",
+            "title": "Primary"
+          },
+          "secondary": {
+            "type": "integer",
+            "title": "Secondary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "primary",
+          "secondary"
+        ],
+        "title": "RoleCombo"
+      },
+      "RolePoints": {
+        "properties": {
+          "skills": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Skills",
+            "default": {}
+          },
+          "skill_groups": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Skill Groups",
+            "default": {}
+          },
+          "knowledges": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Knowledges",
+            "default": {}
+          },
+          "stats": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Stats",
+            "default": {}
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes",
+            "default": []
+          },
+          "imposed": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Imposed",
+            "default": {}
+          },
+          "free_knowledge": {
+            "type": "integer",
+            "title": "Free Knowledge",
+            "default": 0
+          },
+          "totems": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Totems",
+            "default": []
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/ChoiceState"
+            },
+            "type": "array",
+            "title": "Choices",
+            "default": []
+          },
+          "unknown_roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unknown Roles",
+            "default": []
+          },
+          "invalid_ranks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Invalid Ranks",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "RolePoints",
+        "description": "Tout ce que les rôles d'un personnage lui donnent (minimums)."
+      },
+      "Roles": {
+        "properties": {
+          "primary": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Primary",
+            "default": []
+          },
+          "secondary": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Secondary",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "Roles"
+      },
+      "Rules": {
+        "properties": {
+          "start_pc": {
+            "type": "integer",
+            "title": "Start Pc"
+          },
+          "bottes_per_pc": {
+            "type": "integer",
+            "title": "Bottes Per Pc"
+          },
+          "attributes": {
+            "items": {
+              "$ref": "#/components/schemas/Attribute"
+            },
+            "type": "array",
+            "title": "Attributes"
+          },
+          "species_limits": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/AttributeLimit"
+              },
+              "propertyNames": {
+                "$ref": "#/components/schemas/Attribute"
+              },
+              "type": "object"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Species"
+            },
+            "type": "object",
+            "title": "Species Limits"
+          },
+          "priorities": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PriorityRow"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Priority"
+            },
+            "type": "object",
+            "title": "Priorities"
+          },
+          "skill_groups": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SkillGroup"
+            },
+            "type": "object",
+            "title": "Skill Groups"
+          },
+          "skill_pools": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SkillPool"
+            },
+            "type": "object",
+            "title": "Skill Pools"
+          },
+          "roles": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "type": "object",
+            "title": "Roles"
+          },
+          "role_categories": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Role Categories"
+          },
+          "common_trunks": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/Grant"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Common Trunks"
+          },
+          "stats": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Stats"
+          },
+          "resource_defs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ResourceDef"
+            },
+            "type": "object",
+            "title": "Resource Defs"
+          },
+          "catalogs": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/CatalogEntry"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Catalogs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_pc",
+          "bottes_per_pc",
+          "attributes",
+          "species_limits",
+          "priorities",
+          "skill_groups",
+          "skill_pools",
+          "roles",
+          "role_categories",
+          "common_trunks",
+          "stats",
+          "resource_defs",
+          "catalogs"
+        ],
+        "title": "Rules"
+      },
+      "SelectionItem": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "Valeur de l'élément, pour les ressources `min_total` (codes)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "SelectionItem",
+        "description": "Un élément choisi grâce à une ressource (un sort, une langue, un code...)."
+      },
+      "SkillGroup": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "skills": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Skills"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "skills"
+        ],
+        "title": "SkillGroup"
+      },
+      "SkillPool": {
+        "properties": {
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "per_point": {
+            "type": "integer",
+            "title": "Per Point"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group",
+          "label",
+          "per_point"
+        ],
+        "title": "SkillPool",
+        "description": "Réserve alimentée par les PCP d'un groupe : chaque PCP donne `per_point` (mana, connaissances)."
+      },
+      "SkillScore": {
+        "properties": {
+          "pcp": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Pcp",
+            "default": 0
+          },
+          "pcr": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Pcr",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "SkillScore",
+        "description": "Colonnes de la fiche : points purs (PCP) et points de rôle (PCR). Le total est calculé."
+      },
+      "Species": {
+        "type": "string",
+        "enum": [
+          "elfe",
+          "humain",
+          "kobold",
+          "nain",
+          "orc"
+        ],
+        "title": "Species"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "ValidationReport": {
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "title": "Valid"
+          },
+          "rules_checked": {
+            "type": "boolean",
+            "title": "Rules Checked"
+          },
+          "pc_total": {
+            "type": "integer",
+            "title": "Pc Total"
+          },
+          "pc_spent": {
+            "type": "integer",
+            "title": "Pc Spent"
+          },
+          "attribute_points_available": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribute Points Available"
+          },
+          "attribute_points_spent": {
+            "type": "integer",
+            "title": "Attribute Points Spent"
+          },
+          "skill_group_points_available": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Group Points Available"
+          },
+          "skill_group_points_spent": {
+            "type": "integer",
+            "title": "Skill Group Points Spent"
+          },
+          "money_available": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Money Available"
+          },
+          "role_points": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RolePoints"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role_points_outdated": {
+            "type": "boolean",
+            "title": "Role Points Outdated",
+            "default": false
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/Issue"
+            },
+            "type": "array",
+            "title": "Issues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "valid",
+          "rules_checked",
+          "pc_total",
+          "pc_spent",
+          "attribute_points_available",
+          "attribute_points_spent",
+          "skill_group_points_available",
+          "skill_group_points_spent",
+          "money_available",
+          "issues"
+        ],
+        "title": "ValidationReport"
+      }
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc --noEmit -p tsconfig.json)",
+      "Bash(npx tsc --noEmit -p .)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(aws logs filter-log-events *)",
+      "Bash(.venv/bin/pytest *)",
+      "Bash(.venv/bin/alembic upgrade *)",
+      "Bash(.venv/bin/alembic downgrade *)",
+      "Bash(.venv/bin/alembic check)",
+      "Bash(.venv/bin/alembic revision *)",
+      "Bash(npm run -s build)",
+      "Bash(npm run -s gen:api)",
+      "Bash(docker compose up *)",
+      "Bash(docker compose ps *)",
+      "Bash(docker compose logs *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-after-edit.sh",
+            "timeout": 120,
+            "statusMessage": "Vérification (pytest / tsc)…"
+          }
+        ]
+      }
+    ]
+  }
+}

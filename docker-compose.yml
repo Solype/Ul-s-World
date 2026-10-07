@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: newmannheim
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-newmannheim}
+      POSTGRES_DB: newmannheim
+    ports:
+      # Accès depuis la machine hôte (DBeaver, psql...), limité à localhost.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U newmannheim"]
+      interval: 2s
+      retries: 20
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://newmannheim:${POSTGRES_PASSWORD:-newmannheim}@db:5432/newmannheim
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  db-data:

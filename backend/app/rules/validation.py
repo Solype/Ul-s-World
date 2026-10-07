@@ -1,0 +1,255 @@
+"""Vérification d'un personnage contre les règles de création.
+
+Les fonctions ne lèvent pas d'erreur : elles renvoient la liste des problèmes, pour qu'un
+personnage puisse être sauvegardé en brouillon et complété étape par étape.
+
+Un personnage en saisie libre (`creation_mode = free`, typiquement un monstre ou un PNJ) n'est
+pas soumis aux règles de création : seule la cohérence avec le catalogue de compétences est vérifiée.
+
+Points de compétence de rôle (PCR) :
+- PNJ et monstres n'en ont pas : leurs compétences ont une seule valeur, stockée dans `pcp` ;
+- pour un PJ créé selon les règles, ils sont calculés à partir des rôles et des choix du joueur
+  (voir `rules/roles.py`), puis stockés. `role_points_outdated` indique que les PCR stockés ne
+  correspondent plus au calcul (rôles, choix ou catalogue modifiés) : la mise à jour est volontaire.
+"""
+
+from pydantic import BaseModel
+
+from app.rules.catalogs import CATALOGS
+from app.rules.data import (
+    ALL_SKILLS,
+    BOTTES_PER_PC,
+    PRIORITY_TABLE,
+    SKILL_GROUPS,
+    SKILL_LABELS,
+    SKILL_POOLS,
+    SPECIES_LIMITS,
+    START_PC,
+    Attribute,
+    Species,
+    group_level_cost,
+)
+from app.rules.role_model import RESOURCE_DEFS, RESOURCE_STATS, STATS
+from app.rules.roles import RolePoints, choice_is_valid, compute_role_points
+from app.schemas import CharacterBase, CharacterKind, Creation, CreationMode
+
+
+class Issue(BaseModel):
+    field: str
+    message: str
+
+
+class ValidationReport(BaseModel):
+    valid: bool
+    rules_checked: bool
+    pc_total: int
+    pc_spent: int
+    attribute_points_available: int | None
+    attribute_points_spent: int
+    skill_group_points_available: int | None
+    skill_group_points_spent: int
+    money_available: int | None
+    role_points: RolePoints | None = None
+    role_points_outdated: bool = False
+    issues: list[Issue]
+
+
+def validate_character(c: CharacterBase) -> ValidationReport:
+    issues: list[Issue] = []
+
+    def issue(field: str, message: str) -> None:
+        issues.append(Issue(field=field, message=message))
+
+    # --- Points de rôle (PCR) : PNJ et monstres n'en ont pas ---
+    if c.kind != CharacterKind.PJ:
+        for prefix, scores in (("skill_groups", c.skill_groups), ("skills", c.skills)):
+            for name, score in scores.items():
+                if score.pcr:
+                    issue(f"{prefix}.{name}", "Les PNJ et les monstres n'ont pas de points de compétence de rôle (PCR).")
+
+    # --- Catalogue : s'applique à tous les personnages ---
+    for group in c.skill_groups:
+        if group not in SKILL_GROUPS:
+            issue(f"skill_groups.{group}", "Groupe de compétence inconnu.")
+    for name in c.skills:
+        if name not in ALL_SKILLS:
+            issue(f"skills.{name}", "Compétence inconnue.")
+    for name in c.pools:
+        if name not in SKILL_POOLS:
+            issue(f"pools.{name}", "Réserve inconnue.")
+
+    if c.mana.current > c.mana.max:
+        issue("mana", f"Mana actuel ({c.mana.current}) supérieur au maximum ({c.mana.max}).")
+
+    # --- Ressources : choix ouverts (sorts, langues...), codes, piété ---
+    for key in c.selections:
+        if key not in RESOURCE_DEFS or RESOURCE_DEFS[key].kind == "score":
+            issue(f"selections.{key}", f"« {key} » ne donne pas accès à des choix.")
+    for key, res in RESOURCE_DEFS.items():
+        allowance = c.bottes if key == "bottes" else c.resources.get(key, 0)
+        items = c.selections.get(key, [])
+        if key in CATALOGS:
+            labels = {e.label for e in CATALOGS[key]}
+            names = [i.name for i in items]
+            for name in names:
+                if name not in labels:
+                    issue(f"selections.{key}", f"{res.label} : « {name} » n'est pas dans le catalogue.")
+            for name in sorted({n for n in names if names.count(n) > 1}):
+                issue(f"selections.{key}", f"{res.label} : « {name} » choisi plusieurs fois.")
+        if res.kind == "count":
+            if len(items) > allowance:
+                issue(f"selections.{key}", f"{res.label} : {len(items)} choisis pour {allowance} autorisés.")
+            elif len(items) < allowance:
+                issue(f"selections.{key}", f"{res.label} : encore {allowance - len(items)} à choisir.")
+        elif res.kind == "min_total" and allowance > 0:
+            total = sum(i.value or 0 for i in items)
+            if total < allowance:
+                issue(f"selections.{key}", f"{res.label} : valeur totale {total}, doit atteindre au moins {allowance}.")
+        elif res.kind == "score" and res.max is not None and allowance > res.max:
+            issue(f"resources.{key}", f"{res.label} : {allowance}, maximum {res.max}.")
+
+    attr_spent = sum(c.attributes.get(a, 0) for a in Attribute)
+    groups_spent = sum(group_level_cost(level.pcp) for level in c.skill_groups.values())
+
+    if c.creation_mode == CreationMode.FREE:
+        return ValidationReport(
+            valid=not issues,
+            rules_checked=False,
+            pc_total=START_PC,
+            pc_spent=0,
+            attribute_points_available=None,
+            attribute_points_spent=attr_spent,
+            skill_group_points_available=None,
+            skill_group_points_spent=groups_spent,
+            money_available=None,
+            issues=issues,
+        )
+
+    creation = c.creation or Creation()
+    p = creation.priorities
+    rows = {k: PRIORITY_TABLE[v] if v else None for k, v in p.model_dump().items()}
+    if any(v is None for v in rows.values()):
+        issue("creation.priorities", "Les quatre priorités doivent être choisies.")
+
+    # --- Points de création ---
+    extra = creation.extra_pc
+    pc_spent = sum(row["cost"] for row in rows.values() if row) + extra.relations + extra.magic + extra.bottes
+    if pc_spent > START_PC:
+        issue("creation.priorities", f"{pc_spent} PC dépensés pour {START_PC} disponibles.")
+
+    # --- Rôles ---
+    role_points = None
+    role_points_outdated = False
+    role_stats: dict[str, int] = {}
+    if c.kind == CharacterKind.PJ:
+        role_points = compute_role_points(c.roles.primary, c.roles.secondary, creation.role_choices,
+                                          [i.name for i in c.selections.get("animaux_totems", [])])
+        role_stats = role_points.stats
+        # Ce que donnent les rôles est un minimum : le joueur ne peut pas le retirer pour le mettre ailleurs.
+        for name, floor in role_points.knowledges.items():
+            if c.knowledges.get(name, 0) < floor:
+                issue(f"knowledges.{name}", f"Connaissance « {name} » : au moins {floor} (donné par les rôles).")
+        for key, required in role_points.imposed.items():
+            chosen = {i.name for i in c.selections.get(key, [])}
+            for item in required:
+                if item not in chosen:
+                    issue(f"selections.{key}", f"{RESOURCE_DEFS[key].label} : « {item} » est imposé par les rôles.")
+        for stat in RESOURCE_STATS:
+            floor = role_stats.get(stat, 0)
+            if c.resources.get(stat, 0) < floor:
+                issue(f"resources.{stat}", f"{STATS[stat]} : au moins {floor} (donné par les rôles).")
+        stored = (
+            {n: s.pcr for n, s in c.skills.items() if s.pcr},
+            {n: s.pcr for n, s in c.skill_groups.items() if s.pcr},
+        )
+        role_points_outdated = stored != (role_points.skills, role_points.skill_groups)
+        for key in role_points.unknown_roles:
+            issue("roles", f"« {key} » n'est pas un rôle du catalogue.")
+        for rank in role_points.invalid_ranks:
+            issue("roles", f"{rank} : ce rôle ne peut pas être pris à ce rang.")
+        for ch in role_points.choices:
+            if not choice_is_valid(ch.picked, ch.options, ch.count, ch.allow_repeat):
+                what = {"skill": "compétence", "skill_group": "groupe de compétence", "knowledge": "connaissance"}[ch.target]
+                names = {**SKILL_LABELS, **{g: grp["label"] for g, grp in SKILL_GROUPS.items()}}
+                among = f" parmi {', '.join(names.get(o, o) for o in ch.options)}" if ch.options else ""
+                verb = f"répartir {ch.count} point(s) en {what}" if ch.allow_repeat else f"choisir {ch.count} {what}(s)"
+                issue(f"creation.role_choices.{ch.key}", f"{ch.source_label} : {verb}{among}.")
+
+    # Magie et bottes : exactement ce que donnent les rôles + ce qui est acheté avec les PC restants.
+    expected_magic = role_stats.get("magic", 0) + extra.magic
+    if c.magic != expected_magic:
+        issue("magic", f"Magie attendue : {expected_magic} (rôles {role_stats.get('magic', 0)} + PC {extra.magic}), pas {c.magic}.")
+    expected_bottes = role_stats.get("bottes", 0) + extra.bottes * BOTTES_PER_PC
+    if c.bottes != expected_bottes:
+        issue("bottes", f"Bottes attendues : {expected_bottes} (rôles {role_stats.get('bottes', 0)} "
+                        f"+ {extra.bottes} PC × {BOTTES_PER_PC}), pas {c.bottes}.")
+    if rows["roles"]:
+        combo = (len(c.roles.primary), len(c.roles.secondary))
+        allowed = rows["roles"]["roles"]
+        if combo not in allowed:
+            txt = " ou ".join(f"{a}P+{b}S" for a, b in allowed)
+            issue("roles", f"Priorité {p.roles} : rôles attendus {txt}, reçus {combo[0]}P+{combo[1]}S.")
+
+    # --- Espèce et attributs ---
+    attr_available = rows["attributes"]["attributes"] if rows["attributes"] else None
+    if attr_available is not None and attr_spent != attr_available:
+        issue("attributes", f"{attr_spent} points d'attributs répartis pour {attr_available} disponibles.")
+    if c.species is None:
+        issue("species", "L'espèce doit être choisie.")
+    elif c.species not in Species:
+        issue("species", f"« {c.species} » n'est pas une espèce jouable ({', '.join(Species)}).")
+    else:
+        for attr, (lo, hi, _) in SPECIES_LIMITS[Species(c.species)].items():
+            value = c.attributes.get(attr, 0)
+            if not lo <= value <= hi:
+                issue(f"attributes.{attr}", f"{attr} = {value}, doit être entre {lo} et {hi} pour un {c.species}.")
+
+    # --- Groupes de compétence (PCP), y compris les réserves Mana et Connaissances ---
+    for group, level in c.skill_groups.items():
+        if group not in SKILL_GROUPS:
+            continue
+        skills_pcp = sum(s.pcp for name, s in c.skills.items() if ALL_SKILLS.get(name) == group)
+        skills_pcp += sum(c.pools.get(name, 0) for name, pool in SKILL_POOLS.items() if pool["group"] == group)
+        if skills_pcp != 2 * level.pcp:
+            issue(f"skill_groups.{group}",
+                  f"Niveau {level.pcp} : {2 * level.pcp} points à répartir dans les compétences, {skills_pcp} répartis.")
+    for name, pool in SKILL_POOLS.items():
+        if c.pools.get(name, 0) and not c.skill_groups.get(pool["group"]):
+            issue(f"pools.{name}", f"{pool['label']} : pas de niveau dans le groupe {SKILL_GROUPS[pool['group']]['label']}.")
+
+    # --- Mana et connaissances : rôles + PCP mis dans les réserves ---
+    mana_pool = c.pools.get("mana", 0) * SKILL_POOLS["mana"]["per_point"]
+    expected_mana = role_stats.get("mana", 0) + mana_pool
+    if c.mana.max != expected_mana:
+        issue("mana", f"Mana max attendu : {expected_mana} (rôles {role_stats.get('mana', 0)} + {mana_pool} par les PCP), pas {c.mana.max}.")
+    knowledge_floors = role_points.knowledges if role_points else {}
+    free_knowledge = sum(max(0, v - knowledge_floors.get(k, 0)) for k, v in c.knowledges.items())
+    totem_knowledge = role_points.free_knowledge if role_points else 0
+    expected_free = c.pools.get("connaissances", 0) * SKILL_POOLS["connaissances"]["per_point"] + totem_knowledge
+    if free_knowledge != expected_free:
+        bonus = f" + {totem_knowledge} par les animaux totems" if totem_knowledge else ""
+        issue("knowledges", f"Connaissances libres : {free_knowledge} point(s) répartis pour {expected_free} "
+                            f"(PCP en Connaissances × {SKILL_POOLS['connaissances']['per_point']}{bonus}).")
+    groups_available = rows["skill_groups"]["skill_groups"] if rows["skill_groups"] else None
+    if groups_available is not None and groups_spent > groups_available:
+        issue("skill_groups", f"{groups_spent} points de groupe dépensés pour {groups_available} disponibles.")
+
+    # --- Sous ---
+    money_available = rows["money"]["money"] if rows["money"] else None
+    if money_available is not None and creation.money_spent > money_available:
+        issue("creation.money_spent", f"{creation.money_spent} sous dépensés pour {money_available} disponibles.")
+
+    return ValidationReport(
+        valid=not issues,
+        rules_checked=True,
+        pc_total=START_PC,
+        pc_spent=pc_spent,
+        attribute_points_available=attr_available,
+        attribute_points_spent=attr_spent,
+        skill_group_points_available=groups_available,
+        skill_group_points_spent=groups_spent,
+        money_available=money_available,
+        role_points=role_points,
+        role_points_outdated=role_points_outdated,
+        issues=issues,
+    )
