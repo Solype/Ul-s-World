@@ -243,6 +243,11 @@ export interface components {
                 [key: string]: components["schemas"]["SelectionItem"][];
             };
             /**
+             * Traits
+             * @default []
+             */
+            traits?: components["schemas"]["TraitPick"][];
+            /**
              * Equipment
              * @default []
              */
@@ -344,6 +349,11 @@ export interface components {
             selections?: {
                 [key: string]: components["schemas"]["SelectionItem"][];
             };
+            /**
+             * Traits
+             * @default []
+             */
+            traits?: components["schemas"]["TraitPick"][];
             /**
              * Equipment
              * @default []
@@ -451,6 +461,11 @@ export interface components {
             selections?: {
                 [key: string]: components["schemas"]["SelectionItem"][];
             };
+            /**
+             * Traits
+             * @default []
+             */
+            traits?: components["schemas"]["TraitPick"][];
             /**
              * Equipment
              * @default []
@@ -568,6 +583,11 @@ export interface components {
             selections?: {
                 [key: string]: components["schemas"]["SelectionItem"][];
             };
+            /**
+             * Traits
+             * @default []
+             */
+            traits?: components["schemas"]["TraitPick"][];
             /**
              * Equipment
              * @default []
@@ -964,6 +984,10 @@ export interface components {
             catalogs: {
                 [key: string]: components["schemas"]["CatalogEntry"][];
             };
+            /** Traits */
+            traits: {
+                [key: string]: components["schemas"]["TraitDef"];
+            };
         };
         /**
          * SelectionItem
@@ -1020,6 +1044,191 @@ export interface components {
          * @enum {string}
          */
         Species: "elfe" | "humain" | "kobold" | "nain" | "orc";
+        /**
+         * TraitChoice
+         * @description Ce que le joueur choisit pour ce trait. `options` vide : tout le catalogue de `target`.
+         */
+        TraitChoice: {
+            /**
+             * Target
+             * @enum {string}
+             */
+            target: "attribute" | "skill_group" | "skill" | "species";
+            /** Label */
+            label: string;
+            /**
+             * Count
+             * @default 1
+             */
+            count?: number;
+            /**
+             * Options
+             * @default []
+             */
+            options?: string[];
+            /**
+             * Labels
+             * @default {}
+             */
+            labels?: {
+                [key: string]: string;
+            };
+        };
+        /** TraitDef */
+        TraitDef: {
+            /** Label */
+            label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "bonus" | "malus";
+            /** Effect */
+            effect: string;
+            /**
+             * Automated
+             * @description Ce que l'application calcule ou vérifie. Absent : effet descriptif.
+             */
+            automated?: string | null;
+            /** Variants */
+            variants: components["schemas"]["TraitVariant"][];
+            choice?: components["schemas"]["TraitChoice"] | null;
+            /**
+             * Note
+             * @description Intitulé d'une précision libre à saisir (objet de la phobie...).
+             */
+            note?: string | null;
+            /**
+             * Repeatable
+             * @default false
+             */
+            repeatable?: boolean;
+        };
+        /**
+         * TraitEffects
+         * @description Ce que les traits d'un personnage changent à la création.
+         */
+        TraitEffects: {
+            /**
+             * Pc
+             * @description PC gagnés (malus) moins PC dépensés (bonus).
+             * @default 0
+             */
+            pc?: number;
+            /**
+             * Attribute Points
+             * @description Points d'attribut en plus (Bénédiction de Terlema).
+             * @default 0
+             */
+            attribute_points?: number;
+            /**
+             * Attribute Limits
+             * @description Limites d'attributs à la création, traits compris. Absent sans espèce jouable.
+             */
+            attribute_limits?: {
+                [key: string]: components["schemas"]["AttributeLimit"];
+            } | null;
+            /**
+             * Lowest Max Attributes
+             * @description Choix possibles pour Attribut exceptionnel.
+             * @default []
+             */
+            lowest_max_attributes?: components["schemas"]["Attribute"][];
+            /**
+             * Forbidden Skills
+             * @description Compétences sans PCP possibles -> trait responsable.
+             * @default {}
+             */
+            forbidden_skills?: {
+                [key: string]: string;
+            };
+            /**
+             * Role Forbidden Skills
+             * @description Compétences dont les PCR des rôles sont ignorés.
+             * @default []
+             */
+            role_forbidden_skills?: string[];
+            /**
+             * Role Forbidden Groups
+             * @description Groupes dont les PCR des rôles sont ignorés.
+             * @default []
+             */
+            role_forbidden_groups?: string[];
+            /**
+             * No Magic
+             * @default false
+             */
+            no_magic?: boolean;
+            /**
+             * Money Zero
+             * @default false
+             */
+            money_zero?: boolean;
+            /**
+             * No Totem Bonus
+             * @default false
+             */
+            no_totem_bonus?: boolean;
+            /**
+             * Requires Mana
+             * @default false
+             */
+            requires_mana?: boolean;
+            /**
+             * Mana Bonus
+             * @description Mana max en plus (Demi-démon / demi-vengeur).
+             * @default 0
+             */
+            mana_bonus?: number;
+        };
+        /**
+         * TraitPick
+         * @description Un trait de personnage choisi (catalogue : rules/traits.py).
+         */
+        TraitPick: {
+            /** Key */
+            key: string;
+            /**
+             * Variant
+             * @description Variante, pour un trait à plusieurs coûts (Estropié : pied, main...).
+             */
+            variant?: string | null;
+            /**
+             * Choices
+             * @description Attribut, groupe, compétences ou espèce choisis, selon le trait.
+             * @default []
+             */
+            choices?: string[];
+            /**
+             * Rounded Up
+             * @description Hybride : attributs dont la demi-valeur est arrondie au-dessus.
+             * @default []
+             */
+            rounded_up?: components["schemas"]["Attribute"][];
+            /**
+             * Note
+             * @description Précision libre : objet de la phobie, toxine...
+             * @default
+             */
+            note?: string;
+        };
+        /** TraitVariant */
+        TraitVariant: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Pc
+             * @description Effet sur les PC disponibles : négatif pour un bonus (il coûte), positif pour un malus.
+             */
+            pc: number;
+            /**
+             * Choice Count
+             * @description Nombre de choix pour cette variante, s'il diffère de `choice.count`.
+             */
+            choice_count?: number | null;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -1059,6 +1268,7 @@ export interface components {
              * @default false
              */
             role_points_outdated?: boolean;
+            trait_effects?: components["schemas"]["TraitEffects"] | null;
             /** Issues */
             issues: components["schemas"]["Issue"][];
         };

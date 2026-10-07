@@ -67,6 +67,16 @@ class SelectionItem(BaseModel):
     value: int | None = Field(None, ge=0, description="Valeur de l'élément, pour les ressources `min_total` (codes).")
 
 
+class TraitPick(BaseModel):
+    """Un trait de personnage choisi (catalogue : rules/traits.py)."""
+
+    key: str
+    variant: str | None = Field(None, description="Variante, pour un trait à plusieurs coûts (Estropié : pied, main...).")
+    choices: list[str] = Field([], description="Attribut, groupe, compétences ou espèce choisis, selon le trait.")
+    rounded_up: list[Attribute] = Field([], description="Hybride : attributs dont la demi-valeur est arrondie au-dessus.")
+    note: str = Field("", max_length=200, description="Précision libre : objet de la phobie, toxine...")
+
+
 class Creation(BaseModel):
     """Choix faits pendant la création selon les règles. Absent pour une saisie libre."""
 
@@ -99,6 +109,7 @@ class CharacterBase(BaseModel):
     resources: dict[str, Annotated[int, Field(ge=0)]] = {}
     # Éléments choisis grâce aux ressources : clé de role_model.RESOURCE_DEFS -> éléments.
     selections: dict[str, list[SelectionItem]] = {}
+    traits: list[TraitPick] = []
     equipment: list[str] = []
     relations: list[str] = []
     notes: str = ""

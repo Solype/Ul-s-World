@@ -13,7 +13,11 @@ type Props = {
   /** Minimums donnés par les rôles : connaissances par intitulé, et mana maximum. */
   knowledgeFloors: Record<string, number>;
   /** Mode règles : mana max calculé, connaissances libres limitées. `null` en création libre. */
-  rules: { roleMana: number; totemMana: number; manaFromPool: number; freeKnowledge: number } | null;
+  rules: {
+    roleMana: number; totemMana: number; manaFromPool: number; freeKnowledge: number;
+    /** Mana donné par les traits (+100 pour un demi-démon / demi-vengeur). */
+    traitMana: number;
+  } | null;
   onChange: (patch: Pick<CharacterInput, "knowledges" | "mana">) => void;
 };
 
@@ -52,7 +56,8 @@ export default function KnowledgeAndMana({ character, knowledgeFloors, rules, on
     <div className="flex flex-col gap-5">
       <Field label="Mana max" hint={rules
         ? `Rôles ${rules.roleMana - rules.totemMana}${rules.totemMana ? ` + animaux totems ${rules.totemMana}` : ""}`
-          + ` + ${rules.manaFromPool} par les PCP mis dans « Mana » (Compétence magique). Commun à la magie et à la religion.`
+          + ` + ${rules.manaFromPool} par les PCP mis dans « Mana » (Compétence magique)`
+          + `${rules.traitMana ? ` + ${rules.traitMana} (demi-démon / demi-vengeur)` : ""}. Commun à la magie et à la religion.`
         : "Commun à la magie et à la religion."}>
         {rules ? (
           <NumberStepper value={mana.max ?? 0} readOnly className="w-20" />

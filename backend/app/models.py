@@ -40,6 +40,7 @@ class Character(Base):
     mana: Mapped[dict] = mapped_column(JSON, default=dict)
     resources: Mapped[dict] = mapped_column(JSON, default=dict)
     selections: Mapped[dict] = mapped_column(JSON, default=dict)
+    traits: Mapped[list] = mapped_column(JSON, default=list)
     equipment: Mapped[list] = mapped_column(JSON, default=list)
     relations: Mapped[list] = mapped_column(JSON, default=list)
     notes: Mapped[str] = mapped_column(Text, default="")

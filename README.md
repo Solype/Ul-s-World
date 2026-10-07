@@ -49,6 +49,9 @@ backend/app/
 ├── schemas.py           # schémas Pydantic de l'API (= ce qu'affiche /docs)
 ├── rules/
 │   ├── data.py          # ★ données des règles : espèces, priorités, compétences
+│   ├── roles_catalog.py # ★ catalogue des rôles (refdoc/Roles.pdf)
+│   ├── catalogs.py      # ★ langues et animaux totems (refdoc/Langues.pdf)
+│   ├── traits.py        # ★ traits de personnage et calcul de leurs effets (refdoc/Traits de personnage.pdf)
 │   └── validation.py    # vérification d'un personnage contre les règles
 ├── api/
 │   ├── rules.py         # GET /api/rules, POST /api/rules/validate
@@ -68,6 +71,8 @@ backend/app/
   - l'espèce est un texte libre, mais elle doit être une espèce jouable en mode `rules`.
 - **Réserves Mana et Connaissances** (`SKILL_POOLS`, champ `pools`) : des PCP des groupes Compétence magique et Intellect y sont mis. Chaque PCP donne +15 au mana max, ou 2 points de connaissance libres.
 - **Les connaissances sont libres** (`knowledges` : intitulé → niveau). Ce sont les joueurs qui les définissent, pas le catalogue de compétences. **Le mana** (`mana` : actuel / max) est commun à la magie et à la religion. Voir `refdoc/infos.md`.
+- **Traits** (`traits`) : les bonus coûtent des PC, les malus en rapportent. Leurs effets chiffrés (PC, points et limites d'attributs, compétences inaccessibles, sous, mana) sont calculés par `rules/traits.py` et renvoyés dans le rapport de validation (`trait_effects`) : le frontend s'en sert pour ses limites, sans recoder les règles. Les interprétations du document sont dans `refdoc/infos.md`.
+- **Relations** (`relations`) : 1 PC restant = une relation (PNJ, lieu ou culture) ; en mode règles, leur nombre doit correspondre aux PC dépensés.
 - **Les données de la fiche sont stockées en JSON** (attributs, compétences, rôles…) : ajouter une compétence ne demande pas de migration. Le nom, l'espèce et les dates sont de vraies colonnes, pour pouvoir filtrer et trier.
 
 ## Frontend

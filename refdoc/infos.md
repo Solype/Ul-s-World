@@ -35,3 +35,20 @@ Décisions de conception qui ne figurent pas (ou pas clairement) dans les PDF de
 - Les **bonus des animaux totems sont des PCR** (comme ceux des rôles), y compris les +20 de mana du **Cerf**. Le **Serpent** (+2 connaissances) donne 2 points de connaissance libres en plus.
 - Restent descriptifs : la **Chouette** (vision nocturne), le **Loup** et le **Ratel** (bonus en combat sous condition), le **Crocodile** (effet en cours de discussion).
 - Les « x » à côté de certains animaux dans le document concernent l'amélioration ; ils ne sont pas repris.
+
+## Traits de personnage (Traits de personnage.pdf)
+
+- Un trait **bonus coûte des PC**, un **malus en rapporte** : les PC de base (25) sont ajustés en conséquence. Le nombre de traits et de PC gagnés par les malus n'est **pas limité** (les traits sont validés avec le MJ).
+- **Variantes** : un trait à plusieurs coûts se prend dans une variante (Bénédiction de Terlema 1/2/3 PC → +1/3/5 points d'attribut ; Estropié pied/main +1, jambe/bras +2 ; Immunité naturelle -1 ou -2 ; Appelé par l'outre-monde -2, ou -3 avec les pouvoirs).
+- **Estropié** et **Immunité naturelle** peuvent être pris plusieurs fois (deux mains, plusieurs toxines) ; les autres traits une seule fois.
+- **Incompétent ! en combat** couvre les **trois groupes** de combat (à distance, artillerie, mêlée) : ni PCP ni PCR dans leurs compétences, les points donnés par les rôles sont ignorés.
+- **Sociopathe de haut niveau** : **désactivé** (commenté dans `backend/app/rules/traits.py`) tant que le trait n'est pas clarifié, voir fix.md.
+- **Asocial** : **aucun point** dans les compétences du groupe Sociale, pas même ceux des rôles (ils sont ignorés et mis à 0), **sauf Dressage** ; l'attribut Social est au minimum de l'espèce. **Incompatible avec Incompétent ! en Sociale**, qui met déjà ces compétences à 0.
+- **Ordre des modifications de limites d'attributs** : Hybride (limites moyennées) → Attribut exceptionnel (+3 au maximum) → Estropié (-3) → Aptitude (maximum = limite surhumaine) → Asocial (Social au minimum).
+- **Attribut exceptionnel** : seul le maximum augmente (pas le minimum ni la limite surhumaine).
+- **Hybride** : chaque espèce totalise 53 aux maximums ; le joueur choisit quels attributs à demi-valeur sont arrondis au-dessus (la moitié d'entre eux), minimum = maximum - 5, surhumain = maximum + 3.
+- **Demi-démon / demi-vengeur** : **+100 au mana max**, en plus du mana des rôles et des PCP de la réserve Mana. « Tout autre gain en mana est divisé par deux » désigne la **régénération** du mana (descriptif). Les autres effets sont descriptifs.
+- **Incompétent ! en Compétence magique avec une échelle de piété** : avoir de la Piété (> 0) laisse l'Absorption accessible.
+- **Hyperhidrose manafique** : « posséder une réserve de mana » = mana max supérieur à 0.
+- **Hostilité des esprits** : les animaux totems peuvent être choisis, mais leurs bonus ne sont pas comptés.
+- **Sans le sou** : les sous disponibles à la création tombent à 0, quelle que soit la priorité.

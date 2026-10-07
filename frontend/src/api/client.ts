@@ -17,3 +17,6 @@ export type CharacterKind = components["schemas"]["CharacterKind"];
 export type CreationMode = components["schemas"]["CreationMode"];
 export type Creation = components["schemas"]["Creation"];
 export type SkillScore = components["schemas"]["SkillScore"];
+export type TraitDef = components["schemas"]["TraitDef"];
+export type TraitPick = components["schemas"]["TraitPick"];
+export type TraitEffects = components["schemas"]["TraitEffects"];

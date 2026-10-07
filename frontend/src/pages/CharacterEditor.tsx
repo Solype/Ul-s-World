@@ -1,5 +1,5 @@
 import {
-  Activity, ArrowLeft, Backpack, BookOpen, CircleAlert, CircleCheck, Gem, ListOrdered, Loader2, Save, Shield,
+  Activity, ArrowLeft, Backpack, BookOpen, CircleAlert, CircleCheck, Drama, Gem, ListOrdered, Loader2, Save, Shield,
   Sparkles, UserRound,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -15,6 +15,7 @@ import RelationsField from "@/components/RelationsField";
 import RoleChoices from "@/components/RoleChoices";
 import RolePicker from "@/components/RolePicker";
 import SkillsSection from "@/components/SkillsSection";
+import TraitsSection from "@/components/TraitsSection";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,14 +29,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useRules } from "@/hooks/useRules";
 import { creationBudget } from "@/lib/budget";
+import { ATTRIBUTE_LABELS } from "@/lib/labels";
 import { applyRoleEffects, roleFloors } from "@/lib/roleEffects";
 import { cn } from "@/lib/utils";
 
 export const KIND_LABELS: Record<CharacterKind, string> = { pj: "PJ", pnj: "PNJ", monstre: "Monstre" };
-const ATTRIBUTE_LABELS: Record<Attribute, string> = {
-  resistance: "Résistance", force: "Force", agilite: "Agilité", dexterite: "Dextérité",
-  vivacite: "Vivacité", intellect: "Intellect", social: "Social",
-};
 const PRIORITY_FIELDS = [
   ["roles", "Rôles"],
   ["attributes", "Attributs"],
@@ -48,6 +46,7 @@ const NONE = "none";
 const SECTIONS = [
   { id: "identite", title: "Identité", icon: UserRound },
   { id: "priorites", title: "Priorités", icon: ListOrdered, rulesOnly: true },
+  { id: "traits", title: "Traits", icon: Drama },
   { id: "attributs", title: "Attributs", icon: Activity },
   { id: "roles", title: "Rôles", icon: Shield },
   { id: "competences", title: "Compétences", icon: BookOpen },
@@ -62,6 +61,7 @@ function sectionOf(field: string): SectionId {
   if (field === "creation.money_spent" || field === "relations") return "equipement";
   if (field.startsWith("creation.role_choices") || field === "roles") return "roles";
   if (field.startsWith("creation.priorities")) return "priorites";
+  if (field.startsWith("traits")) return "traits";
   if (field.startsWith("attributes") || field === "magic") return "attributs";
   if (field.startsWith("skill_groups") || field.startsWith("skills")) return "competences";
   if (field.startsWith("pools")) return "competences";
@@ -121,10 +121,13 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
   const rulesMode = c.creation_mode !== "free";
   const isPC = (c.kind ?? "pj") === "pj";
   // Points restants (mode règles uniquement) : bornent les boutons « + ».
-  const budget = rulesMode ? creationBudget(rules, c) : null;
+  const budget = rulesMode ? creationBudget(rules, c, report) : null;
   const creation: Creation = c.creation ?? {};
   const setCreation = (patch: Partial<Creation>) => set({ creation: { ...creation, ...patch } });
-  const limits = rulesMode && c.species ? rules.species_limits[c.species] : undefined;
+  // Limites d'attributs : celles calculées par le backend, traits compris (Aptitude, Hybride...).
+  const limits = rulesMode && c.species
+    ? report?.trait_effects?.attribute_limits ?? rules.species_limits[c.species]
+    : undefined;
   const issues = report?.issues ?? [];
   const issueFor = (field: string) => issues.find((i) => i.field === field)?.message;
   const issueCount = (section: SectionId) => issues.filter((i) => sectionOf(i.field) === section).length;
@@ -241,7 +244,8 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
           {/* Priorités */}
           {rulesMode && (
             <Section id="priorites" title="Priorités" icon={ListOrdered} issues={issueCount("priorites")}
-              description={`Chaque priorité coûte des points de création : ${report?.pc_spent ?? 0} / ${rules.start_pc} PC dépensés.`}>
+              description={`Chaque priorité coûte des points de création : ${report?.pc_spent ?? 0} / ${report?.pc_total ?? rules.start_pc} PC dépensés`
+                + (report && report.pc_total !== rules.start_pc ? ` (${rules.start_pc} de base, ${report.pc_total - rules.start_pc > 0 ? "+" : ""}${report.pc_total - rules.start_pc} par les traits).` : ".")}>
               <div className="flex flex-col gap-5">
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   {PRIORITY_FIELDS.map(([key, label]) => (
@@ -286,6 +290,13 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
               </div>
             </Section>
           )}
+
+          {/* Traits */}
+          <Section id="traits" title="Traits" icon={Drama} issues={issueCount("traits")}
+            description="Les bonus coûtent des PC, les malus en rapportent.">
+            <TraitsSection rules={rules} traits={c.traits ?? []} species={c.species} report={report} rulesMode={rulesMode}
+              onChange={(traits) => { setSyncRoles(true); set({ traits }); }} />
+          </Section>
 
           {/* Attributs */}
           <Section id="attributs" title="Attributs" icon={Activity} issues={issueCount("attributs")}
@@ -376,6 +387,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
                 totemMana: (report?.role_points?.totems ?? []).reduce(
                   (sum, t) => sum + (rules.catalogs.animaux_totems?.find((e) => e.label === t)?.mana ?? 0), 0),
                 manaFromPool: (c.pools?.mana ?? 0) * rules.skill_pools.mana.per_point,
+                traitMana: report?.trait_effects?.mana_bonus ?? 0,
                 freeKnowledge: (c.pools?.connaissances ?? 0) * rules.skill_pools.connaissances.per_point
                   + (report?.role_points?.free_knowledge ?? 0),
               } : null} />
@@ -391,7 +403,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
               {rulesMode && (
                 <Field label="Sous dépensés" hint={`Budget : ${report?.money_available ?? 0} sous (priorité « Sous »).`}>
                   <NumberStepper value={creation.money_spent ?? 0} className="w-32"
-                    max={creation.priorities?.money ? rules.priorities[creation.priorities.money].money : 0}
+                    max={report?.money_available ?? (creation.priorities?.money ? rules.priorities[creation.priorities.money].money : 0)}
                     onChange={(v) => setCreation({ money_spent: v })} />
                 </Field>
               )}

@@ -16,16 +16,11 @@ from app.rules import roles as roles_catalog
 from app.rules.catalogs import CATALOGS, CatalogEntry
 from app.rules.role_model import RESOURCE_DEFS, STATS, Grant, ResourceDef, Role
 from app.rules.roles import ROLE_CATEGORIES
+from app.rules.traits import TRAITS, AttributeLimit, TraitDef
 from app.rules.validation import ValidationReport, validate_character
 from app.schemas import CharacterBase
 
 router = APIRouter(prefix="/rules", tags=["rules"])
-
-
-class AttributeLimit(BaseModel):
-    min: int
-    max: int
-    superhuman: int
 
 
 class RoleCombo(BaseModel):
@@ -70,6 +65,8 @@ class Rules(BaseModel):
     resource_defs: dict[str, ResourceDef]
     # Choix fermés de certaines ressources (langues, animaux totems), stockés sous leur libellé.
     catalogs: dict[str, list[CatalogEntry]]
+    # Traits de personnage : bonus (coûtent des PC) et malus (en rapportent).
+    traits: dict[str, TraitDef]
 
 
 @router.get("", response_model=Rules, summary="Toutes les règles de création")
@@ -95,6 +92,7 @@ def get_rules() -> Rules:
         stats=STATS,
         resource_defs=RESOURCE_DEFS,
         catalogs=CATALOGS,
+        traits=TRAITS,
     )
 
 

@@ -93,15 +93,21 @@ def _sources(primary: list[str], secondary: list[str], points: RolePoints) -> li
 
 
 def compute_role_points(primary: list[str], secondary: list[str], role_choices: dict[str, list[str]],
-                        totems: list[str] | None = None) -> RolePoints:
+                        totems: list[str] | None = None, forbidden_skills: frozenset[str] | set[str] = frozenset(),
+                        forbidden_groups: frozenset[str] | set[str] = frozenset()) -> RolePoints:
     """Ce que donnent ces rôles avec ces choix. Les choix invalides ou incomplets ne rapportent rien
     (ils apparaissent dans `choices` pour que l'interface et la validation les signalent).
 
     Les bonus des animaux totems choisis (`totems`) comptent aussi comme des PCR : seuls les
-    totems du catalogue, sans doublon et dans la limite donnée par les rôles, sont comptés."""
+    totems du catalogue, sans doublon et dans la limite donnée par les rôles, sont comptés.
+
+    Les points sur des compétences ou groupes inaccessibles à cause des traits (`forbidden_*`,
+    ex. Incompétent !) sont ignorés."""
     result = RolePoints()
 
     def add(target: str, name: str, points: int) -> None:
+        if (target == "skill" and name in forbidden_skills) or (target == "skill_group" and name in forbidden_groups):
+            return
         bucket = {"skill": result.skills, "skill_group": result.skill_groups,
                   "knowledge": result.knowledges, "stat": result.stats}[target]
         bucket[name] = bucket.get(name, 0) + points

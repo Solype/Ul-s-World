@@ -1,10 +1,11 @@
-import { Lock } from "lucide-react";
+import { Ban, Lock } from "lucide-react";
 import type { CharacterInput, Rules, SkillScore, ValidationReport } from "@/api/client";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { creationBudget, groupCost, maxGroupLevel } from "@/lib/budget";
+import { manaMax } from "@/lib/roleEffects";
 import { cn } from "@/lib/utils";
 import NumberStepper from "./NumberStepper";
 
@@ -15,7 +16,7 @@ type Props = {
   character: CharacterInput;
   report: ValidationReport | null;
   onChange: (patch: Pick<CharacterInput, "skill_groups" | "skills" | "pools" | "mana">) => void;
-  /** Mana donné par les rôles : le mana max vaut ce mana + les PCP mis dans la réserve Mana. */
+  /** Mana donné par les rôles : le mana max vaut ce mana + les PCP mis dans la réserve Mana (voir `manaMax`). */
   roleMana: number;
   /** PCR affichés en mode règles : ceux enregistrés, ou ceux calculés à partir des rôles. */
   pcrSource: "stored" | "computed";
@@ -45,14 +46,16 @@ export default function SkillsSection({ rules, character, report, onChange, pcrS
     const next = { ...pools, [name]: value };
     // Mode règles : le mana max suit la réserve Mana (même calcul que le backend).
     const mana = name === "mana" && rulesMode
-      ? { mana: { ...character.mana, max: roleMana + value * rules.skill_pools.mana.per_point } }
+      ? { mana: { ...character.mana, max: manaMax(rules, roleMana, value, report?.trait_effects) } }
       : {};
     onChange({ pools: next, ...mana });
   };
   const pcr = (s: string) =>
     pcrLocked && pcrSource === "computed" ? report?.role_points?.skills?.[s] ?? 0 : skills[s]?.pcr ?? 0;
   // Mode règles : les « + » sont bornés par les points de groupe restants et les PCP à répartir.
-  const groupsLeft = rulesMode ? creationBudget(rules, character).groupsLeft : null;
+  const groupsLeft = rulesMode ? creationBudget(rules, character, report).groupsLeft : null;
+  // Compétences rendues inaccessibles par un trait (Incompétent !, Asocial...) -> trait responsable.
+  const forbidden: Record<string, string> = report?.trait_effects?.forbidden_skills ?? {};
 
   const setGroup = (g: string, level: number) =>
     onChange({ skill_groups: { ...groups, [g]: { ...groups[g], pcp: level } } });
@@ -127,12 +130,22 @@ export default function SkillsSection({ rules, character, report, onChange, pcrS
                 {Object.entries(group.skills).map(([s, label]) => {
                   const score = skills[s] ?? {};
                   const total = (score.pcp ?? 0) + (isPC ? pcr(s) : 0);
+                  const blockedBy = forbidden[s];
                   return (
                     <TableRow key={s}>
-                      <TableCell className={cn(total > 0 && "font-medium")}>{label}</TableCell>
+                      <TableCell className={cn(total > 0 && "font-medium", blockedBy && "text-muted-foreground")}>
+                        {blockedBy ? (
+                          <Tooltip>
+                            <TooltipTrigger className="inline-flex items-center gap-1.5 line-through decoration-muted-foreground/60">
+                              <Ban className="size-3.5" />{label}
+                            </TooltipTrigger>
+                            <TooltipContent>Inaccessible : trait « {blockedBy} »</TooltipContent>
+                          </Tooltip>
+                        ) : label}
+                      </TableCell>
                       <TableCell>
                         <NumberStepper value={score.pcp ?? 0}
-                          max={rulesMode ? (score.pcp ?? 0) + left : undefined}
+                          max={blockedBy ? score.pcp ?? 0 : rulesMode ? (score.pcp ?? 0) + left : undefined}
                           onChange={(v) => setSkill(s, "pcp", v)} />
                       </TableCell>
                       {isPC && (

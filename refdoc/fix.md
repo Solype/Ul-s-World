@@ -39,3 +39,13 @@
 1. **Crocodile** : effet incomplet (« +1 »), en cours de discussion.
 2. **Compétences absentes de la fiche** : Araignée (+1 en piège), Ours (+1 en pêche), Tigre (+1 en pistage). Ces bonus restent descriptifs tant que la compétence n'existe pas.
 3. **Coquilles** : « ne peut cependant pas excédé » → « excéder » ; « ne requiert plus » → « requièrent » ; « le sort se se finira » → « se finira » ; « Fourmis » → « Fourmi » ; « (+1 acr) » → « +1 en acrobatie » ; « (le lanceur doit posséder au moins 1 de ma) » → « 1 de mana ».
+
+## Traits de personnage.pdf
+
+1. **Sommaire incohérent** : il annonce « Addiction » dans les malus, alors que le texte contient deux traits, « Dépendant » et « Addict » ; « Sans le sous » n'est pas à sa place alphabétique.
+2. **Sociopathe de haut niveau** (désactivé dans l'application en attendant une décision) : « les compétences vous sont inaccessibles » ne dit pas lesquelles (toutes ? les sociales ?) ; « Persuasion » n'existe pas sur la fiche (Argumentation ?) ; « -1/-2 PC » pour « 2/4 » compétences : le trait le plus cher laisse plus de compétences accessibles, ce qui est incohérent pour un bonus. À réécrire ou à retirer.
+3. **Incompétent !** : « le combat en général » ne correspond à aucun groupe de la fiche (trois groupes de combat).
+4. **Demi-démon** : « tout autre gain en mana est divisé par deux » → préciser qu'il s'agit de la **régénération** du mana, et que les 100 de mana **s'ajoutent** au mana des rôles et des PCP.
+5. **Asocial** : « Vous ne pouvez pas mettre de point de compétence dans votre groupe de compétence Social » → préciser que **les points des rôles sont aussi ignorés et mis à 0** (sauf Dressage) ; « groupe Social » → « groupe Sociale » (nom sur la fiche).
+6. **Compétence absente** : Estropié cite le « crochetage », absent de la fiche.
+7. **Coquilles** : « Immunité naturel » → « naturelle » ; « Résistance aux pathogène » → « pathogènes » ; « Stigmates divin » → « divins » ; « Trippe » → « Tripes » ; « Sans le sous » → « sou » ; « Incompétant » → « Incompétent » ; « personage » → « personnage » ; « parmis » → « parmi » ; « fourbent » → « fourbes » ; « sourit » → « souri » ; « es-ce » → « est-ce » ; « vous ête pauvres » → « êtes pauvre » ; « vos circonstance » → « vos circonstances » ; « la priorité sélectionné » → « sélectionnée » ; « vous à mis » → « vous a mis » ; « vous gagner » → « vous gagnez » ; « avez payez » → « avez payé » ; « tout ceux » → « tous ceux » ; « affecte pas » → « affectent pas » ; « chaire » → « chair » ; « portes leurs yeux » → « portent leurs yeux » ; « 2 main » → « 2 mains ».

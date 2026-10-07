@@ -584,6 +584,14 @@
             "title": "Selections",
             "default": {}
           },
+          "traits": {
+            "items": {
+              "$ref": "#/components/schemas/TraitPick"
+            },
+            "type": "array",
+            "title": "Traits",
+            "default": []
+          },
           "equipment": {
             "items": {
               "type": "string"
@@ -756,6 +764,14 @@
             "type": "object",
             "title": "Selections",
             "default": {}
+          },
+          "traits": {
+            "items": {
+              "$ref": "#/components/schemas/TraitPick"
+            },
+            "type": "array",
+            "title": "Traits",
+            "default": []
           },
           "equipment": {
             "items": {
@@ -938,6 +954,14 @@
             "type": "object",
             "title": "Selections",
             "default": {}
+          },
+          "traits": {
+            "items": {
+              "$ref": "#/components/schemas/TraitPick"
+            },
+            "type": "array",
+            "title": "Traits",
+            "default": []
           },
           "equipment": {
             "items": {
@@ -1135,6 +1159,14 @@
             "type": "object",
             "title": "Selections",
             "default": {}
+          },
+          "traits": {
+            "items": {
+              "$ref": "#/components/schemas/TraitPick"
+            },
+            "type": "array",
+            "title": "Traits",
+            "default": []
           },
           "equipment": {
             "items": {
@@ -1956,6 +1988,13 @@
             },
             "type": "object",
             "title": "Catalogs"
+          },
+          "traits": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/TraitDef"
+            },
+            "type": "object",
+            "title": "Traits"
           }
         },
         "type": "object",
@@ -1972,7 +2011,8 @@
           "common_trunks",
           "stats",
           "resource_defs",
-          "catalogs"
+          "catalogs",
+          "traits"
         ],
         "title": "Rules"
       },
@@ -2079,6 +2119,312 @@
           "orc"
         ],
         "title": "Species"
+      },
+      "TraitChoice": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "enum": [
+              "attribute",
+              "skill_group",
+              "skill",
+              "species"
+            ],
+            "title": "Target"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 1
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Options",
+            "default": []
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Labels",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "target",
+          "label"
+        ],
+        "title": "TraitChoice",
+        "description": "Ce que le joueur choisit pour ce trait. `options` vide : tout le catalogue de `target`."
+      },
+      "TraitDef": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "bonus",
+              "malus"
+            ],
+            "title": "Kind"
+          },
+          "effect": {
+            "type": "string",
+            "title": "Effect"
+          },
+          "automated": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Automated",
+            "description": "Ce que l'application calcule ou vérifie. Absent : effet descriptif."
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/TraitVariant"
+            },
+            "type": "array",
+            "title": "Variants"
+          },
+          "choice": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TraitChoice"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Intitulé d'une précision libre à saisir (objet de la phobie...)."
+          },
+          "repeatable": {
+            "type": "boolean",
+            "title": "Repeatable",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "kind",
+          "effect",
+          "variants"
+        ],
+        "title": "TraitDef"
+      },
+      "TraitEffects": {
+        "properties": {
+          "pc": {
+            "type": "integer",
+            "title": "Pc",
+            "description": "PC gagnés (malus) moins PC dépensés (bonus).",
+            "default": 0
+          },
+          "attribute_points": {
+            "type": "integer",
+            "title": "Attribute Points",
+            "description": "Points d'attribut en plus (Bénédiction de Terlema).",
+            "default": 0
+          },
+          "attribute_limits": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/AttributeLimit"
+                },
+                "propertyNames": {
+                  "$ref": "#/components/schemas/Attribute"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribute Limits",
+            "description": "Limites d'attributs à la création, traits compris. Absent sans espèce jouable."
+          },
+          "lowest_max_attributes": {
+            "items": {
+              "$ref": "#/components/schemas/Attribute"
+            },
+            "type": "array",
+            "title": "Lowest Max Attributes",
+            "description": "Choix possibles pour Attribut exceptionnel.",
+            "default": []
+          },
+          "forbidden_skills": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Forbidden Skills",
+            "description": "Compétences sans PCP possibles -> trait responsable.",
+            "default": {}
+          },
+          "role_forbidden_skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Role Forbidden Skills",
+            "description": "Compétences dont les PCR des rôles sont ignorés.",
+            "default": []
+          },
+          "role_forbidden_groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Role Forbidden Groups",
+            "description": "Groupes dont les PCR des rôles sont ignorés.",
+            "default": []
+          },
+          "no_magic": {
+            "type": "boolean",
+            "title": "No Magic",
+            "default": false
+          },
+          "money_zero": {
+            "type": "boolean",
+            "title": "Money Zero",
+            "default": false
+          },
+          "no_totem_bonus": {
+            "type": "boolean",
+            "title": "No Totem Bonus",
+            "default": false
+          },
+          "requires_mana": {
+            "type": "boolean",
+            "title": "Requires Mana",
+            "default": false
+          },
+          "mana_bonus": {
+            "type": "integer",
+            "title": "Mana Bonus",
+            "description": "Mana max en plus (Demi-démon / demi-vengeur).",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "TraitEffects",
+        "description": "Ce que les traits d'un personnage changent à la création."
+      },
+      "TraitPick": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "variant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant",
+            "description": "Variante, pour un trait à plusieurs coûts (Estropié : pied, main...)."
+          },
+          "choices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Choices",
+            "description": "Attribut, groupe, compétences ou espèce choisis, selon le trait.",
+            "default": []
+          },
+          "rounded_up": {
+            "items": {
+              "$ref": "#/components/schemas/Attribute"
+            },
+            "type": "array",
+            "title": "Rounded Up",
+            "description": "Hybride : attributs dont la demi-valeur est arrondie au-dessus.",
+            "default": []
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Note",
+            "description": "Précision libre : objet de la phobie, toxine...",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "title": "TraitPick",
+        "description": "Un trait de personnage choisi (catalogue : rules/traits.py)."
+      },
+      "TraitVariant": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "pc": {
+            "type": "integer",
+            "title": "Pc",
+            "description": "Effet sur les PC disponibles : négatif pour un bonus (il coûte), positif pour un malus."
+          },
+          "choice_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Choice Count",
+            "description": "Nombre de choix pour cette variante, s'il diffère de `choice.count`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "pc"
+        ],
+        "title": "TraitVariant"
       },
       "ValidationError": {
         "properties": {
@@ -2193,6 +2539,16 @@
             "type": "boolean",
             "title": "Role Points Outdated",
             "default": false
+          },
+          "trait_effects": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TraitEffects"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "issues": {
             "items": {

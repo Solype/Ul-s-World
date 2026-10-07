@@ -31,6 +31,7 @@ from app.rules.data import (
 )
 from app.rules.role_model import RESOURCE_DEFS, RESOURCE_STATS, STATS
 from app.rules.roles import RolePoints, choice_is_valid, compute_role_points
+from app.rules.traits import TRAITS, TraitEffects, expected_mana_max, trait_effects
 from app.schemas import CharacterBase, CharacterKind, Creation, CreationMode
 
 
@@ -51,6 +52,8 @@ class ValidationReport(BaseModel):
     money_available: int | None
     role_points: RolePoints | None = None
     role_points_outdated: bool = False
+    # Effets des traits (mode règles) : limites d'attributs, compétences inaccessibles...
+    trait_effects: TraitEffects | None = None
     issues: list[Issue]
 
 
@@ -108,6 +111,11 @@ def validate_character(c: CharacterBase) -> ValidationReport:
         elif res.kind == "score" and res.max is not None and allowance > res.max:
             issue(f"resources.{key}", f"{res.label} : {allowance}, maximum {res.max}.")
 
+    # --- Traits : saisie vérifiée pour tous ; leurs effets ne s'appliquent qu'en mode règles ---
+    fx, trait_issues = trait_effects(c.traits, c.species, c.resources.get("piete", 0))
+    for field, message in trait_issues:
+        issue(field, message)
+
     attr_spent = sum(c.attributes.get(a, 0) for a in Attribute)
     groups_spent = sum(group_level_cost(level.pcp) for level in c.skill_groups.values())
 
@@ -134,9 +142,11 @@ def validate_character(c: CharacterBase) -> ValidationReport:
     # --- Points de création ---
     # Une même lettre peut servir à plusieurs priorités : l'exemple du document est A|A|D|E.
     extra = creation.extra_pc
+    pc_total = START_PC + fx.pc
     pc_spent = sum(row["cost"] for row in rows.values() if row) + extra.relations + extra.magic + extra.bottes
-    if pc_spent > START_PC:
-        issue("creation.priorities", f"{pc_spent} PC dépensés pour {START_PC} disponibles.")
+    if pc_spent > pc_total:
+        traits_txt = f" ({START_PC} {fx.pc:+d} par les traits)" if fx.pc else ""
+        issue("creation.priorities", f"{pc_spent} PC dépensés pour {pc_total} disponibles{traits_txt}.")
     # 1 PC restant = une relation (un PNJ, un lieu ou une culture), à déclarer au MJ.
     declared = [r for r in c.relations if r.strip()]
     if len(declared) > extra.relations:
@@ -149,8 +159,10 @@ def validate_character(c: CharacterBase) -> ValidationReport:
     role_points_outdated = False
     role_stats: dict[str, int] = {}
     if c.kind == CharacterKind.PJ:
-        role_points = compute_role_points(c.roles.primary, c.roles.secondary, creation.role_choices,
-                                          [i.name for i in c.selections.get("animaux_totems", [])])
+        role_points = compute_role_points(
+            c.roles.primary, c.roles.secondary, creation.role_choices,
+            [] if fx.no_totem_bonus else [i.name for i in c.selections.get("animaux_totems", [])],
+            set(fx.role_forbidden_skills), set(fx.role_forbidden_groups))
         role_stats = role_points.stats
         # Ce que donnent les rôles est un minimum : le joueur ne peut pas le retirer pour le mettre ailleurs.
         for name, floor in role_points.knowledges.items():
@@ -186,6 +198,8 @@ def validate_character(c: CharacterBase) -> ValidationReport:
     expected_magic = role_stats.get("magic", 0) + extra.magic
     if c.magic != expected_magic:
         issue("magic", f"Magie attendue : {expected_magic} (rôles {role_stats.get('magic', 0)} + PC {extra.magic}), pas {c.magic}.")
+    if fx.no_magic and c.magic:
+        issue("magic", f"Résistance à la magie : Magie doit rester à 0 (rôles et PC compris), pas {c.magic}.")
     expected_bottes = role_stats.get("bottes", 0) + extra.bottes * BOTTES_PER_PC
     if c.bottes != expected_bottes:
         issue("bottes", f"Bottes attendues : {expected_bottes} (rôles {role_stats.get('bottes', 0)} "
@@ -198,7 +212,7 @@ def validate_character(c: CharacterBase) -> ValidationReport:
             issue("roles", f"Priorité {p.roles} : rôles attendus {txt}, reçus {combo[0]}P+{combo[1]}S.")
 
     # --- Espèce et attributs ---
-    attr_available = rows["attributes"]["attributes"] if rows["attributes"] else None
+    attr_available = rows["attributes"]["attributes"] + fx.attribute_points if rows["attributes"] else None
     if attr_available is not None and attr_spent != attr_available:
         issue("attributes", f"{attr_spent} points d'attributs répartis pour {attr_available} disponibles.")
     if c.species is None:
@@ -206,10 +220,19 @@ def validate_character(c: CharacterBase) -> ValidationReport:
     elif c.species not in Species:
         issue("species", f"« {c.species} » n'est pas une espèce jouable ({', '.join(Species)}).")
     else:
-        for attr, (lo, hi, _) in SPECIES_LIMITS[Species(c.species)].items():
+        limits = fx.attribute_limits or {}
+        for attr, lim in limits.items():
             value = c.attributes.get(attr, 0)
-            if not lo <= value <= hi:
-                issue(f"attributes.{attr}", f"{attr} = {value}, doit être entre {lo} et {hi} pour un {c.species}.")
+            if not lim.min <= value <= lim.max:
+                base_lo, base_hi, _ = SPECIES_LIMITS[Species(c.species)][attr]
+                why = "" if (lim.min, lim.max) == (base_lo, base_hi) else " (traits compris)"
+                issue(f"attributes.{attr}", f"{attr} = {value}, doit être entre {lim.min} et {lim.max} pour un {c.species}{why}.")
+
+    # --- Compétences rendues inaccessibles par les traits ---
+    for name, trait in fx.forbidden_skills.items():
+        score = c.skills.get(name)
+        if score and score.pcp:
+            issue(f"skills.{name}", f"{SKILL_LABELS[name]} : inaccessible ({trait}), pas de PCP possible.")
 
     # --- Groupes de compétence (PCP), y compris les réserves Mana et Connaissances ---
     for group, level in c.skill_groups.items():
@@ -226,9 +249,14 @@ def validate_character(c: CharacterBase) -> ValidationReport:
 
     # --- Mana et connaissances : rôles + PCP mis dans les réserves ---
     mana_pool = c.pools.get("mana", 0) * SKILL_POOLS["mana"]["per_point"]
-    expected_mana = role_stats.get("mana", 0) + mana_pool
+    expected_mana = expected_mana_max(role_stats.get("mana", 0), mana_pool, fx)
     if c.mana.max != expected_mana:
-        issue("mana", f"Mana max attendu : {expected_mana} (rôles {role_stats.get('mana', 0)} + {mana_pool} par les PCP), pas {c.mana.max}.")
+        detail = f"rôles {role_stats.get('mana', 0)} + {mana_pool} par les PCP"
+        if fx.mana_bonus:
+            detail += f" + {fx.mana_bonus} par {TRAITS['demi_demon'].label}"
+        issue("mana", f"Mana max attendu : {expected_mana} ({detail}), pas {c.mana.max}.")
+    if fx.requires_mana and expected_mana == 0:
+        issue("traits", f"{TRAITS['hyperhidrose_manafique'].label} : il faut une réserve de mana (mana max > 0).")
     knowledge_floors = role_points.knowledges if role_points else {}
     free_knowledge = sum(max(0, v - knowledge_floors.get(k, 0)) for k, v in c.knowledges.items())
     totem_knowledge = role_points.free_knowledge if role_points else 0
@@ -242,14 +270,14 @@ def validate_character(c: CharacterBase) -> ValidationReport:
         issue("skill_groups", f"{groups_spent} points de groupe dépensés pour {groups_available} disponibles.")
 
     # --- Sous ---
-    money_available = rows["money"]["money"] if rows["money"] else None
+    money_available = (0 if fx.money_zero else rows["money"]["money"]) if rows["money"] else None
     if money_available is not None and creation.money_spent > money_available:
         issue("creation.money_spent", f"{creation.money_spent} sous dépensés pour {money_available} disponibles.")
 
     return ValidationReport(
         valid=not issues,
         rules_checked=True,
-        pc_total=START_PC,
+        pc_total=pc_total,
         pc_spent=pc_spent,
         attribute_points_available=attr_available,
         attribute_points_spent=attr_spent,
@@ -258,5 +286,6 @@ def validate_character(c: CharacterBase) -> ValidationReport:
         money_available=money_available,
         role_points=role_points,
         role_points_outdated=role_points_outdated,
+        trait_effects=fx,
         issues=issues,
     )

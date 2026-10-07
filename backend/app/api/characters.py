@@ -8,8 +8,9 @@ from app.realtime.manager import manager
 from app.rules.data import BOTTES_PER_PC, SKILL_POOLS
 from app.rules.role_model import RESOURCE_STATS
 from app.rules.roles import apply_role_points, compute_role_points, raise_to_floor, stored_role_points
+from app.rules.traits import expected_mana_max, trait_effects
 from app.rules.validation import ValidationReport, validate_character
-from app.schemas import CharacterCreate, CharacterKind, CharacterRead, CharacterUpdate, CreationMode
+from app.schemas import CharacterCreate, CharacterKind, CharacterRead, CharacterUpdate, CreationMode, TraitPick
 
 router = APIRouter(prefix="/characters", tags=["characters"])
 
@@ -29,20 +30,24 @@ def _uses_role_points(character: Character) -> bool:
 
 
 def _sync_role_points(character: Character) -> None:
-    """Applique ce que donnent les rôles et les choix du joueur (y compris les animaux totems).
+    """Applique ce que donnent les rôles et les choix du joueur (y compris les animaux totems),
+    en tenant compte des traits (compétences inaccessibles, Hostilité des esprits, Demi-démon).
 
     - PCR : remplacés par le calcul ;
     - Magie, bottes : exactement rôles + achats en PC ;
-    - mana max : exactement rôles + 15 × PCP mis dans la réserve Mana ;
+    - mana max : exactement rôles + 15 × PCP mis dans la réserve Mana (voir `expected_mana_max`) ;
     - connaissances, ressources : remontées au minimum donné par les rôles
       (ce que le joueur a ajouté au-dessus est conservé).
     """
     roles = character.roles or {}
     creation = character.creation or {}
     extra = creation.get("extra_pc", {})
-    totems = [i["name"] for i in (character.selections or {}).get("animaux_totems", [])]
+    fx, _ = trait_effects([TraitPick(**t) for t in character.traits or []], character.species,
+                          (character.resources or {}).get("piete", 0))
+    totems = [] if fx.no_totem_bonus else [i["name"] for i in (character.selections or {}).get("animaux_totems", [])]
     points = compute_role_points(roles.get("primary", []), roles.get("secondary", []),
-                                 creation.get("role_choices", {}), totems)
+                                 creation.get("role_choices", {}), totems,
+                                 set(fx.role_forbidden_skills), set(fx.role_forbidden_groups))
     character.skills, character.skill_groups = apply_role_points(
         character.skills or {}, character.skill_groups or {}, points.skills, points.skill_groups
     )
@@ -50,7 +55,7 @@ def _sync_role_points(character: Character) -> None:
     character.bottes = points.stats.get("bottes", 0) + extra.get("bottes", 0) * BOTTES_PER_PC
     character.knowledges = raise_to_floor(character.knowledges or {}, points.knowledges)
     mana_pool = (character.pools or {}).get("mana", 0) * SKILL_POOLS["mana"]["per_point"]
-    character.mana = {**(character.mana or {}), "max": points.stats.get("mana", 0) + mana_pool}
+    character.mana = {**(character.mana or {}), "max": expected_mana_max(points.stats.get("mana", 0), mana_pool, fx)}
     character.resources = raise_to_floor(
         character.resources or {}, {k: v for k, v in points.stats.items() if k in RESOURCE_STATS}
     )

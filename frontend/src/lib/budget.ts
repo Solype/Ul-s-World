@@ -1,4 +1,4 @@
-import type { CharacterInput, Rules } from "../api/client";
+import type { CharacterInput, Rules, ValidationReport } from "../api/client";
 
 export const groupCost = (level: number) => (level * (level + 1)) / 2;
 
@@ -6,8 +6,9 @@ export const groupCost = (level: number) => (level * (level + 1)) / 2;
  * Points restants pendant une création selon les règles, calculés côté client pour que les
  * boutons « + » réagissent immédiatement. La validation qui fait foi reste celle du backend.
  * Une priorité non choisie compte comme 0 point disponible.
+ * Les effets des traits (PC, points d'attribut) viennent du dernier rapport de validation.
  */
-export function creationBudget(rules: Rules, c: CharacterInput) {
+export function creationBudget(rules: Rules, c: CharacterInput, report: ValidationReport | null = null) {
   const priorities = c.creation?.priorities ?? {};
   const row = (k: keyof typeof priorities) => {
     const p = priorities[k];
@@ -26,9 +27,9 @@ export function creationBudget(rules: Rules, c: CharacterInput) {
   const nSecondary = c.roles?.secondary?.length ?? 0;
 
   return {
-    attributesLeft: (row("attributes")?.attributes ?? 0) - attributesSpent,
+    attributesLeft: (row("attributes")?.attributes ?? 0) + (report?.trait_effects?.attribute_points ?? 0) - attributesSpent,
     groupsLeft: (row("skill_groups")?.skill_groups ?? 0) - groupsSpent,
-    pcLeft: rules.start_pc - pcSpent,
+    pcLeft: (report?.pc_total ?? rules.start_pc) - pcSpent,
     // On peut ajouter un rôle si une combinaison autorisée par la priorité le permet encore.
     canAddPrimary: combos.some((r) => r.primary > nPrimary && r.secondary >= nSecondary),
     canAddSecondary: combos.some((r) => r.primary >= nPrimary && r.secondary > nSecondary),
