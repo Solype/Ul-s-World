@@ -29,3 +29,19 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+
+# Canaux internes de la liste des personnages. Le client s'abonne à `characters` et le serveur le
+# branche sur le bon canal : un joueur n'entend parler que de ses personnages, un admin de tous.
+ALL_CHARACTERS = "characters:all"
+
+
+def owner_channel(owner_id: int | None) -> str:
+    return f"characters:user:{owner_id}"
+
+
+async def notify_character(event_type: str, character_id: int, *owner_ids: int | None) -> None:
+    """Prévient la liste des admins, celle de chaque propriétaire concerné (l'ancien et le nouveau
+    quand le personnage change de mains) et les clients qui suivent ce personnage."""
+    event = {"type": event_type, "id": character_id}
+    for channel in {ALL_CHARACTERS, f"character:{character_id}", *map(owner_channel, owner_ids)}:
+        await manager.broadcast(channel, event)

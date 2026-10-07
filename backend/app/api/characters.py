@@ -7,9 +7,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.deps import admin_user, can_access, current_user
 from app.db import get_session
-from app.models import Character
-from app.realtime.manager import manager
+from app.models import Character, User
+from app.realtime.manager import notify_character
 from app.rules.data import BOTTES_PER_PC, SKILL_POOLS
 from app.rules.role_model import RESOURCE_STATS
 from app.rules.roles import apply_role_points, compute_role_points, raise_to_floor, stored_role_points
@@ -23,6 +24,7 @@ from app.schemas import (
     CharacterRead,
     CharacterUpdate,
     CreationMode,
+    OwnerUpdate,
     TraitPick,
 )
 
@@ -30,11 +32,14 @@ router = APIRouter(prefix="/characters", tags=["characters"])
 
 # Routes synchrones : FastAPI les exécute dans un thread, la session SQLAlchemy (synchrone) ne bloque
 # donc pas la boucle d'événements. Les événements websocket partent après la réponse (BackgroundTasks).
+#
+# Toutes les routes demandent d'être connecté. Un joueur ne voit que ses personnages, un admin voit tout.
 
 
-def _get_or_404(session: Session, character_id: int) -> Character:
+def _get_or_404(session: Session, character_id: int, user: User) -> Character:
+    """404 aussi pour le personnage d'un autre : on ne révèle pas qu'il existe."""
     character = session.get(Character, character_id)
-    if character is None:
+    if character is None or not can_access(user, character):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Personnage introuvable")
     return character
 
@@ -76,29 +81,36 @@ def _sync_role_points(character: Character) -> None:
 
 
 @router.get("", response_model=list[CharacterRead], summary="Lister les personnages")
-def list_characters(kind: CharacterKind | None = None, session: Session = Depends(get_session)) -> list[Character]:
-    """`kind` filtre par type : `pj`, `pnj` ou `monstre`. Sans filtre, tout est renvoyé."""
+def list_characters(kind: CharacterKind | None = None, user: User = Depends(current_user),
+                    session: Session = Depends(get_session)) -> list[Character]:
+    """`kind` filtre par type : `pj`, `pnj` ou `monstre`. Sans filtre, tout est renvoyé.
+
+    Un joueur reçoit ses personnages, un admin ceux de tout le monde."""
     query = select(Character).order_by(Character.updated_at.desc())
+    if not user.is_admin:
+        query = query.where(Character.owner_id == user.id)
     if kind is not None:
         query = query.where(Character.kind == kind)
     return list(session.scalars(query))
 
 
 @router.post("", response_model=CharacterRead, status_code=status.HTTP_201_CREATED, summary="Créer un personnage")
-def create_character(payload: CharacterCreate, background: BackgroundTasks,
+def create_character(payload: CharacterCreate, background: BackgroundTasks, user: User = Depends(current_user),
                      session: Session = Depends(get_session)) -> Character:
-    character = Character(**payload.model_dump(mode="json"))
+    """Le personnage appartient au compte qui le crée."""
+    character = Character(**payload.model_dump(mode="json"), owner=user)
     if _uses_role_points(character):
         _sync_role_points(character)
     session.add(character)
     session.commit()
-    background.add_task(manager.broadcast, "characters", {"type": "character.created", "id": character.id})
+    background.add_task(notify_character, "character.created", character.id, character.owner_id)
     return character
 
 
 @router.get("/{character_id}", response_model=CharacterRead, summary="Lire un personnage")
-def get_character(character_id: int, session: Session = Depends(get_session)) -> Character:
-    return _get_or_404(session, character_id)
+def get_character(character_id: int, user: User = Depends(current_user),
+                  session: Session = Depends(get_session)) -> Character:
+    return _get_or_404(session, character_id, user)
 
 
 @router.patch("/{character_id}", response_model=CharacterRead, summary="Modifier un personnage")
@@ -111,9 +123,10 @@ def update_character(
         description="Recalculer les PCR à partir des rôles et des choix actuels. "
         "Sinon, les PCR stockés sont conservés (les valeurs envoyées par le client sont ignorées).",
     ),
+    user: User = Depends(current_user),
     session: Session = Depends(get_session),
 ) -> Character:
-    character = _get_or_404(session, character_id)
+    character = _get_or_404(session, character_id, user)
     stored_pcr = stored_role_points(character.skills or {}, character.skill_groups or {})
     for field, value in payload.model_dump(mode="json", exclude_unset=True).items():
         setattr(character, field, value)
@@ -125,23 +138,40 @@ def update_character(
                 character.skills or {}, character.skill_groups or {}, *stored_pcr
             )
     session.commit()
-    event = {"type": "character.updated", "id": character.id}
-    background.add_task(manager.broadcast, "characters", event)
-    background.add_task(manager.broadcast, f"character:{character.id}", event)
+    background.add_task(notify_character, "character.updated", character.id, character.owner_id)
+    return character
+
+
+@router.put("/{character_id}/owner", response_model=CharacterRead, summary="Changer le propriétaire (admin)")
+def set_owner(character_id: int, payload: OwnerUpdate, background: BackgroundTasks,
+              user: User = Depends(admin_user), session: Session = Depends(get_session)) -> Character:
+    character = _get_or_404(session, character_id, user)
+    new_owner = session.get(User, payload.owner_id)
+    if new_owner is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Compte introuvable")
+    previous_owner_id = character.owner_id
+    character.owner = new_owner
+    session.commit()
+    background.add_task(notify_character, "character.updated", character.id, previous_owner_id, new_owner.id)
     return character
 
 
 @router.delete("/{character_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Supprimer un personnage")
-def delete_character(character_id: int, background: BackgroundTasks, session: Session = Depends(get_session)) -> None:
-    session.delete(_get_or_404(session, character_id))
+def delete_character(character_id: int, background: BackgroundTasks, user: User = Depends(current_user),
+                     session: Session = Depends(get_session)) -> None:
+    character = _get_or_404(session, character_id, user)
+    owner_id = character.owner_id
+    session.delete(character)
     session.commit()
-    background.add_task(manager.broadcast, "characters", {"type": "character.deleted", "id": character_id})
+    background.add_task(notify_character, "character.deleted", character_id, owner_id)
 
 
 @router.get("/{character_id}/export", response_model=CharacterExport, summary="Exporter un personnage (fichier JSON)")
-def export_character(character_id: int, response: Response, session: Session = Depends(get_session)) -> CharacterExport:
-    """Fichier téléchargeable, versionné, prévu pour être réimporté plus tard."""
-    character = CharacterRead.model_validate(_get_or_404(session, character_id))
+def export_character(character_id: int, response: Response, user: User = Depends(current_user),
+                     session: Session = Depends(get_session)) -> CharacterExport:
+    """Fichier téléchargeable, versionné, prévu pour être réimporté plus tard. Le propriétaire n'y figure
+    pas : à l'import, le personnage appartiendra à celui qui l'importe."""
+    character = CharacterRead.model_validate(_get_or_404(session, character_id, user))
     slug = re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", character.name).encode("ascii", "ignore").decode().lower())
     filename = f"{slug.strip('-') or 'personnage'}.json"
     response.headers["Content-Disposition"] = (
@@ -150,6 +180,7 @@ def export_character(character_id: int, response: Response, session: Session = D
 
 
 @router.get("/{character_id}/validation", response_model=ValidationReport, summary="Vérifier un personnage sauvegardé")
-def validate_saved(character_id: int, session: Session = Depends(get_session)) -> ValidationReport:
-    character = CharacterRead.model_validate(_get_or_404(session, character_id))
+def validate_saved(character_id: int, user: User = Depends(current_user),
+                   session: Session = Depends(get_session)) -> ValidationReport:
+    character = CharacterRead.model_validate(_get_or_404(session, character_id, user))
     return validate_character(character)

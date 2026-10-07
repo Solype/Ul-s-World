@@ -142,9 +142,37 @@ class CharacterExport(BaseModel):
     character: CharacterBase
 
 
+class UserPublic(BaseModel):
+    """Ce qu'on montre d'un compte aux autres (propriétaire d'un personnage...)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    username: str
+
+
+class UserRead(UserPublic):
+    is_admin: bool
+    created_at: datetime
+
+
+class Credentials(BaseModel):
+    """Identifiant et mot de passe, pour l'inscription et la connexion."""
+
+    username: str = Field(min_length=3, max_length=32, pattern=r"^[A-Za-z0-9_.-]+$",
+                          description="Lettres, chiffres, `_`, `.` et `-`. Sans distinction de casse.")
+    password: str = Field(min_length=8, max_length=128)
+
+
+class OwnerUpdate(BaseModel):
+    owner_id: int
+
+
 class CharacterRead(CharacterBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    # Absent pour un personnage créé avant les comptes, tant qu'aucun admin n'existe.
+    owner: UserPublic | None = None
     created_at: datetime
     updated_at: datetime

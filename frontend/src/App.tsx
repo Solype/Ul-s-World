@@ -1,12 +1,18 @@
-import { ScrollText, Swords } from "lucide-react";
+import { LogOut, ScrollText, Swords, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { CharacterKind } from "./api/client";
+import { AuthProvider, useAuth, useUser } from "./auth/AuthContext";
 import ThemeToggle from "./components/ThemeToggle";
+import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "./components/ui/dropdown-menu";
 import { cn } from "./lib/utils";
 import CharacterEditor from "./pages/CharacterEditor";
 import CharacterList from "./pages/CharacterList";
 import CharacterSheet from "./pages/CharacterSheet";
+import LoginPage from "./pages/LoginPage";
 import RulesPanel from "./rules/RulesPanel";
 import { RulesPanelProvider, useRulesPanel } from "./rules/RulesPanelContext";
 import RulesReader from "./rules/RulesReader";
@@ -44,6 +50,25 @@ const toHash = (v: View) => {
   }
 };
 
+function AccountMenu() {
+  const user = useUser();
+  const { logout } = useAuth();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm"><UserRound data-icon="inline-start" />{user.username}</Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel className="flex items-center gap-2">
+          {user.username}{user.is_admin && <Badge variant="secondary">admin</Badge>}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={logout}><LogOut />Se déconnecter</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function Layout() {
   const [view, setViewState] = useState<View>(() => parseHash(location.hash));
   const rulesPanel = useRulesPanel();
@@ -78,6 +103,7 @@ function Layout() {
               </Button>
             )}
             <ThemeToggle />
+            <AccountMenu />
           </div>
         </div>
       </header>
@@ -106,10 +132,23 @@ function Layout() {
   );
 }
 
-export default function App() {
+/** Rien tant qu'on ne sait pas si une session existe, puis la connexion ou l'application. */
+function Gate() {
+  const { user } = useAuth();
+  if (user === undefined) return null;
+  if (user === null) return <LoginPage />;
+  // `key` : changer de compte repart d'un état propre (listes, websockets...).
   return (
-    <RulesPanelProvider>
+    <RulesPanelProvider key={user.id}>
       <Layout />
     </RulesPanelProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Gate />
+    </AuthProvider>
   );
 }

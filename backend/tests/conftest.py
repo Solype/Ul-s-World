@@ -10,7 +10,12 @@ from app.main import app
 
 
 @pytest.fixture
-def client():
+def make_client():
+    """Fabrique de clients sur une même base vide, chacun avec ses cookies.
+
+    `make_client("bob")` inscrit et connecte bob ; `make_client()` reste anonyme.
+    Le premier compte inscrit est admin.
+    """
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     TestSession = sessionmaker(bind=engine, expire_on_commit=False)
@@ -20,9 +25,26 @@ def client():
             yield s
 
     app.dependency_overrides[get_session] = override
-    with TestClient(app) as c:
-        yield c
+    clients: list[TestClient] = []
+
+    def make(username: str | None = None) -> TestClient:
+        c = TestClient(app).__enter__()
+        clients.append(c)
+        if username:
+            res = c.post("/api/auth/register", json={"username": username, "password": "motdepasse"})
+            assert res.status_code == 201, res.text
+        return c
+
+    yield make
+    for c in clients:
+        c.__exit__(None, None, None)
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client(make_client):
+    """Client connecté avec le premier compte (admin)."""
+    return make_client("maitre")
 
 
 @pytest.fixture

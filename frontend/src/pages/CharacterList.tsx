@@ -1,7 +1,8 @@
-import { FileJson, MoreHorizontal, Plus, Printer, Trash2, UserRound } from "lucide-react";
+import { FileJson, MoreHorizontal, Plus, Printer, Trash2, UserRound, UserRoundCog } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { api, type Character, type CharacterKind } from "@/api/client";
+import { api, type Character, type CharacterKind, type UserPublic } from "@/api/client";
+import { useUser } from "@/auth/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useChannel } from "@/hooks/useChannel";
@@ -29,8 +31,16 @@ const NEW_LABEL: Record<CharacterKind, string> = { pj: "Nouveau PJ", pnj: "Nouve
 
 export default function CharacterList({ kind, onKindChange, onOpen, onSheet }: Props) {
   const rules = useRules();
+  const user = useUser();
   const [characters, setCharacters] = useState<Character[] | null>(null);
   const [toDelete, setToDelete] = useState<Character | null>(null);
+  // Admin : changement de propriétaire.
+  const [toReassign, setToReassign] = useState<Character | null>(null);
+  const [newOwner, setNewOwner] = useState<string>("");
+  const [users, setUsers] = useState<UserPublic[]>([]);
+  useEffect(() => {
+    if (user.is_admin) api.GET("/api/users").then(({ data }) => setUsers(data ?? []));
+  }, [user.is_admin]);
 
   const load = useCallback(() => {
     api.GET("/api/characters", { params: { query: { kind } } }).then(({ data }) => setCharacters(data ?? []));
@@ -45,6 +55,20 @@ export default function CharacterList({ kind, onKindChange, onOpen, onSheet }: P
     if (error) toast.error("Suppression impossible");
     else toast.success(`${toDelete.name} supprimé`);
     setToDelete(null);
+  };
+
+  const openReassign = (c: Character) => {
+    setNewOwner(c.owner ? String(c.owner.id) : "");
+    setToReassign(c);
+  };
+  const reassign = async () => {
+    if (!toReassign || !newOwner) return;
+    const { data } = await api.PUT("/api/characters/{character_id}/owner", {
+      params: { path: { character_id: toReassign.id } }, body: { owner_id: Number(newOwner) },
+    });
+    if (data) toast.success(`${data.name} appartient maintenant à ${data.owner?.username}`);
+    else toast.error("Changement de propriétaire impossible");
+    setToReassign(null);
   };
 
   const roleLabel = (key: string) => rules?.roles[key]?.label ?? key;
@@ -91,6 +115,9 @@ export default function CharacterList({ kind, onKindChange, onOpen, onSheet }: P
                     <span className="capitalize">{c.species ?? "espèce ?"}</span>
                     {c.age != null && <span>· {c.age} ans</span>}
                     {c.creation_mode === "free" && <Badge variant="outline">libre</Badge>}
+                    {user.is_admin && c.owner && c.owner.id !== user.id && (
+                      <Badge variant="secondary"><UserRound />{c.owner.username}</Badge>
+                    )}
                   </CardDescription>
                   <CardAction onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
@@ -102,6 +129,9 @@ export default function CharacterList({ kind, onKindChange, onOpen, onSheet }: P
                         <DropdownMenuItem asChild>
                           <a href={`/api/characters/${c.id}/export`} download><FileJson />Exporter (JSON)</a>
                         </DropdownMenuItem>
+                        {user.is_admin && (
+                          <DropdownMenuItem onSelect={() => openReassign(c)}><UserRoundCog />Changer de propriétaire</DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem variant="destructive" onSelect={() => setToDelete(c)}>
                           <Trash2 />Supprimer
@@ -139,6 +169,27 @@ export default function CharacterList({ kind, onKindChange, onOpen, onSheet }: P
           <DialogFooter>
             <DialogClose asChild><Button variant="outline">Annuler</Button></DialogClose>
             <Button variant="destructive" onClick={remove}><Trash2 data-icon="inline-start" />Supprimer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={toReassign !== null} onOpenChange={(open) => !open && setToReassign(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Propriétaire de {toReassign?.name}</DialogTitle>
+            <DialogDescription>Le nouveau propriétaire pourra le voir et le modifier, l'ancien non.</DialogDescription>
+          </DialogHeader>
+          <Select value={newOwner} onValueChange={setNewOwner}>
+            <SelectTrigger className="w-full"><SelectValue placeholder="Choisir un compte" /></SelectTrigger>
+            <SelectContent>
+              {users.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.username}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Annuler</Button></DialogClose>
+            <Button onClick={reassign} disabled={!newOwner || String(toReassign?.owner?.id) === newOwner}>
+              <UserRoundCog data-icon="inline-start" />Valider
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

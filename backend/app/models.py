@@ -6,12 +6,15 @@ Les champs sur lesquels on filtre ou trie (nom, type, espèce, dates) restent de
 
 PJ, PNJ et monstres partagent la même table : ils ont la même fiche, seuls `kind` et
 `creation_mode` les distinguent. `creation` n'est rempli que pour une création selon les règles.
+
+Chaque personnage a un propriétaire (`owner_id`), le compte qui l'a créé. La colonne accepte NULL
+pour les personnages créés avant les comptes : ils sont rattachés au premier admin à son inscription.
 """
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, DateTime, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 
@@ -20,10 +23,37 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Stocké en minuscules : « Alice » et « alice » sont le même compte.
+    username: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class UserSession(Base):
+    """Session de connexion. Seule l'empreinte (SHA-256) du jeton est stockée, le jeton lui-même
+    n'existe que dans le cookie du navigateur."""
+
+    __tablename__ = "user_sessions"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped[User] = relationship(lazy="joined")
+
+
 class Character(Base):
     __tablename__ = "characters"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    owner: Mapped[User | None] = relationship(lazy="joined")
     name: Mapped[str] = mapped_column(String(100), index=True)
     kind: Mapped[str] = mapped_column(String(20), index=True, default="pj")
     creation_mode: Mapped[str] = mapped_column(String(10), default="rules")

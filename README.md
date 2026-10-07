@@ -43,7 +43,8 @@ Tests backend : `cd backend && uv run pytest`
 ```
 backend/app/
 ├── main.py              # création de l'app, CORS, branchement des routeurs
-├── core/config.py       # variables d'environnement (DATABASE_URL, CORS_ORIGINS)
+├── core/config.py       # variables d'environnement (DATABASE_URL, CORS_ORIGINS, SESSION_DAYS, COOKIE_SECURE)
+├── core/security.py     # mots de passe (scrypt) et jetons de session
 ├── db.py                # moteur SQLAlchemy + session par requête
 ├── models.py            # tables SQL
 ├── schemas.py           # schémas Pydantic de l'API (= ce qu'affiche /docs)
@@ -55,14 +56,18 @@ backend/app/
 │   ├── texts/           # ★ textes des règles à lire (Markdown), ex. creation.md
 │   └── validation.py    # vérification d'un personnage contre les règles
 ├── api/
+│   ├── deps.py          # current_user, admin_user, can_access (qui a le droit de voir un personnage)
+│   ├── auth.py          # /api/auth/register|login|logout|me, GET /api/users (admin)
 │   ├── rules.py         # GET /api/rules, POST /api/rules/validate
-│   ├── characters.py    # CRUD /api/characters (?kind=pj|pnj|monstre) + GET /{id}/validation
+│   ├── characters.py    # CRUD /api/characters (?kind=pj|pnj|monstre) + GET /{id}/validation, PUT /{id}/owner
 │   └── ws.py            # websocket /ws/{channel}
 └── realtime/manager.py  # diffusion des événements aux clients websocket
 ```
 
 **Principes**
 
+- **Comptes et propriétaires.** Inscription libre (identifiant + mot de passe) ; le premier compte créé est admin et récupère les personnages qui n'avaient pas de propriétaire. Chaque personnage (PJ, PNJ ou monstre) appartient au compte qui l'a créé (`owner_id`). Un joueur ne voit et ne modifie que les siens ; un admin voit tout et peut changer le propriétaire. Le personnage d'un autre répond 404, pas 403, pour ne pas révéler qu'il existe. La règle d'accès est dans `can_access` (`api/deps.py`) : c'est elle que les rooms élargiront.
+- **Session par cookie** `nm_session` (HttpOnly, SameSite=Lax) : le navigateur l'envoie tout seul sur `/api` et `/ws`. La base ne garde que l'empreinte SHA-256 du jeton (table `user_sessions`), la déconnexion la supprime. Derrière HTTPS, mettre `COOKIE_SECURE=true`. `GET /api/rules` reste public.
 - **Les règles vivent à un seul endroit** : `app/rules/data.py`. Le frontend ne les code pas en dur, il les lit via `GET /api/rules`. Si un chiffre change dans le PDF, on le change là, et c'est tout.
 - **Un personnage peut être incomplet.** La sauvegarde n'est jamais bloquée par les règles. La validation renvoie une liste de problèmes, que l'éditeur affiche en direct, et on peut donc créer un personnage étape par étape.
 - **PJ, PNJ et monstres sont dans la même table** (`characters`), car ils ont la même fiche :
@@ -89,10 +94,10 @@ backend/app/
 
 ## Websockets
 
-Le client se connecte à `/ws/<canal>` :
+Le client se connecte à `/ws/<canal>`. Il doit être connecté (cookie de session), sinon le serveur ferme avec le code `4403` :
 
-- `characters` : événements `character.created`, `character.updated` et `character.deleted` sur tous les personnages. La liste du frontend s'en sert pour se rafraîchir toute seule.
-- `character:<id>` : événements d'un seul personnage.
+- `characters` : événements `character.created`, `character.updated` et `character.deleted` sur ses personnages (sur tous pour un admin). La liste du frontend s'en sert pour se rafraîchir toute seule. En interne, le serveur branche le client sur `characters:user:<id>` ou `characters:all` ; `notify_character` (`realtime/manager.py`) prévient les bons canaux.
+- `character:<id>` : événements d'un seul personnage, s'il y a accès.
 
 Les messages ont la forme `{"type": "character.updated", "id": 3}`. Pour la suite (jets de dés, édition à plusieurs, table de jeu…) :
 
@@ -160,5 +165,6 @@ Sans `sync_roles`, un `PATCH` conserve les PCR enregistrés. `role_points_outdat
 ## Pistes pour la suite
 
 - Équipement et marché international : seul le total des sous dépensés est suivi.
-- Authentification (comptes joueurs et MJ).
+- Rooms (tables de jeu) : élargir `can_access` aux membres d'une même room, et ajouter les canaux websocket de la room.
+- Comptes : limiter les tentatives de connexion, changer son mot de passe, gérer les comptes depuis l'interface admin.
 - Export PDF de la fiche remplie.

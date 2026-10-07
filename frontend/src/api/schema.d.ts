@@ -4,6 +4,95 @@
  */
 
 export interface paths {
+    "/api/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Créer un compte (et se connecter)
+         * @description Le tout premier compte devient administrateur, et récupère les personnages qui n'ont
+         *     pas encore de propriétaire (créés avant les comptes).
+         */
+        post: operations["register_api_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Se connecter */
+        post: operations["login_api_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Se déconnecter */
+        post: operations["logout_api_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compte connecté */
+        get: operations["me_api_auth_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lister les comptes (admin) */
+        get: operations["list_users_api_users_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/rules": {
         parameters: {
             query?: never;
@@ -51,10 +140,15 @@ export interface paths {
         /**
          * Lister les personnages
          * @description `kind` filtre par type : `pj`, `pnj` ou `monstre`. Sans filtre, tout est renvoyé.
+         *
+         *     Un joueur reçoit ses personnages, un admin ceux de tout le monde.
          */
         get: operations["list_characters_api_characters_get"];
         put?: never;
-        /** Créer un personnage */
+        /**
+         * Créer un personnage
+         * @description Le personnage appartient au compte qui le crée.
+         */
         post: operations["create_character_api_characters_post"];
         delete?: never;
         options?: never;
@@ -81,6 +175,23 @@ export interface paths {
         patch: operations["update_character_api_characters__character_id__patch"];
         trace?: never;
     };
+    "/api/characters/{character_id}/owner": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Changer le propriétaire (admin) */
+        put: operations["set_owner_api_characters__character_id__owner_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/characters/{character_id}/export": {
         parameters: {
             query?: never;
@@ -90,7 +201,8 @@ export interface paths {
         };
         /**
          * Exporter un personnage (fichier JSON)
-         * @description Fichier téléchargeable, versionné, prévu pour être réimporté plus tard.
+         * @description Fichier téléchargeable, versionné, prévu pour être réimporté plus tard. Le propriétaire n'y figure
+         *     pas : à l'import, le personnage appartiendra à celui qui l'importe.
          */
         get: operations["export_character_api_characters__character_id__export_get"];
         put?: never;
@@ -529,6 +641,7 @@ export interface components {
             creation?: components["schemas"]["Creation"] | null;
             /** Id */
             id: number;
+            owner?: components["schemas"]["UserPublic"] | null;
             /**
              * Created At
              * Format: date-time
@@ -741,6 +854,19 @@ export interface components {
          */
         CreationMode: "rules" | "free";
         /**
+         * Credentials
+         * @description Identifiant et mot de passe, pour l'inscription et la connexion.
+         */
+        Credentials: {
+            /**
+             * Username
+             * @description Lettres, chiffres, `_`, `.` et `-`. Sans distinction de casse.
+             */
+            username: string;
+            /** Password */
+            password: string;
+        };
+        /**
          * ExtraPC
          * @description PC restants après les priorités, dépensés en relations, Magie ou bottes.
          */
@@ -818,6 +944,11 @@ export interface components {
              * @default 0
              */
             max?: number;
+        };
+        /** OwnerUpdate */
+        OwnerUpdate: {
+            /** Owner Id */
+            owner_id: number;
         };
         /** Priorities */
         Priorities: {
@@ -1289,6 +1420,30 @@ export interface components {
              */
             choice_count?: number | null;
         };
+        /**
+         * UserPublic
+         * @description Ce qu'on montre d'un compte aux autres (propriétaire d'un personnage...).
+         */
+        UserPublic: {
+            /** Id */
+            id: number;
+            /** Username */
+            username: string;
+        };
+        /** UserRead */
+        UserRead: {
+            /** Id */
+            id: number;
+            /** Username */
+            username: string;
+            /** Is Admin */
+            is_admin: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -1341,6 +1496,157 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    register_api_auth_register_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Credentials"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    login_api_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Credentials"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_api_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    me_api_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_users_api_users_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_rules_api_rules_get: {
         parameters: {
             query?: never;
@@ -1533,6 +1839,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CharacterUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_owner_api_characters__character_id__owner_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                character_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerUpdate"];
             };
         };
         responses: {

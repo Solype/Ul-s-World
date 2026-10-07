@@ -7,6 +7,18 @@ import type { components, paths } from "./schema";
  */
 export const api = createClient<paths>({ baseUrl: "" });
 
+// Session expirée ou fermée ailleurs : toute réponse 401 ramène à l'écran de connexion.
+let onUnauthorized: (() => void) | null = null;
+export const setUnauthorizedHandler = (handler: (() => void) | null) => { onUnauthorized = handler; };
+api.use({
+  onResponse({ request, response }) {
+    if (response.status === 401 && !new URL(request.url).pathname.startsWith("/api/auth/")) onUnauthorized?.();
+  },
+});
+
+export type User = components["schemas"]["UserRead"];
+export type UserPublic = components["schemas"]["UserPublic"];
+
 export type Rules = components["schemas"]["Rules"];
 export type Character = components["schemas"]["CharacterRead"];
 export type CharacterInput = components["schemas"]["CharacterBase"];
