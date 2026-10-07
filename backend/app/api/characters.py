@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,9 @@ from app.rules.validation import ValidationReport, validate_character
 from app.schemas import CharacterCreate, CharacterKind, CharacterRead, CharacterUpdate, CreationMode
 
 router = APIRouter(prefix="/characters", tags=["characters"])
+
+# Routes synchrones : FastAPI les exécute dans un thread, la session SQLAlchemy (synchrone) ne bloque
+# donc pas la boucle d'événements. Les événements websocket partent après la réponse (BackgroundTasks).
 
 
 def _get_or_404(session: Session, character_id: int) -> Character:
@@ -63,13 +66,14 @@ def list_characters(kind: CharacterKind | None = None, session: Session = Depend
 
 
 @router.post("", response_model=CharacterRead, status_code=status.HTTP_201_CREATED, summary="Créer un personnage")
-async def create_character(payload: CharacterCreate, session: Session = Depends(get_session)) -> Character:
+def create_character(payload: CharacterCreate, background: BackgroundTasks,
+                     session: Session = Depends(get_session)) -> Character:
     character = Character(**payload.model_dump(mode="json"))
     if _uses_role_points(character):
         _sync_role_points(character)
     session.add(character)
     session.commit()
-    await manager.broadcast("characters", {"type": "character.created", "id": character.id})
+    background.add_task(manager.broadcast, "characters", {"type": "character.created", "id": character.id})
     return character
 
 
@@ -79,9 +83,10 @@ def get_character(character_id: int, session: Session = Depends(get_session)) ->
 
 
 @router.patch("/{character_id}", response_model=CharacterRead, summary="Modifier un personnage")
-async def update_character(
+def update_character(
     character_id: int,
     payload: CharacterUpdate,
+    background: BackgroundTasks,
     sync_roles: bool = Query(
         False,
         description="Recalculer les PCR à partir des rôles et des choix actuels. "
@@ -102,16 +107,16 @@ async def update_character(
             )
     session.commit()
     event = {"type": "character.updated", "id": character.id}
-    await manager.broadcast("characters", event)
-    await manager.broadcast(f"character:{character.id}", event)
+    background.add_task(manager.broadcast, "characters", event)
+    background.add_task(manager.broadcast, f"character:{character.id}", event)
     return character
 
 
 @router.delete("/{character_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Supprimer un personnage")
-async def delete_character(character_id: int, session: Session = Depends(get_session)) -> None:
+def delete_character(character_id: int, background: BackgroundTasks, session: Session = Depends(get_session)) -> None:
     session.delete(_get_or_404(session, character_id))
     session.commit()
-    await manager.broadcast("characters", {"type": "character.deleted", "id": character_id})
+    background.add_task(manager.broadcast, "characters", {"type": "character.deleted", "id": character_id})
 
 
 @router.get("/{character_id}/validation", response_model=ValidationReport, summary="Vérifier un personnage sauvegardé")
