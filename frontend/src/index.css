@@ -155,3 +155,73 @@
     margin: 0;
   }
 }
+
+/* Texte des règles (Markdown) : pas de plugin de typographie, juste ce qu'il faut. */
+@layer components {
+  .rules-prose {
+    @apply text-sm leading-relaxed;
+  }
+  .rules-prose > * + * {
+    @apply mt-3;
+  }
+  .rules-prose ul {
+    @apply list-disc pl-5;
+  }
+  .rules-prose ol {
+    @apply list-decimal pl-5;
+  }
+  .rules-prose li + li {
+    @apply mt-1;
+  }
+  .rules-prose strong {
+    @apply font-semibold text-foreground;
+  }
+  .rules-prose blockquote {
+    @apply rounded-lg border-l-2 border-primary/60 bg-primary/5 px-3 py-2 text-muted-foreground;
+  }
+  .rules-prose blockquote strong {
+    @apply text-primary;
+  }
+  .rules-prose table {
+    @apply w-full border-collapse text-xs tabular-nums;
+  }
+  .rules-prose th,
+  .rules-prose td {
+    @apply border px-2 py-1 text-left;
+  }
+  .rules-prose th {
+    @apply bg-muted font-semibold;
+  }
+  /* Section atteinte depuis la recherche ou un lien d'aide. */
+  .rules-flash {
+    animation: rules-flash 1.6s ease-out;
+  }
+  @keyframes rules-flash {
+    from { background-color: color-mix(in oklch, var(--primary) 18%, transparent); }
+    to { background-color: transparent; }
+  }
+}
+
+/* Impression (fiche de personnage) : A4, noir sur blanc quel que soit le thème. */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  :root,
+  .dark {
+    --background: #fff;
+    --foreground: #000;
+    --card: #fff;
+    --card-foreground: #000;
+    --muted: #f2f2f2;
+    --muted-foreground: #444;
+    --border: #999;
+    --primary: #000;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+}

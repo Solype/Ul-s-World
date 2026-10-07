@@ -44,3 +44,25 @@ def test_rules_expose_catalogs(client):
     catalogs = client.get("/api/rules").json()["catalogs"]
     assert [e["label"] for e in catalogs["langues"]][:2] == ["Elfique", "Égyptien"]
     assert len(catalogs["animaux_totems"]) == 34
+
+
+def test_export_is_a_versioned_downloadable_file(client, valid_character):
+    valid_character["name"] = "Thorgal Æegirsson"
+    cid = client.post("/api/characters", json=valid_character).json()["id"]
+    res = client.get(f"/api/characters/{cid}/export")
+    assert res.status_code == 200
+    # Nom ASCII pour les vieux navigateurs, nom exact (UTF-8) pour les autres.
+    assert 'filename="thorgal-egirsson.json"' in res.headers["content-disposition"]
+    assert "filename*=UTF-8''Thorgal%20%C3%86egirsson.json" in res.headers["content-disposition"]
+    data = res.json()
+    assert (data["format"], data["version"]) == ("newmannheim/personnage", 1)
+    assert data["character"]["name"] == "Thorgal Æegirsson"
+    assert "id" not in data["character"] and "created_at" not in data["character"]
+    # Le contenu exporté est un personnage valide, prêt à être recréé (import futur).
+    assert client.post("/api/characters", json=data["character"]).status_code == 201
+
+
+def test_rules_expose_texts(client):
+    texts = client.get("/api/rules").json()["texts"]
+    assert texts[0]["id"] == "creation" and texts[0]["title"] == "Création de personnage"
+    assert "<!-- data:priorites -->" in texts[0]["markdown"]

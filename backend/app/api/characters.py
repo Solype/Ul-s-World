@@ -1,4 +1,9 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+import re
+import unicodedata
+from datetime import UTC, datetime
+from urllib.parse import quote
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -10,7 +15,16 @@ from app.rules.role_model import RESOURCE_STATS
 from app.rules.roles import apply_role_points, compute_role_points, raise_to_floor, stored_role_points
 from app.rules.traits import expected_mana_max, trait_effects
 from app.rules.validation import ValidationReport, validate_character
-from app.schemas import CharacterCreate, CharacterKind, CharacterRead, CharacterUpdate, CreationMode, TraitPick
+from app.schemas import (
+    CharacterBase,
+    CharacterCreate,
+    CharacterExport,
+    CharacterKind,
+    CharacterRead,
+    CharacterUpdate,
+    CreationMode,
+    TraitPick,
+)
 
 router = APIRouter(prefix="/characters", tags=["characters"])
 
@@ -122,6 +136,17 @@ def delete_character(character_id: int, background: BackgroundTasks, session: Se
     session.delete(_get_or_404(session, character_id))
     session.commit()
     background.add_task(manager.broadcast, "characters", {"type": "character.deleted", "id": character_id})
+
+
+@router.get("/{character_id}/export", response_model=CharacterExport, summary="Exporter un personnage (fichier JSON)")
+def export_character(character_id: int, response: Response, session: Session = Depends(get_session)) -> CharacterExport:
+    """Fichier téléchargeable, versionné, prévu pour être réimporté plus tard."""
+    character = CharacterRead.model_validate(_get_or_404(session, character_id))
+    slug = re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", character.name).encode("ascii", "ignore").decode().lower())
+    filename = f"{slug.strip('-') or 'personnage'}.json"
+    response.headers["Content-Disposition"] = (
+        f'attachment; filename="{filename}"; filename*=UTF-8\'\'{quote(character.name)}.json')
+    return CharacterExport(exported_at=datetime.now(UTC), character=CharacterBase.model_validate(character.model_dump()))
 
 
 @router.get("/{character_id}/validation", response_model=ValidationReport, summary="Vérifier un personnage sauvegardé")

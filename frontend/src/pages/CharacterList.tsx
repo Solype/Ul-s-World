@@ -1,4 +1,4 @@
-import { MoreHorizontal, Plus, Trash2, UserRound } from "lucide-react";
+import { FileJson, MoreHorizontal, Plus, Printer, Trash2, UserRound } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api, type Character, type CharacterKind } from "@/api/client";
@@ -8,7 +8,9 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import {
   Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useChannel } from "@/hooks/useChannel";
@@ -19,11 +21,13 @@ type Props = {
   kind: CharacterKind;
   onKindChange: (kind: CharacterKind) => void;
   onOpen: (id: number | null) => void;
+  /** Fiche à lire ou imprimer. */
+  onSheet: (id: number) => void;
 };
 
 const NEW_LABEL: Record<CharacterKind, string> = { pj: "Nouveau PJ", pnj: "Nouveau PNJ", monstre: "Nouveau monstre" };
 
-export default function CharacterList({ kind, onKindChange, onOpen }: Props) {
+export default function CharacterList({ kind, onKindChange, onOpen, onSheet }: Props) {
   const rules = useRules();
   const [characters, setCharacters] = useState<Character[] | null>(null);
   const [toDelete, setToDelete] = useState<Character | null>(null);
@@ -94,6 +98,11 @@ export default function CharacterList({ kind, onKindChange, onOpen }: Props) {
                         <Button variant="ghost" size="icon-sm" aria-label="Actions"><MoreHorizontal /></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onSelect={() => onSheet(c.id)}><Printer />Fiche imprimable</DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <a href={`/api/characters/${c.id}/export`} download><FileJson />Exporter (JSON)</a>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem variant="destructive" onSelect={() => setToDelete(c)}>
                           <Trash2 />Supprimer
                         </DropdownMenuItem>

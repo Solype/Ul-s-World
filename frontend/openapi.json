@@ -299,6 +299,49 @@
         }
       }
     },
+    "/api/characters/{character_id}/export": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Exporter un personnage (fichier JSON)",
+        "description": "Fichier téléchargeable, versionné, prévu pour être réimporté plus tard.",
+        "operationId": "export_character_api_characters__character_id__export_get",
+        "parameters": [
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Character Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterExport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/characters/{character_id}/validation": {
       "get": {
         "tags": [
@@ -810,6 +853,36 @@
           "name"
         ],
         "title": "CharacterCreate"
+      },
+      "CharacterExport": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "const": "newmannheim/personnage",
+            "title": "Format",
+            "default": "newmannheim/personnage"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "default": 1
+          },
+          "exported_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Exported At"
+          },
+          "character": {
+            "$ref": "#/components/schemas/CharacterBase"
+          }
+        },
+        "type": "object",
+        "required": [
+          "exported_at",
+          "character"
+        ],
+        "title": "CharacterExport",
+        "description": "Fichier d'export d'un personnage, prévu pour être réimporté.\n\n`version` augmente quand le format change, pour que l'import sache convertir les anciens fichiers."
       },
       "CharacterKind": {
         "type": "string",
@@ -1884,6 +1957,30 @@
         "type": "object",
         "title": "Roles"
       },
+      "RuleText": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "markdown": {
+            "type": "string",
+            "title": "Markdown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "markdown"
+        ],
+        "title": "RuleText",
+        "description": "Texte des règles, en Markdown. Les lignes `<!-- data:xxx -->` sont remplacées par le frontend\npar un tableau construit à partir des données (`especes`, `priorites`)."
+      },
       "Rules": {
         "properties": {
           "start_pc": {
@@ -1995,6 +2092,13 @@
             },
             "type": "object",
             "title": "Traits"
+          },
+          "texts": {
+            "items": {
+              "$ref": "#/components/schemas/RuleText"
+            },
+            "type": "array",
+            "title": "Texts"
           }
         },
         "type": "object",
@@ -2012,7 +2116,8 @@
           "stats",
           "resource_defs",
           "catalogs",
-          "traits"
+          "traits",
+          "texts"
         ],
         "title": "Rules"
       },

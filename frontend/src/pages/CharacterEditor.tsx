@@ -1,5 +1,6 @@
 import {
-  Activity, ArrowLeft, Backpack, BookOpen, CircleAlert, CircleCheck, Drama, Gem, ListOrdered, Loader2, Save, Shield,
+  Activity, ArrowLeft, Backpack, BookOpen, CircleAlert, CircleCheck, Download, Drama, FileJson, Gem, ListOrdered, Loader2,
+  Printer, Save, Shield,
   Sparkles, UserRound,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -19,6 +20,9 @@ import TraitsSection from "@/components/TraitsSection";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -32,6 +36,7 @@ import { creationBudget } from "@/lib/budget";
 import { ATTRIBUTE_LABELS } from "@/lib/labels";
 import { applyRoleEffects, roleFloors } from "@/lib/roleEffects";
 import { cn } from "@/lib/utils";
+import RulesLink from "@/rules/RulesLink";
 
 export const KIND_LABELS: Record<CharacterKind, string> = { pj: "PJ", pnj: "PNJ", monstre: "Monstre" };
 const PRIORITY_FIELDS = [
@@ -181,6 +186,20 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
           </div>
         </div>
         <div className="flex w-full gap-2 sm:w-auto">
+          {id !== null && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" className="flex-1 sm:flex-none"><Download data-icon="inline-start" />Exporter</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => { location.hash = `#/fiche/${id}`; }}><Printer />Fiche imprimable</DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a href={`/api/characters/${id}/export`} download><FileJson />Fichier JSON</a>
+                </DropdownMenuItem>
+                <p className="max-w-56 px-2 py-1.5 text-xs text-muted-foreground">Version enregistrée : enregistre d'abord tes modifications.</p>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <Button type="button" variant="outline" className="flex-1 sm:flex-none" onClick={onClose}>Annuler</Button>
           <Button type="submit" className="flex-1 sm:flex-none" disabled={saving}>
             {saving ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Save data-icon="inline-start" />}
@@ -189,10 +208,10 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
         </div>
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[1fr_300px]">
+      <div className="grid items-start gap-6 @4xl/main:grid-cols-[1fr_300px]">
         <div className="flex min-w-0 flex-col gap-6">
           {/* Identité */}
-          <Section id="identite" title="Identité" icon={UserRound} issues={issueCount("identite")}>
+          <Section id="identite" action={<RulesLink page="creation" section="choix-de-l-espece" />} title="Identité" icon={UserRound} issues={issueCount("identite")}>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <Field label="Nom">
                 <Input required value={c.name} placeholder="Nom du personnage" onChange={(e) => set({ name: e.target.value })} />
@@ -243,7 +262,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
 
           {/* Priorités */}
           {rulesMode && (
-            <Section id="priorites" title="Priorités" icon={ListOrdered} issues={issueCount("priorites")}
+            <Section id="priorites" action={<RulesLink page="creation" section="choix-des-priorites" />} title="Priorités" icon={ListOrdered} issues={issueCount("priorites")}
               description={`Chaque priorité coûte des points de création : ${report?.pc_spent ?? 0} / ${report?.pc_total ?? rules.start_pc} PC dépensés`
                 + (report && report.pc_total !== rules.start_pc ? ` (${rules.start_pc} de base, ${report.pc_total - rules.start_pc > 0 ? "+" : ""}${report.pc_total - rules.start_pc} par les traits).` : ".")}>
               <div className="flex flex-col gap-5">
@@ -292,14 +311,14 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
           )}
 
           {/* Traits */}
-          <Section id="traits" title="Traits" icon={Drama} issues={issueCount("traits")}
+          <Section id="traits" action={<RulesLink page="traits" />} title="Traits" icon={Drama} issues={issueCount("traits")}
             description="Les bonus coûtent des PC, les malus en rapportent.">
             <TraitsSection rules={rules} traits={c.traits ?? []} species={c.species} report={report} rulesMode={rulesMode}
               onChange={(traits) => { setSyncRoles(true); set({ traits }); }} />
           </Section>
 
           {/* Attributs */}
-          <Section id="attributs" title="Attributs" icon={Activity} issues={issueCount("attributs")}
+          <Section id="attributs" action={<RulesLink page="creation" section="repartition-des-attributs" />} title="Attributs" icon={Activity} issues={issueCount("attributs")}
             description={rulesMode
               ? `${report?.attribute_points_spent ?? 0} / ${report?.attribute_points_available ?? "?"} points répartis, dans les limites de l'espèce.`
               : undefined}>
@@ -333,7 +352,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
           </Section>
 
           {/* Rôles */}
-          <Section id="roles" title="Rôles" icon={Shield} issues={issueCount("roles")}
+          <Section id="roles" action={<RulesLink page="roles" />} title="Rôles" icon={Shield} issues={issueCount("roles")}
             description={rulesMode && !creation.priorities?.roles ? "Choisis d'abord la priorité des rôles." : undefined}>
             <div className="flex flex-col gap-4">
               {(["primary", "secondary"] as const).map((k) => {
@@ -370,7 +389,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
           </Section>
 
           {/* Compétences */}
-          <Section id="competences" title="Compétences" icon={BookOpen} issues={issueCount("competences")}
+          <Section id="competences" action={<RulesLink page="creation" section="groupes-de-competences" />} title="Compétences" icon={BookOpen} issues={issueCount("competences")}
             description={rulesMode
               ? `Points de groupe : ${report?.skill_group_points_spent ?? 0} / ${report?.skill_group_points_available ?? "?"}. Chaque niveau donne 2 PCP à répartir dans le groupe.`
               : undefined}>
@@ -379,7 +398,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
               pcrSource={id === null || syncRoles ? "computed" : "stored"} />
           </Section>
 
-          <Section id="connaissances" title="Mana et connaissances" icon={Sparkles} issues={issueCount("connaissances")}>
+          <Section id="connaissances" action={<RulesLink page="creation" section="repartition-des-competences" />} title="Mana et connaissances" icon={Sparkles} issues={issueCount("connaissances")}>
             <KnowledgeAndMana character={c} onChange={set} knowledgeFloors={floors.knowledges}
               rules={rulesMode ? {
                 roleMana: floors.stats.mana ?? 0,
@@ -393,7 +412,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
               } : null} />
           </Section>
 
-          <Section id="ressources" title="Ressources" icon={Gem} issues={issueCount("ressources")}
+          <Section id="ressources" action={<RulesLink page="langues" />} title="Ressources" icon={Gem} issues={issueCount("ressources")}
             description="Sorts, langues, bottes, dieux, compagnons… : chaque ressource donne accès à des choix.">
             <ResourcesSection rules={rules} character={c} rulesMode={rulesMode} floors={floors.stats} imposed={floors.imposed}
               onChange={(patch) => {
@@ -408,7 +427,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
               }} />
           </Section>
 
-          <Section id="equipement" title="Équipement et relations" icon={Backpack} issues={issueCount("equipement")}>
+          <Section id="equipement" action={<RulesLink page="creation" section="pc-restants-et-traits" />} title="Équipement et relations" icon={Backpack} issues={issueCount("equipement")}>
             <div className="flex flex-col gap-4">
               {rulesMode && (
                 <Field label="Sous dépensés" hint={`Budget : ${report?.money_available ?? 0} sous (priorité « Sous »).`}>
@@ -428,7 +447,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
         </div>
 
         {/* Panneau latéral */}
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-20">
+        <aside className="flex flex-col gap-4 @4xl/main:sticky @4xl/main:top-20">
           <Card size="sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

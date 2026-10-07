@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -124,6 +124,22 @@ class CharacterUpdate(CharacterBase):
     """PATCH : seuls les champs envoyés sont modifiés."""
 
     name: str | None = Field(None, min_length=1, max_length=100)  # type: ignore[assignment]
+
+
+EXPORT_FORMAT = "newmannheim/personnage"
+EXPORT_VERSION = 1
+
+
+class CharacterExport(BaseModel):
+    """Fichier d'export d'un personnage, prévu pour être réimporté.
+
+    `version` augmente quand le format change, pour que l'import sache convertir les anciens fichiers.
+    """
+
+    format: Literal["newmannheim/personnage"] = EXPORT_FORMAT
+    version: int = EXPORT_VERSION
+    exported_at: datetime
+    character: CharacterBase
 
 
 class CharacterRead(CharacterBase):

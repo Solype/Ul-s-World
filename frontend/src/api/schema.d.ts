@@ -81,6 +81,26 @@ export interface paths {
         patch: operations["update_character_api_characters__character_id__patch"];
         trace?: never;
     };
+    "/api/characters/{character_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Exporter un personnage (fichier JSON)
+         * @description Fichier téléchargeable, versionné, prévu pour être réimporté plus tard.
+         */
+        get: operations["export_character_api_characters__character_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/characters/{character_id}/validation": {
         parameters: {
             query?: never;
@@ -370,6 +390,31 @@ export interface components {
              */
             notes?: string;
             creation?: components["schemas"]["Creation"] | null;
+        };
+        /**
+         * CharacterExport
+         * @description Fichier d'export d'un personnage, prévu pour être réimporté.
+         *
+         *     `version` augmente quand le format change, pour que l'import sache convertir les anciens fichiers.
+         */
+        CharacterExport: {
+            /**
+             * Format
+             * @default newmannheim/personnage
+             * @constant
+             */
+            format?: "newmannheim/personnage";
+            /**
+             * Version
+             * @default 1
+             */
+            version?: number;
+            /**
+             * Exported At
+             * Format: date-time
+             */
+            exported_at: string;
+            character: components["schemas"]["CharacterBase"];
         };
         /**
          * CharacterKind
@@ -934,6 +979,19 @@ export interface components {
              */
             secondary?: string[];
         };
+        /**
+         * RuleText
+         * @description Texte des règles, en Markdown. Les lignes `<!-- data:xxx -->` sont remplacées par le frontend
+         *     par un tableau construit à partir des données (`especes`, `priorites`).
+         */
+        RuleText: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Markdown */
+            markdown: string;
+        };
         /** Rules */
         Rules: {
             /** Start Pc */
@@ -988,6 +1046,8 @@ export interface components {
             traits: {
                 [key: string]: components["schemas"]["TraitDef"];
             };
+            /** Texts */
+            texts: components["schemas"]["RuleText"][];
         };
         /**
          * SelectionItem
@@ -1483,6 +1543,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CharacterRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_character_api_characters__character_id__export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                character_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterExport"];
                 };
             };
             /** @description Validation Error */

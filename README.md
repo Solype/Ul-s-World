@@ -52,6 +52,7 @@ backend/app/
 │   ├── roles_catalog.py # ★ catalogue des rôles (refdoc/Roles.pdf)
 │   ├── catalogs.py      # ★ langues et animaux totems (refdoc/Langues.pdf)
 │   ├── traits.py        # ★ traits de personnage et calcul de leurs effets (refdoc/Traits de personnage.pdf)
+│   ├── texts/           # ★ textes des règles à lire (Markdown), ex. creation.md
 │   └── validation.py    # vérification d'un personnage contre les règles
 ├── api/
 │   ├── rules.py         # GET /api/rules, POST /api/rules/validate
@@ -73,13 +74,17 @@ backend/app/
 - **Les connaissances sont libres** (`knowledges` : intitulé → niveau). Ce sont les joueurs qui les définissent, pas le catalogue de compétences. **Le mana** (`mana` : actuel / max) est commun à la magie et à la religion. Voir `refdoc/infos.md`.
 - **Traits** (`traits`) : les bonus coûtent des PC, les malus en rapportent. Leurs effets chiffrés (PC, points et limites d'attributs, compétences inaccessibles, sous, mana) sont calculés par `rules/traits.py` et renvoyés dans le rapport de validation (`trait_effects`) : le frontend s'en sert pour ses limites, sans recoder les règles. Les interprétations du document sont dans `refdoc/infos.md`.
 - **Relations** (`relations`) : 1 PC restant = une relation (PNJ, lieu ou culture) ; en mode règles, leur nombre doit correspondre aux PC dépensés.
+- **Export** : `GET /api/characters/{id}/export` renvoie un fichier JSON `{format, version, exported_at, character}`. `version` augmente quand le format change : c'est ce qui permettra l'import plus tard.
+- **Textes des règles** : `app/rules/texts/*.md` (un fichier par page, déclaré dans `TEXT_ORDER` de `api/rules.py`). Une ligne `<!-- data:especes -->` ou `<!-- data:priorites -->` est remplacée par un tableau construit à partir des données, pour que les chiffres ne soient écrits qu'une fois.
 - **Les données de la fiche sont stockées en JSON** (attributs, compétences, rôles…) : ajouter une compétence ne demande pas de migration. Le nom, l'espèce et les dates sont de vraies colonnes, pour pouvoir filtrer et trier.
 
 ## Frontend
 
 - **Composants** : shadcn/ui, dans `src/components/ui/`. Ce sont des fichiers générés et modifiables. Pour en ajouter un : `npx shadcn@latest add <composant>`. Les composants 21st.dev s'ajoutent de la même façon, avec leur URL de registre (il faut une clé `API_KEY_21ST`).
 - **Thème** : palette parchemin et bronze, définie en variables CSS dans `src/index.css` (`:root` pour le clair, `.dark` pour le sombre). Titres en Cinzel, texte en Geist.
-- **Navigation par l'URL** : `#/pj`, `#/pnj`, `#/monstre` (listes), `#/nouveau/<type>` (création), `#/personnage/<id>` (édition).
+- **Navigation par l'URL** : `#/pj`, `#/pnj`, `#/monstre` (listes), `#/nouveau/<type>` (création), `#/personnage/<id>` (édition), `#/fiche/<id>` (fiche à imprimer), `#/regles/<page>/<section>` (règles en pleine page).
+- **Règles** (`src/rules/`) : pages construites à partir de `GET /api/rules` (texte retranscrit + catalogues), recherche sans accents sur toutes les pages, panneau à droite de n'importe quelle page (bouton « Règles » ou Ctrl+K), boutons « ? » dans l'éditeur.
+- **Fiche imprimable** (`src/pages/CharacterSheet.tsx`) : sur le modèle de la Fiche PJ vide ; « Imprimer » → PDF depuis le navigateur.
 - **Organisation de l'éditeur** (`src/pages/CharacterEditor.tsx`) : une carte par étape. Le panneau latéral contient la navigation (avec le nombre de problèmes par section), les jauges de points et ce qui reste à compléter.
 
 ## Websockets
@@ -101,6 +106,7 @@ Le gestionnaire actuel garde les connexions en mémoire, ce qui suffit avec un s
 | Je veux… | Je fais… |
 |---|---|
 | Modifier une règle (limites, coûts, compétences) | `backend/app/rules/data.py`, puis compléter `tests/test_rules.py` |
+| Ajouter, renommer ou supprimer une compétence, un groupe ou un attribut | voir [docs/faire-evoluer-les-regles.md](docs/faire-evoluer-les-regles.md) |
 | Ajouter un champ au personnage | `models.py` + `schemas.py`, puis `uv run alembic revision --autogenerate -m "..."` et `alembic upgrade head` |
 | Ajouter une route | un `APIRouter` dans `app/api/`, branché dans `main.py` ; elle apparaît automatiquement dans `/docs` |
 | Mettre à jour les types du frontend après un changement d'API | `cd backend && uv run python scripts/export_openapi.py ../frontend/openapi.json`, puis `cd frontend && npm run gen:api` |

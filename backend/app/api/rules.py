@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -49,6 +51,32 @@ class SkillPool(BaseModel):
     per_point: int
 
 
+class RuleText(BaseModel):
+    """Texte des règles, en Markdown. Les lignes `<!-- data:xxx -->` sont remplacées par le frontend
+    par un tableau construit à partir des données (`especes`, `priorites`)."""
+
+    id: str
+    title: str
+    markdown: str
+
+
+# Textes retranscrits depuis refdoc/ (un fichier par page, le titre est le premier « # »).
+TEXTS_DIR = Path(__file__).resolve().parent.parent / "rules" / "texts"
+TEXT_ORDER = ["creation"]
+
+
+def _load_texts() -> list[RuleText]:
+    texts = []
+    for name in TEXT_ORDER:
+        markdown = (TEXTS_DIR / f"{name}.md").read_text(encoding="utf-8")
+        title, _, body = markdown.partition("\n")
+        texts.append(RuleText(id=name, title=title.removeprefix("# ").strip(), markdown=body.strip()))
+    return texts
+
+
+RULE_TEXTS = _load_texts()
+
+
 class Rules(BaseModel):
     start_pc: int
     bottes_per_pc: int
@@ -67,6 +95,8 @@ class Rules(BaseModel):
     catalogs: dict[str, list[CatalogEntry]]
     # Traits de personnage : bonus (coûtent des PC) et malus (en rapportent).
     traits: dict[str, TraitDef]
+    # Textes des règles (pages à lire), en Markdown.
+    texts: list[RuleText]
 
 
 @router.get("", response_model=Rules, summary="Toutes les règles de création")
@@ -93,6 +123,7 @@ def get_rules() -> Rules:
         resource_defs=RESOURCE_DEFS,
         catalogs=CATALOGS,
         traits=TRAITS,
+        texts=RULE_TEXTS,
     )
 
 
