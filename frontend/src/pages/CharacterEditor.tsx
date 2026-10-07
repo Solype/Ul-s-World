@@ -395,7 +395,17 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
 
           <Section id="ressources" title="Ressources" icon={Gem} issues={issueCount("ressources")}
             description="Sorts, langues, bottes, dieux, compagnons… : chaque ressource donne accès à des choix.">
-            <ResourcesSection rules={rules} character={c} rulesMode={rulesMode} floors={floors.stats} imposed={floors.imposed} onChange={set} />
+            <ResourcesSection rules={rules} character={c} rulesMode={rulesMode} floors={floors.stats} imposed={floors.imposed}
+              onChange={(patch) => {
+                // Les animaux totems (bonus comptés en PCR, mana du Cerf...) et la Piété (Absorption
+                // avec Incompétent !) changent ce que donnent les rôles : on recalcule, comme pour les rôles.
+                const totems = (s?: CharacterInput["selections"]) => JSON.stringify(s?.animaux_totems ?? []);
+                if ((patch.selections && totems(patch.selections) !== totems(c.selections))
+                  || (patch.resources && (patch.resources.piete ?? 0) !== (c.resources?.piete ?? 0))) {
+                  setSyncRoles(true);
+                }
+                set(patch);
+              }} />
           </Section>
 
           <Section id="equipement" title="Équipement et relations" icon={Backpack} issues={issueCount("equipement")}>
