@@ -11,6 +11,7 @@ import Section, { Field } from "@/components/editor/Section";
 import KnowledgeAndMana from "@/components/KnowledgeAndMana";
 import NumberStepper from "@/components/NumberStepper";
 import ResourcesSection from "@/components/ResourcesSection";
+import RelationsField from "@/components/RelationsField";
 import RoleChoices from "@/components/RoleChoices";
 import RolePicker from "@/components/RolePicker";
 import SkillsSection from "@/components/SkillsSection";
@@ -52,13 +53,13 @@ const SECTIONS = [
   { id: "competences", title: "Compétences", icon: BookOpen },
   { id: "connaissances", title: "Mana et connaissances", icon: Sparkles },
   { id: "ressources", title: "Ressources", icon: Gem },
-  { id: "equipement", title: "Équipement", icon: Backpack },
+  { id: "equipement", title: "Équipement et relations", icon: Backpack },
 ] as const;
 type SectionId = (typeof SECTIONS)[number]["id"];
 
 /** Section de l'éditeur concernée par un problème de validation. */
 function sectionOf(field: string): SectionId {
-  if (field === "creation.money_spent") return "equipement";
+  if (field === "creation.money_spent" || field === "relations") return "equipement";
   if (field.startsWith("creation.role_choices") || field === "roles") return "roles";
   if (field.startsWith("creation.priorities")) return "priorites";
   if (field.startsWith("attributes") || field === "magic") return "attributs";
@@ -137,7 +138,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
       return;
     }
     setSaving(true);
-    const body = { ...c, creation: rulesMode ? creation : null };
+    const body = { ...c, creation: rulesMode ? creation : null, relations: (c.relations ?? []).filter((r) => r.trim()) };
     const res =
       id === null
         ? await api.POST("/api/characters", { body })
@@ -385,7 +386,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
             <ResourcesSection rules={rules} character={c} rulesMode={rulesMode} floors={floors.stats} imposed={floors.imposed} onChange={set} />
           </Section>
 
-          <Section id="equipement" title="Équipement" icon={Backpack} issues={issueCount("equipement")}>
+          <Section id="equipement" title="Équipement et relations" icon={Backpack} issues={issueCount("equipement")}>
             <div className="flex flex-col gap-4">
               {rulesMode && (
                 <Field label="Sous dépensés" hint={`Budget : ${report?.money_available ?? 0} sous (priorité « Sous »).`}>
@@ -394,6 +395,8 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
                     onChange={(v) => setCreation({ money_spent: v })} />
                 </Field>
               )}
+              <RelationsField relations={c.relations ?? []} bought={rulesMode ? creation.extra_pc?.relations ?? 0 : null}
+                invalid={!!issueFor("relations")} onChange={(relations) => set({ relations })} />
               <Field label="Notes">
                 <Textarea rows={4} value={c.notes ?? ""} placeholder="Histoire, équipement, apparence…"
                   onChange={(e) => set({ notes: e.target.value })} />

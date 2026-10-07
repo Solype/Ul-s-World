@@ -132,10 +132,17 @@ def validate_character(c: CharacterBase) -> ValidationReport:
         issue("creation.priorities", "Les quatre priorités doivent être choisies.")
 
     # --- Points de création ---
+    # Une même lettre peut servir à plusieurs priorités : l'exemple du document est A|A|D|E.
     extra = creation.extra_pc
     pc_spent = sum(row["cost"] for row in rows.values() if row) + extra.relations + extra.magic + extra.bottes
     if pc_spent > START_PC:
         issue("creation.priorities", f"{pc_spent} PC dépensés pour {START_PC} disponibles.")
+    # 1 PC restant = une relation (un PNJ, un lieu ou une culture), à déclarer au MJ.
+    declared = [r for r in c.relations if r.strip()]
+    if len(declared) > extra.relations:
+        issue("relations", f"Relations : {len(declared)} déclarées pour {extra.relations} achetée(s) en PC.")
+    elif len(declared) < extra.relations:
+        issue("relations", f"Relations : encore {extra.relations - len(declared)} à déclarer (PNJ, lieu ou culture).")
 
     # --- Rôles ---
     role_points = None

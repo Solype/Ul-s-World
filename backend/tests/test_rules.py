@@ -21,6 +21,26 @@ def test_too_many_pc(valid_character):
     assert any(i.field == "creation.priorities" for i in report.issues)
 
 
+def test_relations_match_pc_spent(valid_character):
+    # Le PC restant de l'exemple passe de la Magie à une relation.
+    valid_character["creation"]["extra_pc"] = {"relations": 1}
+    valid_character["magic"] = 0
+    report = validate_character(CharacterBase(**valid_character))
+    assert [(i.field, i.message) for i in report.issues] == [
+        ("relations", "Relations : encore 1 à déclarer (PNJ, lieu ou culture).")]
+
+    valid_character["relations"] = ["Le forgeron de Mannheim"]
+    assert validate_character(CharacterBase(**valid_character)).issues == []
+
+    valid_character["relations"].append("La guilde des marins")
+    assert [i.field for i in validate_character(CharacterBase(**valid_character)).issues] == ["relations"]
+
+
+def test_relations_not_checked_in_free_mode(monster):
+    monster["relations"] = ["Meute du nord"]
+    assert validate_character(CharacterBase(**monster)).issues == []
+
+
 def test_attribute_out_of_species_limits(valid_character):
     valid_character["attributes"]["agilite"] = 8  # max Nain : 6
     valid_character["attributes"]["resistance"] = 4
