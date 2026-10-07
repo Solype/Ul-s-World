@@ -60,13 +60,14 @@ backend/app/
 │   ├── auth.py          # /api/auth/register|login|logout|me, GET /api/users (admin)
 │   ├── rules.py         # GET /api/rules, POST /api/rules/validate
 │   ├── characters.py    # CRUD /api/characters (?kind=pj|pnj|monstre) + GET /{id}/validation, PUT /{id}/owner
+│   ├── rooms.py         # /api/rooms : rooms, membres, personnages proposés / acceptés, chat
 │   └── ws.py            # websocket /ws/{channel}
 └── realtime/manager.py  # diffusion des événements aux clients websocket
 ```
 
 **Principes**
 
-- **Comptes et propriétaires.** Inscription libre (identifiant + mot de passe) ; le premier compte créé est admin et récupère les personnages qui n'avaient pas de propriétaire. Chaque personnage (PJ, PNJ ou monstre) appartient au compte qui l'a créé (`owner_id`). Un joueur ne voit et ne modifie que les siens ; un admin voit tout et peut changer le propriétaire. Le personnage d'un autre répond 404, pas 403, pour ne pas révéler qu'il existe. La règle d'accès est dans `can_access` (`api/deps.py`) : c'est elle que les rooms élargiront.
+- **Comptes et propriétaires.** Inscription libre (identifiant + mot de passe) ; le premier compte créé est admin et récupère les personnages qui n'avaient pas de propriétaire. Chaque personnage (PJ, PNJ ou monstre) appartient au compte qui l'a créé (`owner_id`). Seuls le propriétaire et un admin le modifient (`can_edit`) ; un admin voit tout et peut changer le propriétaire. La lecture (`can_view`, dans `api/deps.py`) s'ouvre en plus aux membres des rooms où le personnage est intégré (voir Rooms). Un personnage qu'on ne peut pas voir répond 404, pour ne pas révéler qu'il existe ; un personnage vu mais pas modifiable répond 403 à une modification. `GET /api/characters` ne liste que ses propres personnages.
 - **Session par cookie** `nm_session` (HttpOnly, SameSite=Lax) : le navigateur l'envoie tout seul sur `/api` et `/ws`. La base ne garde que l'empreinte SHA-256 du jeton (table `user_sessions`), la déconnexion la supprime. Derrière HTTPS, mettre `COOKIE_SECURE=true`. `GET /api/rules` reste public.
 - **Les règles vivent à un seul endroit** : `app/rules/data.py`. Le frontend ne les code pas en dur, il les lit via `GET /api/rules`. Si un chiffre change dans le PDF, on le change là, et c'est tout.
 - **Un personnage peut être incomplet.** La sauvegarde n'est jamais bloquée par les règles. La validation renvoie une liste de problèmes, que l'éditeur affiche en direct, et on peut donc créer un personnage étape par étape.
@@ -87,17 +88,29 @@ backend/app/
 
 - **Composants** : shadcn/ui, dans `src/components/ui/`. Ce sont des fichiers générés et modifiables. Pour en ajouter un : `npx shadcn@latest add <composant>`. Les composants 21st.dev s'ajoutent de la même façon, avec leur URL de registre (il faut une clé `API_KEY_21ST`).
 - **Thème** : palette parchemin et bronze, définie en variables CSS dans `src/index.css` (`:root` pour le clair, `.dark` pour le sombre). Titres en Cinzel, texte en Geist.
-- **Navigation par l'URL** : `#/pj`, `#/pnj`, `#/monstre` (listes), `#/nouveau/<type>` (création), `#/personnage/<id>` (édition), `#/fiche/<id>` (fiche à imprimer), `#/regles/<page>/<section>` (règles en pleine page).
+- **Navigation par l'URL** : `#/pj`, `#/pnj`, `#/monstre` (listes), `#/nouveau/<type>` (création), `#/personnage/<id>` (édition), `#/fiche/<id>` (fiche à imprimer), `#/regles/<page>/<section>` (règles en pleine page), `#/rooms` et `#/room/<id>` (rooms), `#/rejoindre/<code>` (lien d'invitation).
 - **Règles** (`src/rules/`) : pages construites à partir de `GET /api/rules` (texte retranscrit + catalogues), recherche sans accents sur toutes les pages, panneau à droite de n'importe quelle page (bouton « Règles » ou Ctrl+K), boutons « ? » dans l'éditeur.
 - **Fiche imprimable** (`src/pages/CharacterSheet.tsx`) : sur le modèle de la Fiche PJ vide ; « Imprimer » → PDF depuis le navigateur.
 - **Organisation de l'éditeur** (`src/pages/CharacterEditor.tsx`) : une carte par étape. Le panneau latéral contient la navigation (avec le nombre de problèmes par section), les jauges de points et ce qui reste à compléter.
+
+## Rooms
+
+Une room est une table de jeu (`app/api/rooms.py`, tables `rooms`, `room_members`, `room_characters`, `chat_messages`).
+
+- **N'importe quel compte crée une room et en devient le MJ** (`Room.gm`). Les joueurs sont dans `room_members` ; le MJ n'y figure pas.
+- **Entrer** : avec le code d'invitation (`POST /api/rooms/join`, lien `#/rejoindre/<code>`), ou ajouté par le MJ via son identifiant. Le code n'est montré qu'au MJ, qui peut en générer un nouveau (l'ancien ne marche plus).
+- **Sortir** : un joueur quitte, le MJ exclut ; ses personnages sortent de la room et son websocket de room est fermé (4403). Le MJ ne quitte pas, il supprime la room (le chat est effacé, les personnages restent).
+- **Personnages** : un joueur propose un ou plusieurs de ses personnages, de n'importe quel type (PJ, animal de compagnie…) → `pending`. Le MJ accepte (`accepted`) ou refuse (la ligne est supprimée). Ceux du MJ entrent directement.
+- **Qui voit quoi** : tous les membres et le MJ lisent les fiches des personnages acceptés ; le MJ lit aussi les propositions en attente. Seul le propriétaire modifie (le MJ non plus).
+- **Temps réel** : seulement la présence et le chat, sur le canal `room:<id>`. Les fiches et le reste de la room (membres, propositions) ne sont pas poussés : la page les relit après chaque action. Les messages s'envoient en REST (`POST /api/rooms/{id}/messages`, enregistrés en base) puis sont poussés à la room ; l'historique se lit par pages (`GET .../messages?before=<id>&limit=50`).
 
 ## Websockets
 
 Le client se connecte à `/ws/<canal>`. Il doit être connecté (cookie de session), sinon le serveur ferme avec le code `4403` :
 
 - `characters` : événements `character.created`, `character.updated` et `character.deleted` sur ses personnages (sur tous pour un admin). La liste du frontend s'en sert pour se rafraîchir toute seule. En interne, le serveur branche le client sur `characters:user:<id>` ou `characters:all` ; `notify_character` (`realtime/manager.py`) prévient les bons canaux.
-- `character:<id>` : événements d'un seul personnage, s'il y a accès.
+- `character:<id>` : événements d'un de ses personnages.
+- `room:<id>` (membres et MJ) : `{"type": "room.presence", "online": [ids]}` à chaque arrivée ou départ, et `{"type": "room.message", "message": {...}}` pour le chat. Le gestionnaire retient le compte derrière chaque connexion (`manager.online`) et peut couper un compte (`manager.kick`).
 
 Les messages ont la forme `{"type": "character.updated", "id": 3}`. Pour la suite (jets de dés, édition à plusieurs, table de jeu…) :
 
@@ -165,6 +178,6 @@ Sans `sync_roles`, un `PATCH` conserve les PCR enregistrés. `role_points_outdat
 ## Pistes pour la suite
 
 - Équipement et marché international : seul le total des sous dépensés est suivi.
-- Rooms (tables de jeu) : élargir `can_access` aux membres d'une même room, et ajouter les canaux websocket de la room.
+- Rooms : jets de dés, droits du MJ sur les fiches, mises à jour des fiches en direct.
 - Comptes : limiter les tentatives de connexion, changer son mot de passe, gérer les comptes depuis l'interface admin.
 - Export PDF de la fiche remplie.

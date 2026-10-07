@@ -77,3 +77,66 @@ class Character(Base):
     creation: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+    # Rooms où le personnage est proposé ou accepté : supprimé avec lui.
+    room_links: Mapped[list["RoomCharacter"]] = relationship(back_populates="character", cascade="all, delete-orphan")
+
+
+class Room(Base):
+    """Table de jeu. Son créateur en est le MJ ; les joueurs la rejoignent par code ou sont ajoutés par le MJ."""
+
+    __tablename__ = "rooms"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    gm_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    gm: Mapped[User] = relationship(lazy="joined")
+    # Code d'invitation, sans tiret ni minuscule (affiché `ABCD-EFGH`). Le MJ peut en générer un nouveau.
+    invite_code: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    members: Mapped[list["RoomMember"]] = relationship(back_populates="room", cascade="all, delete-orphan",
+                                                     lazy="selectin", order_by="RoomMember.joined_at")
+    characters: Mapped[list["RoomCharacter"]] = relationship(back_populates="room", cascade="all, delete-orphan",
+                                                           lazy="selectin", order_by="RoomCharacter.created_at")
+    messages: Mapped[list["ChatMessage"]] = relationship(cascade="all, delete-orphan")
+
+
+class RoomMember(Base):
+    """Joueur d'une room (le MJ n'y figure pas : c'est `Room.gm`)."""
+
+    __tablename__ = "room_members"
+
+    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    room: Mapped[Room] = relationship(back_populates="members")
+    user: Mapped[User] = relationship(lazy="joined")
+
+
+class RoomCharacter(Base):
+    """Personnage proposé (`pending`) ou intégré (`accepted`) à une room. Un refus supprime la ligne."""
+
+    __tablename__ = "room_characters"
+
+    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), primary_key=True)
+    character_id: Mapped[int] = mapped_column(ForeignKey("characters.id", ondelete="CASCADE"), primary_key=True,
+                                              index=True)
+    status: Mapped[str] = mapped_column(String(10), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    room: Mapped[Room] = relationship(back_populates="characters")
+    character: Mapped[Character] = relationship(back_populates="room_links", lazy="joined")
+
+
+class ChatMessage(Base):
+    """Message du chat de table, conservé pour l'historique."""
+
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), index=True)
+    author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    author: Mapped[User | None] = relationship(lazy="joined")
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

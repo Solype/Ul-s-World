@@ -176,3 +176,89 @@ class CharacterRead(CharacterBase):
     owner: UserPublic | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class RoomCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+
+class RoomUpdate(RoomCreate):
+    pass
+
+
+class JoinRoom(BaseModel):
+    code: str = Field(min_length=4, max_length=20, description="Code d'invitation, avec ou sans tiret.")
+
+
+class AddMember(BaseModel):
+    username: str = Field(min_length=1, max_length=32)
+
+
+class SubmitCharacter(BaseModel):
+    character_id: int
+
+
+class RoomCharacterStatus(StrEnum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+
+
+class CharacterSummary(BaseModel):
+    """Ce que la room montre d'un personnage ; la fiche complète est sur /api/characters/{id}."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    kind: CharacterKind
+    species: str | None
+    owner: UserPublic | None
+
+
+class RoomCharacterRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    status: RoomCharacterStatus
+    character: CharacterSummary
+    created_at: datetime
+
+
+class RoomMemberRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user: UserPublic
+    joined_at: datetime
+
+
+class RoomSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    gm: UserPublic
+    created_at: datetime
+
+
+class RoomRead(RoomSummary):
+    """Une room vue par l'un de ses membres.
+
+    `invite_code` n'est donné qu'au MJ. Les propositions en attente : toutes pour le MJ,
+    seulement les siennes pour un joueur."""
+
+    invite_code: str | None
+    members: list[RoomMemberRead]
+    characters: list[RoomCharacterRead]
+
+
+class ChatMessageCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=2000)
+
+
+class ChatMessageRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    room_id: int
+    author: UserPublic | None
+    body: str
+    created_at: datetime

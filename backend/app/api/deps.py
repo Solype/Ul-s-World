@@ -1,13 +1,14 @@
-"""Dépendances partagées par les routes : utilisateur connecté, droits sur un personnage."""
+"""Dépendances partagées par les routes : utilisateur connecté, droits sur un personnage ou une room."""
 
 from datetime import UTC, datetime
 
 from fastapi import Cookie, Depends, HTTPException, status
+from sqlalchemy import and_, exists, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.security import SESSION_COOKIE, token_hash
 from app.db import get_session
-from app.models import Character, User, UserSession
+from app.models import Character, Room, RoomCharacter, RoomMember, User, UserSession
 
 
 def user_from_token(session: Session, token: str | None) -> User | None:
@@ -44,6 +45,26 @@ def admin_user(user: User = Depends(current_user)) -> User:
     return user
 
 
-def can_access(user: User, character: Character) -> bool:
-    """Le propriétaire et les admins. Les rooms élargiront ce droit aux joueurs d'une même table."""
+def can_edit(user: User, character: Character) -> bool:
+    """Modifier ou supprimer : le propriétaire et les admins."""
     return user.is_admin or character.owner_id == user.id
+
+
+def can_view(session: Session, user: User, character: Character) -> bool:
+    """Lire la fiche : ceux qui peuvent la modifier, les membres (et le MJ) d'une room où le
+    personnage est intégré, et le MJ d'une room où il est proposé (pour décider)."""
+    if can_edit(user, character):
+        return True
+    in_room_of_user = or_(
+        Room.gm_id == user.id,
+        and_(RoomCharacter.status == "accepted",
+             exists().where(RoomMember.room_id == Room.id, RoomMember.user_id == user.id)),
+    )
+    query = (select(RoomCharacter).join(Room)
+             .where(RoomCharacter.character_id == character.id, in_room_of_user).exists())
+    return bool(session.scalar(select(query)))
+
+
+def is_room_member(room: Room, user: User) -> bool:
+    """Le MJ ou un joueur de la room."""
+    return room.gm_id == user.id or any(m.user_id == user.id for m in room.members)

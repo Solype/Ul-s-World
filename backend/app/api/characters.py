@@ -7,7 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import admin_user, can_access, current_user
+from app.api.deps import admin_user, can_edit, can_view, current_user
 from app.db import get_session
 from app.models import Character, User
 from app.realtime.manager import notify_character
@@ -36,11 +36,14 @@ router = APIRouter(prefix="/characters", tags=["characters"])
 # Toutes les routes demandent d'être connecté. Un joueur ne voit que ses personnages, un admin voit tout.
 
 
-def _get_or_404(session: Session, character_id: int, user: User) -> Character:
-    """404 aussi pour le personnage d'un autre : on ne révèle pas qu'il existe."""
+def _get_or_404(session: Session, character_id: int, user: User, edit: bool = False) -> Character:
+    """404 pour un personnage qu'on ne peut pas voir : on ne révèle pas qu'il existe.
+    403 pour un personnage qu'on voit (via une room) sans pouvoir le modifier."""
     character = session.get(Character, character_id)
-    if character is None or not can_access(user, character):
+    if character is None or not can_view(session, user, character):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Personnage introuvable")
+    if edit and not can_edit(user, character):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Seul le propriétaire peut modifier ce personnage")
     return character
 
 
@@ -126,7 +129,7 @@ def update_character(
     user: User = Depends(current_user),
     session: Session = Depends(get_session),
 ) -> Character:
-    character = _get_or_404(session, character_id, user)
+    character = _get_or_404(session, character_id, user, edit=True)
     stored_pcr = stored_role_points(character.skills or {}, character.skill_groups or {})
     for field, value in payload.model_dump(mode="json", exclude_unset=True).items():
         setattr(character, field, value)
@@ -159,7 +162,7 @@ def set_owner(character_id: int, payload: OwnerUpdate, background: BackgroundTas
 @router.delete("/{character_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Supprimer un personnage")
 def delete_character(character_id: int, background: BackgroundTasks, user: User = Depends(current_user),
                      session: Session = Depends(get_session)) -> None:
-    character = _get_or_404(session, character_id, user)
+    character = _get_or_404(session, character_id, user, edit=True)
     owner_id = character.owner_id
     session.delete(character)
     session.commit()

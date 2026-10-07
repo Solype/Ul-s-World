@@ -230,6 +230,198 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Mes rooms (MJ ou joueur) */
+        get: operations["list_rooms_api_rooms_get"];
+        put?: never;
+        /** Créer une room (on en est le MJ) */
+        post: operations["create_room_api_rooms_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rooms/{room_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lire une room */
+        get: operations["get_room_api_rooms__room_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Supprimer une room (MJ)
+         * @description Les personnages ne sont pas supprimés, seulement retirés de la room. Le chat est effacé.
+         */
+        delete: operations["delete_room_api_rooms__room_id__delete"];
+        options?: never;
+        head?: never;
+        /** Renommer une room (MJ) */
+        patch: operations["update_room_api_rooms__room_id__patch"];
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/invite-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Nouveau code d'invitation (MJ)
+         * @description L'ancien code ne fonctionne plus ; les membres déjà entrés restent.
+         */
+        post: operations["regenerate_code_api_rooms__room_id__invite_code_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rooms/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rejoindre une room avec son code */
+        post: operations["join_room_api_rooms_join_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ajouter un joueur par identifiant (MJ) */
+        post: operations["add_member_api_rooms__room_id__members_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Exclure un joueur (MJ) ou quitter la room
+         * @description Les personnages du joueur sont retirés de la room. Le MJ ne peut pas partir : il supprime la room.
+         */
+        delete: operations["remove_member_api_rooms__room_id__members__user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/characters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Proposer un de ses personnages
+         * @description N'importe quel type (PJ, animal de compagnie...). En attente de l'accord du MJ ; ceux du MJ entrent directement.
+         */
+        post: operations["submit_character_api_rooms__room_id__characters_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/characters/{character_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accepter un personnage proposé (MJ) */
+        post: operations["accept_character_api_rooms__room_id__characters__character_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/characters/{character_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Refuser ou retirer un personnage (MJ), ou retirer le sien */
+        delete: operations["remove_character_api_rooms__room_id__characters__character_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Historique du chat
+         * @description Les `limit` derniers messages (avant `before`), du plus ancien au plus récent.
+         */
+        get: operations["list_messages_api_rooms__room_id__messages_get"];
+        put?: never;
+        /**
+         * Envoyer un message
+         * @description Enregistré, puis poussé à toute la room : `{"type": "room.message", "message": {...}}`.
+         */
+        post: operations["post_message_api_rooms__room_id__messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -251,6 +443,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AddMember */
+        AddMember: {
+            /** Username */
+            username: string;
+        };
         /**
          * Attribute
          * @enum {string}
@@ -654,6 +851,20 @@ export interface components {
             updated_at: string;
         };
         /**
+         * CharacterSummary
+         * @description Ce que la room montre d'un personnage ; la fiche complète est sur /api/characters/{id}.
+         */
+        CharacterSummary: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            kind: components["schemas"]["CharacterKind"];
+            /** Species */
+            species: string | null;
+            owner: components["schemas"]["UserPublic"] | null;
+        };
+        /**
          * CharacterUpdate
          * @description PATCH : seuls les champs envoyés sont modifiés.
          */
@@ -762,6 +973,26 @@ export interface components {
              */
             notes?: string;
             creation?: components["schemas"]["Creation"] | null;
+        };
+        /** ChatMessageCreate */
+        ChatMessageCreate: {
+            /** Body */
+            body: string;
+        };
+        /** ChatMessageRead */
+        ChatMessageRead: {
+            /** Id */
+            id: number;
+            /** Room Id */
+            room_id: number;
+            author: components["schemas"]["UserPublic"] | null;
+            /** Body */
+            body: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /**
          * Choice
@@ -928,6 +1159,14 @@ export interface components {
             field: string;
             /** Message */
             message: string;
+        };
+        /** JoinRoom */
+        JoinRoom: {
+            /**
+             * Code
+             * @description Code d'invitation, avec ou sans tiret.
+             */
+            code: string;
         };
         /**
          * Mana
@@ -1110,6 +1349,78 @@ export interface components {
              */
             secondary?: string[];
         };
+        /** RoomCharacterRead */
+        RoomCharacterRead: {
+            status: components["schemas"]["RoomCharacterStatus"];
+            character: components["schemas"]["CharacterSummary"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * RoomCharacterStatus
+         * @enum {string}
+         */
+        RoomCharacterStatus: "pending" | "accepted";
+        /** RoomCreate */
+        RoomCreate: {
+            /** Name */
+            name: string;
+        };
+        /** RoomMemberRead */
+        RoomMemberRead: {
+            user: components["schemas"]["UserPublic"];
+            /**
+             * Joined At
+             * Format: date-time
+             */
+            joined_at: string;
+        };
+        /**
+         * RoomRead
+         * @description Une room vue par l'un de ses membres.
+         *
+         *     `invite_code` n'est donné qu'au MJ. Les propositions en attente : toutes pour le MJ,
+         *     seulement les siennes pour un joueur.
+         */
+        RoomRead: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            gm: components["schemas"]["UserPublic"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Invite Code */
+            invite_code: string | null;
+            /** Members */
+            members: components["schemas"]["RoomMemberRead"][];
+            /** Characters */
+            characters: components["schemas"]["RoomCharacterRead"][];
+        };
+        /** RoomSummary */
+        RoomSummary: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            gm: components["schemas"]["UserPublic"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** RoomUpdate */
+        RoomUpdate: {
+            /** Name */
+            name: string;
+        };
         /**
          * RuleText
          * @description Texte des règles, en Markdown. Les lignes `<!-- data:xxx -->` sont remplacées par le frontend
@@ -1235,6 +1546,11 @@ export interface components {
          * @enum {string}
          */
         Species: "elfe" | "humain" | "kobold" | "nain" | "orc";
+        /** SubmitCharacter */
+        SubmitCharacter: {
+            /** Character Id */
+            character_id: number;
+        };
         /**
          * TraitChoice
          * @description Ce que le joueur choisit pour ce trait. `options` vide : tout le catalogue de `target`.
@@ -1946,6 +2262,461 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ValidationReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_rooms_api_rooms_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_room_api_rooms_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoomCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_room_api_rooms__room_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_room_api_rooms__room_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_room_api_rooms__room_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoomUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regenerate_code_api_rooms__room_id__invite_code_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    join_room_api_rooms_join_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JoinRoom"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_member_api_rooms__room_id__members_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddMember"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_member_api_rooms__room_id__members__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_character_api_rooms__room_id__characters_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitCharacter"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_character_api_rooms__room_id__characters__character_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                character_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_character_api_rooms__room_id__characters__character_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                character_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoomRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_messages_api_rooms__room_id__messages_get: {
+        parameters: {
+            query?: {
+                /** @description Messages plus anciens que cet id. */
+                before?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatMessageRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_message_api_rooms__room_id__messages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatMessageCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatMessageRead"];
                 };
             };
             /** @description Validation Error */

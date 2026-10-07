@@ -610,6 +610,670 @@
         }
       }
     },
+    "/api/rooms": {
+      "get": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Mes rooms (MJ ou joueur)",
+        "operationId": "list_rooms_api_rooms_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RoomSummary"
+                  },
+                  "type": "array",
+                  "title": "Response List Rooms Api Rooms Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Créer une room (on en est le MJ)",
+        "operationId": "create_room_api_rooms_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoomCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}": {
+      "get": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Lire une room",
+        "operationId": "get_room_api_rooms__room_id__get",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Renommer une room (MJ)",
+        "operationId": "update_room_api_rooms__room_id__patch",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoomUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Supprimer une room (MJ)",
+        "description": "Les personnages ne sont pas supprimés, seulement retirés de la room. Le chat est effacé.",
+        "operationId": "delete_room_api_rooms__room_id__delete",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}/invite-code": {
+      "post": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Nouveau code d'invitation (MJ)",
+        "description": "L'ancien code ne fonctionne plus ; les membres déjà entrés restent.",
+        "operationId": "regenerate_code_api_rooms__room_id__invite_code_post",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/join": {
+      "post": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Rejoindre une room avec son code",
+        "operationId": "join_room_api_rooms_join_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinRoom"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}/members": {
+      "post": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Ajouter un joueur par identifiant (MJ)",
+        "operationId": "add_member_api_rooms__room_id__members_post",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMember"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}/members/{user_id}": {
+      "delete": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Exclure un joueur (MJ) ou quitter la room",
+        "description": "Les personnages du joueur sont retirés de la room. Le MJ ne peut pas partir : il supprime la room.",
+        "operationId": "remove_member_api_rooms__room_id__members__user_id__delete",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}/characters": {
+      "post": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Proposer un de ses personnages",
+        "description": "N'importe quel type (PJ, animal de compagnie...). En attente de l'accord du MJ ; ceux du MJ entrent directement.",
+        "operationId": "submit_character_api_rooms__room_id__characters_post",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitCharacter"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}/characters/{character_id}/accept": {
+      "post": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Accepter un personnage proposé (MJ)",
+        "operationId": "accept_character_api_rooms__room_id__characters__character_id__accept_post",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Character Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}/characters/{character_id}": {
+      "delete": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Refuser ou retirer un personnage (MJ), ou retirer le sien",
+        "operationId": "remove_character_api_rooms__room_id__characters__character_id__delete",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "character_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Character Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoomRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}/messages": {
+      "get": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Historique du chat",
+        "description": "Les `limit` derniers messages (avant `before`), du plus ancien au plus récent.",
+        "operationId": "list_messages_api_rooms__room_id__messages_get",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Messages plus anciens que cet id.",
+              "title": "Before"
+            },
+            "description": "Messages plus anciens que cet id."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChatMessageRead"
+                  },
+                  "title": "Response List Messages Api Rooms  Room Id  Messages Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "rooms"
+        ],
+        "summary": "Envoyer un message",
+        "description": "Enregistré, puis poussé à toute la room : `{\"type\": \"room.message\", \"message\": {...}}`.",
+        "operationId": "post_message_api_rooms__room_id__messages_post",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatMessageCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMessageRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -638,6 +1302,21 @@
   },
   "components": {
     "schemas": {
+      "AddMember": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Username"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username"
+        ],
+        "title": "AddMember"
+      },
       "Attribute": {
         "type": "string",
         "enum": [
@@ -1327,6 +2006,52 @@
         ],
         "title": "CharacterRead"
       },
+      "CharacterSummary": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CharacterKind"
+          },
+          "species": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Species"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserPublic"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "species",
+          "owner"
+        ],
+        "title": "CharacterSummary",
+        "description": "Ce que la room montre d'un personnage ; la fiche complète est sur /api/characters/{id}."
+      },
       "CharacterUpdate": {
         "properties": {
           "name": {
@@ -1512,6 +2237,61 @@
         "type": "object",
         "title": "CharacterUpdate",
         "description": "PATCH : seuls les champs envoyés sont modifiés."
+      },
+      "ChatMessageCreate": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "ChatMessageCreate"
+      },
+      "ChatMessageRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "room_id": {
+            "type": "integer",
+            "title": "Room Id"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserPublic"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "room_id",
+          "author",
+          "body",
+          "created_at"
+        ],
+        "title": "ChatMessageRead"
       },
       "Choice": {
         "properties": {
@@ -1846,6 +2626,22 @@
           "message"
         ],
         "title": "Issue"
+      },
+      "JoinRoom": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 4,
+            "title": "Code",
+            "description": "Code d'invitation, avec ou sans tiret."
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "JoinRoom"
       },
       "Mana": {
         "properties": {
@@ -2231,6 +3027,169 @@
         "type": "object",
         "title": "Roles"
       },
+      "RoomCharacterRead": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/RoomCharacterStatus"
+          },
+          "character": {
+            "$ref": "#/components/schemas/CharacterSummary"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "character",
+          "created_at"
+        ],
+        "title": "RoomCharacterRead"
+      },
+      "RoomCharacterStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "accepted"
+        ],
+        "title": "RoomCharacterStatus"
+      },
+      "RoomCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "RoomCreate"
+      },
+      "RoomMemberRead": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserPublic"
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Joined At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "joined_at"
+        ],
+        "title": "RoomMemberRead"
+      },
+      "RoomRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "gm": {
+            "$ref": "#/components/schemas/UserPublic"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "invite_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invite Code"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/RoomMemberRead"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "characters": {
+            "items": {
+              "$ref": "#/components/schemas/RoomCharacterRead"
+            },
+            "type": "array",
+            "title": "Characters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "gm",
+          "created_at",
+          "invite_code",
+          "members",
+          "characters"
+        ],
+        "title": "RoomRead",
+        "description": "Une room vue par l'un de ses membres.\n\n`invite_code` n'est donné qu'au MJ. Les propositions en attente : toutes pour le MJ,\nseulement les siennes pour un joueur."
+      },
+      "RoomSummary": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "gm": {
+            "$ref": "#/components/schemas/UserPublic"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "gm",
+          "created_at"
+        ],
+        "title": "RoomSummary"
+      },
+      "RoomUpdate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "RoomUpdate"
+      },
       "RuleText": {
         "properties": {
           "id": {
@@ -2498,6 +3457,19 @@
           "orc"
         ],
         "title": "Species"
+      },
+      "SubmitCharacter": {
+        "properties": {
+          "character_id": {
+            "type": "integer",
+            "title": "Character Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "character_id"
+        ],
+        "title": "SubmitCharacter"
       },
       "TraitChoice": {
         "properties": {
