@@ -512,7 +512,7 @@ export interface paths {
         delete: operations["remove_status_api_rooms__room_id__instances__instance_id__statuses__status_id__delete"];
         options?: never;
         head?: never;
-        /** Cacher ou révéler un statut (MJ) */
+        /** Changer la couleur d'un statut, le cacher ou le révéler (MJ) */
         patch: operations["update_status_api_rooms__room_id__instances__instance_id__statuses__status_id__patch"];
         trace?: never;
     };
@@ -1713,6 +1713,12 @@ export interface components {
          * @enum {string}
          */
         Species: "elfe" | "humain" | "kobold" | "nain" | "orc";
+        /**
+         * StatusColor
+         * @description Palette fixe : le frontend associe à chaque nom une teinte lisible en thème clair et sombre.
+         * @enum {string}
+         */
+        StatusColor: "neutre" | "rouge" | "orange" | "jaune" | "vert" | "bleu" | "violet" | "rose";
         /** StatusCreate */
         StatusCreate: {
             /** Label */
@@ -1723,6 +1729,8 @@ export interface components {
              * @default false
              */
             hidden?: boolean;
+            /** @default neutre */
+            color?: components["schemas"]["StatusColor"];
         };
         /**
          * StatusRead
@@ -1738,11 +1746,17 @@ export interface components {
              * @default false
              */
             hidden?: boolean;
+            /** @default neutre */
+            color?: components["schemas"]["StatusColor"];
         };
-        /** StatusUpdate */
+        /**
+         * StatusUpdate
+         * @description Seuls les champs envoyés changent. `hidden` (cacher / révéler) est réservé au MJ.
+         */
         StatusUpdate: {
             /** Hidden */
-            hidden: boolean;
+            hidden?: boolean | null;
+            color?: components["schemas"]["StatusColor"] | null;
         };
         /** SubmitCharacter */
         SubmitCharacter: {

@@ -294,21 +294,39 @@ class MonitorChange(BaseModel):
     set: dict[str, Annotated[int, Field(ge=0)]] = {}
 
 
+class StatusColor(StrEnum):
+    """Palette fixe : le frontend associe à chaque nom une teinte lisible en thème clair et sombre."""
+
+    NEUTRE = "neutre"
+    ROUGE = "rouge"
+    ORANGE = "orange"
+    JAUNE = "jaune"
+    VERT = "vert"
+    BLEU = "bleu"
+    VIOLET = "violet"
+    ROSE = "rose"
+
+
 class StatusRead(BaseModel):
     """Statut d'un personnage en jeu (tag libre). `hidden` : visible du MJ seul."""
 
     id: str
     label: str
     hidden: bool = False
+    color: StatusColor = StatusColor.NEUTRE
 
 
 class StatusCreate(BaseModel):
     label: str = Field(min_length=1, max_length=40)
     hidden: bool = Field(False, description="Visible du MJ seul (réservé au MJ).")
+    color: StatusColor = StatusColor.NEUTRE
 
 
 class StatusUpdate(BaseModel):
-    hidden: bool
+    """Seuls les champs envoyés changent. `hidden` (cacher / révéler) est réservé au MJ."""
+
+    hidden: bool | None = None
+    color: StatusColor | None = None
 
 
 InstanceRead.model_rebuild()

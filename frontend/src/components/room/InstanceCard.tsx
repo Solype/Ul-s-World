@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import StatusTags, { type StatusActions } from "./StatusTags";
+import StatusTags, { type StatusActions, type StatusSuggestion } from "./StatusTags";
 
 /** Couleur de chaque jauge (clés : rules/monitors.py MONITORS). */
 const BAR_COLORS: Record<string, string> = {
@@ -24,7 +24,7 @@ type Props = {
   canEdit: boolean;
   isGM: boolean;
   /** Statuts déjà utilisés dans la room (suggestions). */
-  statusSuggestions: string[];
+  statusSuggestions: StatusSuggestion[];
   statusActions: StatusActions;
   onDelta: (monitor: string, delta: number) => void;
   onSet: (monitor: string, value: number) => void;

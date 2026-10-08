@@ -170,20 +170,22 @@ def add_status(room_id: int, instance_id: int, payload: StatusCreate, background
     statuses = list(instance.statuses or [])
     visible = [s for s in statuses if is_gm or not s.get("hidden")]
     if not any(s["label"].casefold() == label.casefold() for s in visible):
-        statuses.append({"id": secrets.token_hex(4), "label": label, "hidden": payload.hidden})
+        statuses.append({"id": secrets.token_hex(4), "label": label, "hidden": payload.hidden,
+                         "color": payload.color.value})
         instance.statuses = statuses
     return _save_and_push(session, background, instance, user)
 
 
 @router.patch("/{room_id}/instances/{instance_id}/statuses/{status_id}", response_model=InstanceRead,
-              summary="Cacher ou révéler un statut (MJ)")
+              summary="Changer la couleur d'un statut, le cacher ou le révéler (MJ)")
 def update_status(room_id: int, instance_id: int, status_id: str, payload: StatusUpdate, background: BackgroundTasks,
                   user: User = Depends(current_user), session: Session = Depends(get_session)) -> InstanceRead:
     instance = _instance_or_404(session, room_id, instance_id, user)
-    if not _is_gm(instance, user):
+    if payload.hidden is not None and not _is_gm(instance, user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Seul le MJ cache ou révèle un statut")
     _status_or_404(instance, status_id, user)
-    instance.statuses = [{**s, "hidden": payload.hidden} if s["id"] == status_id else s for s in instance.statuses]
+    changes = payload.model_dump(mode="json", exclude_none=True)
+    instance.statuses = [{**s, **changes} if s["id"] == status_id else s for s in instance.statuses]
     return _save_and_push(session, background, instance, user)
 
 

@@ -1500,7 +1500,7 @@
         "tags": [
           "instances"
         ],
-        "summary": "Cacher ou révéler un statut (MJ)",
+        "summary": "Changer la couleur d'un statut, le cacher ou le révéler (MJ)",
         "operationId": "update_status_api_rooms__room_id__instances__instance_id__statuses__status_id__patch",
         "parameters": [
           {
@@ -3942,6 +3942,21 @@
         ],
         "title": "Species"
       },
+      "StatusColor": {
+        "type": "string",
+        "enum": [
+          "neutre",
+          "rouge",
+          "orange",
+          "jaune",
+          "vert",
+          "bleu",
+          "violet",
+          "rose"
+        ],
+        "title": "StatusColor",
+        "description": "Palette fixe : le frontend associe à chaque nom une teinte lisible en thème clair et sombre."
+      },
       "StatusCreate": {
         "properties": {
           "label": {
@@ -3955,6 +3970,10 @@
             "title": "Hidden",
             "description": "Visible du MJ seul (réservé au MJ).",
             "default": false
+          },
+          "color": {
+            "$ref": "#/components/schemas/StatusColor",
+            "default": "neutre"
           }
         },
         "type": "object",
@@ -3977,6 +3996,10 @@
             "type": "boolean",
             "title": "Hidden",
             "default": false
+          },
+          "color": {
+            "$ref": "#/components/schemas/StatusColor",
+            "default": "neutre"
           }
         },
         "type": "object",
@@ -3990,15 +4013,30 @@
       "StatusUpdate": {
         "properties": {
           "hidden": {
-            "type": "boolean",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Hidden"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StatusColor"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
-        "required": [
-          "hidden"
-        ],
-        "title": "StatusUpdate"
+        "title": "StatusUpdate",
+        "description": "Seuls les champs envoyés changent. `hidden` (cacher / révéler) est réservé au MJ."
       },
       "SubmitCharacter": {
         "properties": {

@@ -154,3 +154,19 @@ def test_hidden_statuses_are_not_pushed_to_players(in_play):
         gm.post(f"{url}/statuses", json={"label": "Possédé", "hidden": True})
         assert _labels(gm_ws.receive_json()["instance"]) == {"Possédé": True}
         assert _labels(bob_ws.receive_json()["instance"]) == {}
+
+
+def test_status_colors(in_play):
+    gm, bob, url = in_play["gm"], in_play["bob"], in_play["url"]
+    plain = bob.post(f"{url}/statuses", json={"label": "Étourdi"}).json()["statuses"][0]
+    assert plain["color"] == "neutre"
+    fire = bob.post(f"{url}/statuses", json={"label": "Enflammé", "color": "rouge"}).json()["statuses"][1]
+    assert fire["color"] == "rouge"
+    assert bob.post(f"{url}/statuses", json={"label": "X", "color": "turquoise"}).status_code == 422
+    # Tout membre qui gère le statut change sa couleur ; cacher reste réservé au MJ.
+    recolored = bob.patch(f"{url}/statuses/{fire['id']}", json={"color": "orange"}).json()
+    assert {s["label"]: s["color"] for s in recolored["statuses"]}["Enflammé"] == "orange"
+    assert not any(s["hidden"] for s in recolored["statuses"])
+    assert bob.patch(f"{url}/statuses/{fire['id']}", json={"color": "bleu", "hidden": True}).status_code == 403
+    both = gm.patch(f"{url}/statuses/{fire['id']}", json={"color": "violet", "hidden": True}).json()
+    assert {s["label"]: (s["color"], s["hidden"]) for s in both["statuses"]}["Enflammé"] == ("violet", True)

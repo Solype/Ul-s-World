@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { api, type Character, type ChatMessage, type Instance, type Room, type RoomCharacter, type UserPublic } from "@/api/client";
 import { useUser } from "@/auth/AuthContext";
 import InstanceCard from "@/components/room/InstanceCard";
-import type { StatusActions } from "@/components/room/StatusTags";
+import type { StatusActions, StatusColor } from "@/components/room/StatusTags";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -100,21 +100,26 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
       else toast.error(failure);
       return !!data;
     };
+    const patch = async (statusId: string, body: { hidden?: boolean; color?: StatusColor }) => {
+      done((await api.PATCH("/api/rooms/{room_id}/instances/{instance_id}/statuses/{status_id}",
+        { params: { path: { ...p.params.path, status_id: statusId } }, body })).data, "Action impossible");
+    };
     return {
-      onAdd: async (label, hidden) =>
-        done((await api.POST("/api/rooms/{room_id}/instances/{instance_id}/statuses", { ...p, body: { label, hidden } })).data,
-          "Statut non ajouté"),
+      onAdd: async (label, hidden, color) =>
+        done((await api.POST("/api/rooms/{room_id}/instances/{instance_id}/statuses",
+          { ...p, body: { label, hidden, color } })).data, "Statut non ajouté"),
       onRemove: async (statusId) => {
         done((await api.DELETE("/api/rooms/{room_id}/instances/{instance_id}/statuses/{status_id}",
           { params: { path: { ...p.params.path, status_id: statusId } } })).data, "Statut non retiré");
       },
-      onToggleHidden: async (statusId, hidden) => {
-        done((await api.PATCH("/api/rooms/{room_id}/instances/{instance_id}/statuses/{status_id}",
-          { params: { path: { ...p.params.path, status_id: statusId } }, body: { hidden } })).data, "Action impossible");
-      },
+      onRecolor: (statusId, color) => patch(statusId, { color }),
+      onToggleHidden: (statusId, hidden) => patch(statusId, { hidden }),
     };
   };
-  const statusSuggestions = [...new Set(instances.flatMap((i) => (i.statuses ?? []).map((s) => s.label)))].sort();
+  // Statuts déjà utilisés dans la room (un par intitulé, avec sa couleur), proposés à la saisie.
+  const statusSuggestions = [...new Map(instances.flatMap((i) => i.statuses ?? [])
+    .map((s) => [s.label.toLocaleLowerCase(), { label: s.label, color: s.color ?? "neutre" }])).values()]
+    .sort((a, b) => a.label.localeCompare(b.label));
 
   // Personnages qu'on vient de retirer soi-même : pas de « refusé par le MJ » si le signal arrive avant la réponse.
   const withdrawn = useRef(new Set<number>());
