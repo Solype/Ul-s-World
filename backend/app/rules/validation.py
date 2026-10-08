@@ -15,7 +15,7 @@ Points de compétence de rôle (PCR) :
 
 from pydantic import BaseModel
 
-from app.rules.catalogs import CATALOGS
+from app.rules.catalogs import CATALOGS, OPEN_CATALOGS
 from app.rules.data import (
     ALL_SKILLS,
     BOTTES_PER_PC,
@@ -137,7 +137,7 @@ def validate_character(c: CharacterBase) -> ValidationReport:
             labels = {e.label for e in CATALOGS[key]}
             names = [i.name for i in items]
             for name in names:
-                if name not in labels:
+                if name not in labels and key not in OPEN_CATALOGS:
                     issue(f"selections.{key}", f"{res.label} : « {name} » n'est pas dans le catalogue.")
             for name in sorted({n for n in names if names.count(n) > 1}):
                 issue(f"selections.{key}", f"{res.label} : « {name} » choisi plusieurs fois.")

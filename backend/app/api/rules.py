@@ -15,7 +15,7 @@ from app.rules.data import (
     Species,
 )
 from app.rules import roles as roles_catalog
-from app.rules.catalogs import CATALOGS, CatalogEntry
+from app.rules.catalogs import CATALOGS, OPEN_CATALOGS, CatalogEntry
 from app.rules.monitors import MONITORS, MonitorDef
 from app.rules.monsters import BASE_ATTRIBUTES, MONSTER_TRAITS, MonsterTraitDef
 from app.rules.role_model import RESOURCE_DEFS, STATS, Grant, ResourceDef, Role
@@ -93,8 +93,10 @@ class Rules(BaseModel):
     common_trunks: dict[str, list[Grant]]
     stats: dict[str, str]
     resource_defs: dict[str, ResourceDef]
-    # Choix fermés de certaines ressources (langues, animaux totems), stockés sous leur libellé.
+    # Choix de certaines ressources (langues, animaux totems, sorts), stockés sous leur libellé.
     catalogs: dict[str, list[CatalogEntry]]
+    # Catalogues incomplets (sorts) : un élément hors catalogue reste accepté.
+    open_catalogs: list[str]
     # Traits de personnage : bonus (coûtent des PC) et malus (en rapportent).
     traits: dict[str, TraitDef]
     # Monstres : attributs de l'entité de base, caractéristiques et autres traits (refdoc/Caractéristique monstres.pdf).
@@ -129,6 +131,7 @@ def get_rules() -> Rules:
         stats=STATS,
         resource_defs=RESOURCE_DEFS,
         catalogs=CATALOGS,
+        open_catalogs=sorted(OPEN_CATALOGS),
         traits=TRAITS,
         monster_base_attributes=BASE_ATTRIBUTES,
         monster_traits=MONSTER_TRAITS,

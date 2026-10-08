@@ -1867,6 +1867,28 @@
             "type": "string",
             "title": "Effect"
           },
+          "school": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
           "skill": {
             "anyOf": [
               {
@@ -4205,6 +4227,13 @@
             "type": "object",
             "title": "Catalogs"
           },
+          "open_catalogs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Open Catalogs"
+          },
           "traits": {
             "additionalProperties": {
               "$ref": "#/components/schemas/TraitDef"
@@ -4256,6 +4285,7 @@
           "stats",
           "resource_defs",
           "catalogs",
+          "open_catalogs",
           "traits",
           "monster_base_attributes",
           "monster_traits",

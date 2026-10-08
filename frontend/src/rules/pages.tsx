@@ -261,6 +261,26 @@ function languagesPage(rules: Rules): RulePage {
   return { id: "langues", title: "Langues et totems", sections };
 }
 
+/** Sorts : une section par famille (Feu, Eau...), regroupées par compétence magique. */
+function spellsPage(rules: Rules): RulePage {
+  const spells = rules.catalogs.sorts ?? [];
+  const magic = rules.skill_groups.magie?.skills ?? {};
+  const families = [...new Map(spells.map((s) => [`${s.school}/${s.group}`, s])).values()];
+  const sections: RuleSection[] = families.map((f) => {
+    const names = spells.filter((s) => s.school === f.school && s.group === f.group).map((s) => s.label);
+    return {
+      id: `sorts-${slugify(`${f.school ?? ""}-${f.group ?? ""}`)}`, title: f.group ?? "Sorts",
+      group: f.school ? magic[f.school] ?? f.school : undefined, text: names.join(" "),
+      content: (
+        <ul className="grid gap-x-6 gap-y-0.5 text-sm sm:grid-cols-2">
+          {names.map((n) => <li key={n}>{n}</li>)}
+        </ul>
+      ),
+    };
+  });
+  return { id: "sorts", title: "Sorts", sections };
+}
+
 export function buildRulePages(rules: Rules): RulePage[] {
-  return [...textPages(rules), skillsPage(rules), rolesPage(rules), traitsPage(rules), languagesPage(rules)];
+  return [...textPages(rules), skillsPage(rules), rolesPage(rules), traitsPage(rules), languagesPage(rules), spellsPage(rules)];
 }

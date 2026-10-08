@@ -65,7 +65,7 @@ backend/app/
 ├── rules/
 │   ├── data.py          # ★ données des règles : espèces, priorités, compétences
 │   ├── roles_catalog.py # ★ catalogue des rôles (refdoc/Roles.pdf)
-│   ├── catalogs.py      # ★ langues et animaux totems (refdoc/Langues.pdf)
+│   ├── catalogs.py      # ★ langues et animaux totems (refdoc/Langues.pdf), sorts (catalogue ouvert)
 │   ├── traits.py        # ★ traits de personnage et calcul de leurs effets (refdoc/Traits de personnage.pdf)
 │   ├── monsters.py      # ★ caractéristiques des monstres et ce qu'elles ouvrent (refdoc/Caractéristique monstres.pdf)
 │   ├── monitors.py      # ★ moniteurs de condition (physique, mental, pathologique, endurance, mana)

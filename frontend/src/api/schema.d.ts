@@ -590,6 +590,10 @@ export interface components {
             label: string;
             /** Effect */
             effect: string;
+            /** School */
+            school?: string | null;
+            /** Group */
+            group?: string | null;
             /** Skill */
             skill?: string | null;
             /**
@@ -1793,6 +1797,8 @@ export interface components {
             catalogs: {
                 [key: string]: components["schemas"]["CatalogEntry"][];
             };
+            /** Open Catalogs */
+            open_catalogs: string[];
             /** Traits */
             traits: {
                 [key: string]: components["schemas"]["TraitDef"];

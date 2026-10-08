@@ -12,6 +12,9 @@ from pydantic import BaseModel
 class CatalogEntry(BaseModel):
     label: str
     effect: str
+    # Sorts : compétence magique (clé de SKILL_GROUPS["magie"]) et famille dans cette magie (Feu, Eau...).
+    school: str | None = None
+    group: str | None = None
     # Bonus chiffrés, comptés comme des PCR (animaux totems).
     skill: str | None = None
     points: int = 0
@@ -79,8 +82,34 @@ TOTEMS = _entries(
     ("Vautour", "+1 en résistance pathologique", _sk("pathologique")),
 )
 
+# Sorts, par compétence magique puis par famille. Effets à venir. Seule l'Élémentarisme est transcrite :
+# les autres magies ont aussi des sorts, d'où un catalogue ouvert (OPEN_CATALOGS).
+_ELEMENTS: dict[str, list[str]] = {
+    "Feu": ["Poing de feu", "Souffle volcanique", "Torche marine", "Feu d'artifice", "Boule de feu", "Immolation",
+            "Cuisson", "KABOUM !", "Déflagration"],
+    "Eau": ["Bubulle", "Osmose", "Sphère d'eau boueuse", "Eau claire", "Prison aqueuse", "Boule de neige",
+            "Lame de fond", "Geyser", "Typhon"],
+    "Terre": ["Masse de pierre", "Polyroche", "Brise roche", "Mur rocheux", "Tunnel", "Pierres dansantes",
+              "Lame de roc", "Stalagmite", "Séisme"],
+    "Air": ["Aérobatie", "Mur de vent", "Surpression", "Aérokinésie", "Lame d'air", "Tourbillon", "Anticyclone",
+            "Mistral", "Tornade"],
+    "Électricité": ["Tonnerre", "Survoltage", "Dipôle", "Taser", "Magnétisme", "Orage ionique", "Arc ciblé",
+                    "Éclair en chaîne", "Foudre"],
+    "Vie": ["Infestation", "Poing vampirique", "Chrysalide", "Antidote", "Grandit !!!", "Transfusion",
+            "Revitalisation", "Spore", "Coquelicot"],
+    "Ombre": ["Cécité", "Poignard de ténèbres", "Voile pernicieux", "Arc obscure", "Poigne des ombres",
+              "Ombre leurre", "Danse des ombres", "Damoclès", "Éclipse"],
+    "Lumière": ["Astre terrestre", "Lame nébuleuse", "Absorption de lumière", "Main lumineuse", "Pixie",
+                "Choix désastre", "Rayon prismatique", "Couronne astrale", "Rayon solaire"],
+}
+SPELLS = [CatalogEntry(label=name, effect="", school="elementarisme", group=element)
+          for element, names in _ELEMENTS.items() for name in names]
+
 # Ressource (clé de RESOURCE_DEFS) -> catalogue de ses choix.
 CATALOGS: dict[str, list[CatalogEntry]] = {
     "langues": LANGUAGES,
     "animaux_totems": TOTEMS,
+    "sorts": SPELLS,
 }
+# Catalogues incomplets : on y choisit, mais un élément hors catalogue reste accepté.
+OPEN_CATALOGS = {"sorts"}

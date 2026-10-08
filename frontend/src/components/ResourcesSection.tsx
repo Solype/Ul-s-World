@@ -131,6 +131,8 @@ export default function ResourcesSection({ rules, character, rulesMode, floors, 
                   <CatalogPicker label={def.label} description={def.description} catalog={catalog} max={n}
                     selected={items.map((x) => x.name)} required={required}
                     bonus={key === "animaux_totems" ? totemBonus : undefined}
+                    subtitle={(e) => [e.school ? skillLabels[e.school] ?? e.school : null, e.group].filter(Boolean).join(" · ") || null}
+                    open={rules.open_catalogs.includes(key)}
                     onChange={(names) => setItems(key, names.map((name) => ({ name })))} />
                 )}
                 {!catalog && Array.from({ length: slots }, (_, i) => (

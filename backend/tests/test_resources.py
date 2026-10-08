@@ -43,6 +43,15 @@ def test_score_resource_has_no_choices(monster):
     assert "selections.piete" in issues(monster)
 
 
+def test_spell_catalog_is_open(monster):
+    """Seuls les sorts d'Élémentarisme sont transcrits : un sort hors catalogue reste accepté, pas les doublons."""
+    monster["resources"] = {"sorts": 2}
+    monster["selections"] = {"sorts": [{"name": "Boule de feu"}, {"name": "Sort inventé"}]}
+    assert "selections.sorts" not in issues(monster)
+    monster["selections"]["sorts"][1]["name"] = "Boule de feu"
+    assert "choisi plusieurs fois" in issues(monster)["selections.sorts"]
+
+
 def test_catalog_resources_only_accept_catalog_entries(monster):
     monster["resources"] = {"langues": 2, "animaux_totems": 1}
     monster["selections"] = {"langues": [{"name": "Latin"}, {"name": "Klingon"}], "animaux_totems": [{"name": "Loup"}]}

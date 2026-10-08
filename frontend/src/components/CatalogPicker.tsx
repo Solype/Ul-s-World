@@ -7,7 +7,11 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-type Entry = { label: string; effect: string; skill?: string | null; points?: number; mana?: number; free_knowledge?: number };
+type Entry = {
+  label: string; effect: string; skill?: string | null; points?: number; mana?: number; free_knowledge?: number;
+  /** Sorts : compétence magique et famille (Feu, Eau...). */
+  school?: string | null; group?: string | null;
+};
 
 type Props = {
   /** Libellé de la ressource : « Langues », « Animaux totems ». */
@@ -22,19 +26,26 @@ type Props = {
   required: string[];
   /** Bonus compté en PCR, en clair (« +1 Observation »), ou `null` s'il reste descriptif. */
   bonus?: (entry: Entry) => string | null;
+  /** Ligne sous le nom (« Élémentarisme · Feu »). */
+  subtitle?: (entry: Entry) => string | null;
+  /** Catalogue incomplet (sorts) : on peut aussi ajouter un élément qui n'y est pas encore. */
+  open?: boolean;
   onChange: (names: string[]) => void;
 };
 
-function EntryDetails({ entry, description, required, bonus }: {
-  entry: Entry; description?: string | null; required: boolean; bonus?: string | null;
+function EntryDetails({ entry, description, required, bonus, subtitle }: {
+  entry: Entry; description?: string | null; required: boolean; bonus?: string | null; subtitle?: string | null;
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <h4 className="font-heading text-base font-semibold">{entry.label}</h4>
-        {required && <Badge variant="secondary"><Lock data-icon="inline-start" />Imposé par les rôles</Badge>}
+      <div className="flex flex-col gap-0.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <h4 className="font-heading text-base font-semibold">{entry.label}</h4>
+          {required && <Badge variant="secondary"><Lock data-icon="inline-start" />Imposé par les rôles</Badge>}
+        </div>
+        {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
       </div>
-      <p className="text-sm">{entry.effect}</p>
+      {entry.effect ? <p className="text-sm">{entry.effect}</p> : <p className="text-sm text-muted-foreground italic">Effet à venir.</p>}
       {bonus !== undefined && (
         bonus ? (
           <p className="flex items-center gap-1.5 text-sm"><Gem className="size-3.5 text-primary" />
@@ -53,15 +64,26 @@ function EntryDetails({ entry, description, required, bonus }: {
  * recherche et liste à gauche, détail de l'élément survolé à droite. Chaque élément choisi devient
  * une étiquette ; un clic dessus réaffiche son détail.
  */
-export default function CatalogPicker({ label, description, catalog, selected, max, required, bonus, onChange }: Props) {
+export default function CatalogPicker({
+  label, description, catalog, selected, max, required, bonus, subtitle, open: openCatalog = false, onChange,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState("");
+  const [search, setSearch] = useState("");
   const find = (name: string) => catalog.find((e) => e.label === name);
   const available = catalog.filter((e) => !selected.includes(e.label));
-  const groups = [
+  // Catalogue rangé par famille (sorts par élément) : un groupe par famille, sinon « Au choix ».
+  const families = [...new Set(available.filter((e) => !required.includes(e.label)).map((e) => e.group ?? "Au choix"))];
+  const groups: [string, Entry[]][] = [
     ["Imposé par les rôles", available.filter((e) => required.includes(e.label))],
-    ["Au choix", available.filter((e) => !required.includes(e.label))],
-  ] as const;
+    ...families.map((f): [string, Entry[]] =>
+      [f, available.filter((e) => !required.includes(e.label) && (e.group ?? "Au choix") === f)]),
+  ];
+  // Saisie libre (catalogue ouvert) : ce qui est tapé, s'il n'est ni dans le catalogue ni déjà choisi.
+  const typed = search.trim();
+  const canAddTyped = openCatalog && typed !== ""
+    && !catalog.some((e) => e.label.toLocaleLowerCase() === typed.toLocaleLowerCase()) && !selected.includes(typed);
+  const add = (name: string) => { onChange([...selected, name]); setOpen(false); setSearch(""); };
   const missing = required.filter((r) => !selected.includes(r));
   const shown = find(highlighted);
 
@@ -70,7 +92,7 @@ export default function CatalogPicker({ label, description, catalog, selected, m
       <div className="flex flex-wrap items-center gap-2">
         {selected.map((name, i) => {
           const entry = find(name);
-          const invalid = !entry || i >= max;
+          const invalid = (!entry && !openCatalog) || i >= max;
           return (
             <Popover key={name}>
               <Badge asChild variant={invalid ? "destructive" : "default"} className="h-7 gap-1 pr-1 pl-2.5 text-sm">
@@ -88,7 +110,10 @@ export default function CatalogPicker({ label, description, catalog, selected, m
               </Badge>
               <PopoverContent className="w-[min(28rem,calc(100vw-2rem))]" align="start">
                 {entry ? (
-                  <EntryDetails entry={entry} description={description} required={required.includes(name)} bonus={bonus?.(entry)} />
+                  <EntryDetails entry={entry} description={description} required={required.includes(name)} bonus={bonus?.(entry)}
+                    subtitle={subtitle?.(entry)} />
+                ) : openCatalog ? (
+                  <p className="text-sm text-muted-foreground">« {name} » n'est pas (encore) dans le catalogue.</p>
                 ) : (
                   <p className="text-sm text-muted-foreground">« {name} » n'est pas dans le catalogue : retire-le et choisis-en un autre.</p>
                 )}
@@ -98,7 +123,7 @@ export default function CatalogPicker({ label, description, catalog, selected, m
           );
         })}
 
-        {selected.length < max && available.length > 0 && (
+        {selected.length < max && (available.length > 0 || openCatalog) && (
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
               <Button type="button" variant="outline" size="sm">
@@ -108,14 +133,21 @@ export default function CatalogPicker({ label, description, catalog, selected, m
             <PopoverContent className="w-[min(44rem,calc(100vw-2rem))] p-0" align="start">
               <div className="flex max-h-[70vh] flex-col sm:flex-row">
                 <Command value={highlighted} onValueChange={setHighlighted} className="sm:w-56 sm:shrink-0 sm:border-r">
-                  <CommandInput placeholder={`Rechercher (${label.toLowerCase()})…`} />
+                  <CommandInput placeholder={`Rechercher (${label.toLowerCase()})…`} value={search} onValueChange={setSearch} />
                   <CommandList className="max-h-60 sm:max-h-[60vh]">
-                    <CommandEmpty>Aucun résultat.</CommandEmpty>
+                    {!canAddTyped && <CommandEmpty>Aucun résultat.</CommandEmpty>}
+                    {canAddTyped && (
+                      <CommandGroup heading="Hors catalogue">
+                        <CommandItem value={`__libre__ ${typed}`} keywords={[typed]} onSelect={() => add(typed)}>
+                          <Plus />Ajouter « {typed} »
+                        </CommandItem>
+                      </CommandGroup>
+                    )}
                     {groups.filter(([, entries]) => entries.length > 0).map(([heading, entries]) => (
                       <CommandGroup key={heading} heading={heading}>
                         {entries.map((e) => (
                           <CommandItem key={e.label} value={e.label} keywords={[e.effect]}
-                            onSelect={() => { onChange([...selected, e.label]); setOpen(false); }}>
+                            onSelect={() => add(e.label)}>
                             {required.includes(e.label) && <Lock className="text-primary" />}
                             {e.label}
                           </CommandItem>
@@ -126,7 +158,8 @@ export default function CatalogPicker({ label, description, catalog, selected, m
                 </Command>
                 <div className="min-w-0 flex-1 overflow-y-auto border-t p-4 sm:border-t-0">
                   {shown ? (
-                    <EntryDetails entry={shown} description={description} required={required.includes(shown.label)} bonus={bonus?.(shown)} />
+                    <EntryDetails entry={shown} description={description} required={required.includes(shown.label)} bonus={bonus?.(shown)}
+                      subtitle={subtitle?.(shown)} />
                   ) : (
                     <p className="text-sm text-muted-foreground">Survole un élément pour voir son effet.</p>
                   )}
