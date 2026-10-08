@@ -32,7 +32,8 @@ Décisions de conception qui ne figurent pas (ou pas clairement) dans les PDF de
 
 - Catalogue par **compétence magique** puis par **famille**. Seuls les sorts d'**Élémentarisme** sont transcrits pour l'instant (Feu, Eau, Terre, Air, Électricité, Vie, Ombre, Lumière ; 9 sorts chacun). Les nombres de la liste reçue sont des numéros de page : ils ne sont pas repris.
 - Les autres magies ont aussi des sorts, sauf trois ou quatre : le catalogue est donc **ouvert** (`OPEN_CATALOGS`). Un sort qui n'y est pas encore reste accepté ; seuls les doublons sont signalés.
-- Les effets des sorts sont à venir. Le lien entre les sorts choisis et les compétences magiques n'est pas vérifié.
+- Les effets des sorts sont à venir.
+- Prendre un sort **ne demande pas** la compétence magique associée (un sort de Feu sans Élémentarisme est permis).
 
 ## Langues et animaux totems (Langues.pdf)
 
