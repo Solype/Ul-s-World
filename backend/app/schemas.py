@@ -262,3 +262,31 @@ class ChatMessageRead(BaseModel):
     author: UserPublic | None
     body: str
     created_at: datetime
+
+
+class Monitor(BaseModel):
+    current: int = Field(ge=0)
+    max: int = Field(ge=0)
+
+
+class InstanceRead(BaseModel):
+    """Un personnage en jeu dans une room, avec ses moniteurs.
+
+    `sheet_max` : les max que donnerait la fiche aujourd'hui. S'ils diffèrent de ceux des moniteurs
+    (la fiche a changé depuis), `POST .../resync` les applique en gardant les dégâts subis."""
+
+    id: int
+    room_id: int
+    character: CharacterSummary
+    monitors: dict[str, Monitor]
+    sheet_max: dict[str, int]
+    outdated: bool
+    updated_at: datetime
+
+
+class MonitorChange(BaseModel):
+    """Modifier des moniteurs. `delta` ajoute (positif : soin, négatif : dégâts), `set` fixe la valeur.
+    Le résultat reste entre 0 et le max. Préférer `delta` : deux changements simultanés s'additionnent."""
+
+    delta: dict[str, int] = {}
+    set: dict[str, Annotated[int, Field(ge=0)]] = {}

@@ -16,7 +16,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from sqlalchemy import exists, or_, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import current_user, is_room_member
+from app.api.deps import current_user, is_room_member, room_or_404
+from app.api.instances import ensure_instance
 from app.db import get_session
 from app.models import Character, ChatMessage, Room, RoomCharacter, RoomMember, User
 from app.realtime.manager import manager, notify_room_characters, remove_from_room, room_channel
@@ -49,16 +50,6 @@ def _new_invite_code(session: Session) -> str:
 
 def _normalize_code(code: str) -> str:
     return "".join(c for c in code.upper() if c.isalnum())
-
-
-def _room_or_404(session: Session, room_id: int, user: User, gm_only: bool = False) -> Room:
-    """404 si on n'est pas membre (la room n'existe pas pour nous), 403 si l'action est réservée au MJ."""
-    room = session.get(Room, room_id)
-    if room is None or not is_room_member(room, user):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Room introuvable")
-    if gm_only and room.gm_id != user.id:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Réservé au MJ de la room")
-    return room
 
 
 def _read(room: Room, user: User) -> RoomRead:
@@ -99,13 +90,13 @@ def create_room(payload: RoomCreate, user: User = Depends(current_user),
 
 @router.get("/{room_id}", response_model=RoomRead, summary="Lire une room")
 def get_room(room_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)) -> RoomRead:
-    return _read(_room_or_404(session, room_id, user), user)
+    return _read(room_or_404(session, room_id, user), user)
 
 
 @router.patch("/{room_id}", response_model=RoomRead, summary="Renommer une room (MJ)")
 def update_room(room_id: int, payload: RoomUpdate, user: User = Depends(current_user),
                 session: Session = Depends(get_session)) -> RoomRead:
-    room = _room_or_404(session, room_id, user, gm_only=True)
+    room = room_or_404(session, room_id, user, gm_only=True)
     room.name = payload.name
     session.commit()
     return _read(room, user)
@@ -115,7 +106,7 @@ def update_room(room_id: int, payload: RoomUpdate, user: User = Depends(current_
 def delete_room(room_id: int, background: BackgroundTasks, user: User = Depends(current_user),
                 session: Session = Depends(get_session)) -> None:
     """Les personnages ne sont pas supprimés, seulement retirés de la room. Le chat est effacé."""
-    session.delete(_room_or_404(session, room_id, user, gm_only=True))
+    session.delete(room_or_404(session, room_id, user, gm_only=True))
     session.commit()
     background.add_task(remove_from_room, room_id)
 
@@ -124,7 +115,7 @@ def delete_room(room_id: int, background: BackgroundTasks, user: User = Depends(
 def regenerate_code(room_id: int, user: User = Depends(current_user),
                     session: Session = Depends(get_session)) -> RoomRead:
     """L'ancien code ne fonctionne plus ; les membres déjà entrés restent."""
-    room = _room_or_404(session, room_id, user, gm_only=True)
+    room = room_or_404(session, room_id, user, gm_only=True)
     room.invite_code = _new_invite_code(session)
     session.commit()
     return _read(room, user)
@@ -145,7 +136,7 @@ def join_room(payload: JoinRoom, user: User = Depends(current_user), session: Se
 @router.post("/{room_id}/members", response_model=RoomRead, summary="Ajouter un joueur par identifiant (MJ)")
 def add_member(room_id: int, payload: AddMember, user: User = Depends(current_user),
                session: Session = Depends(get_session)) -> RoomRead:
-    room = _room_or_404(session, room_id, user, gm_only=True)
+    room = room_or_404(session, room_id, user, gm_only=True)
     player = session.scalar(select(User).where(User.username == payload.username.strip().lower()))
     if player is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Aucun compte avec cet identifiant")
@@ -158,7 +149,7 @@ def add_member(room_id: int, payload: AddMember, user: User = Depends(current_us
 def remove_member(room_id: int, user_id: int, background: BackgroundTasks, user: User = Depends(current_user),
                   session: Session = Depends(get_session)) -> None:
     """Les personnages du joueur sont retirés de la room. Le MJ ne peut pas partir : il supprime la room."""
-    room = _room_or_404(session, room_id, user)
+    room = room_or_404(session, room_id, user)
     if user_id != user.id and room.gm_id != user.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Seul le MJ peut exclure un joueur")
     member = next((m for m in room.members if m.user_id == user_id), None)
@@ -188,15 +179,17 @@ def _link_or_404(room: Room, character_id: int) -> RoomCharacter:
 def submit_character(room_id: int, payload: SubmitCharacter, background: BackgroundTasks,
                      user: User = Depends(current_user), session: Session = Depends(get_session)) -> RoomRead:
     """N'importe quel type (PJ, animal de compagnie...). En attente de l'accord du MJ ; ceux du MJ entrent directement."""
-    room = _room_or_404(session, room_id, user)
+    room = room_or_404(session, room_id, user)
     character = session.get(Character, payload.character_id)
     if character is None or character.owner_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Personnage introuvable parmi les vôtres")
     if any(rc.character_id == character.id for rc in room.characters):
         raise HTTPException(status.HTTP_409_CONFLICT, "Ce personnage est déjà dans la room")
     accepted = room.gm_id == user.id
-    room.characters.append(RoomCharacter(
-        character=character, status=RoomCharacterStatus.ACCEPTED if accepted else RoomCharacterStatus.PENDING))
+    link = RoomCharacter(
+        character=character, status=RoomCharacterStatus.ACCEPTED if accepted else RoomCharacterStatus.PENDING)
+    room.characters.append(link)
+    ensure_instance(link)
     session.commit()
     background.add_task(notify_room_characters, room_id)
     return _read(room, user)
@@ -206,8 +199,10 @@ def submit_character(room_id: int, payload: SubmitCharacter, background: Backgro
              summary="Accepter un personnage proposé (MJ)")
 def accept_character(room_id: int, character_id: int, background: BackgroundTasks,
                      user: User = Depends(current_user), session: Session = Depends(get_session)) -> RoomRead:
-    room = _room_or_404(session, room_id, user, gm_only=True)
-    _link_or_404(room, character_id).status = RoomCharacterStatus.ACCEPTED
+    room = room_or_404(session, room_id, user, gm_only=True)
+    link = _link_or_404(room, character_id)
+    link.status = RoomCharacterStatus.ACCEPTED
+    ensure_instance(link)  # le personnage entre en jeu, moniteurs au max
     session.commit()
     background.add_task(notify_room_characters, room_id)
     return _read(room, user)
@@ -217,7 +212,7 @@ def accept_character(room_id: int, character_id: int, background: BackgroundTask
                summary="Refuser ou retirer un personnage (MJ), ou retirer le sien")
 def remove_character(room_id: int, character_id: int, background: BackgroundTasks,
                      user: User = Depends(current_user), session: Session = Depends(get_session)) -> RoomRead:
-    room = _room_or_404(session, room_id, user)
+    room = room_or_404(session, room_id, user)
     link = _link_or_404(room, character_id)
     if room.gm_id != user.id and link.character.owner_id != user.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Seuls le MJ et le propriétaire peuvent le retirer")
@@ -235,7 +230,7 @@ def list_messages(room_id: int, before: int | None = Query(None, description="Me
                   limit: int = Query(50, ge=1, le=200), user: User = Depends(current_user),
                   session: Session = Depends(get_session)) -> list[ChatMessage]:
     """Les `limit` derniers messages (avant `before`), du plus ancien au plus récent."""
-    _room_or_404(session, room_id, user)
+    room_or_404(session, room_id, user)
     query = select(ChatMessage).where(ChatMessage.room_id == room_id)
     if before is not None:
         query = query.where(ChatMessage.id < before)
@@ -248,7 +243,7 @@ def list_messages(room_id: int, before: int | None = Query(None, description="Me
 def post_message(room_id: int, payload: ChatMessageCreate, background: BackgroundTasks,
                  user: User = Depends(current_user), session: Session = Depends(get_session)) -> ChatMessageRead:
     """Enregistré, puis poussé à toute la room : `{"type": "room.message", "message": {...}}`."""
-    _room_or_404(session, room_id, user)
+    room_or_404(session, room_id, user)
     if not payload.body.strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Message vide")
     message = ChatMessage(room_id=room_id, author=user, body=payload.body.strip())

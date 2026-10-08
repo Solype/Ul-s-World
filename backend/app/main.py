@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, characters, rooms, rules, ws
+from app.api import auth, characters, instances, rooms, rules, ws
 from app.core.config import settings
 
 app = FastAPI(
@@ -22,6 +22,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(rules.router, prefix="/api")
 app.include_router(characters.router, prefix="/api")
 app.include_router(rooms.router, prefix="/api")
+app.include_router(instances.router, prefix="/api")
 app.include_router(ws.router)
 
 

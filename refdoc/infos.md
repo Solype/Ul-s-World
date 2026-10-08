@@ -52,3 +52,12 @@ Décisions de conception qui ne figurent pas (ou pas clairement) dans les PDF de
 - **Hyperhidrose manafique** : « posséder une réserve de mana » = mana max supérieur à 0.
 - **Hostilité des esprits** : les animaux totems peuvent être choisis, mais leurs bonus ne sont pas comptés.
 - **Sans le sou** : les sous disponibles à la création tombent à 0, quelle que soit la priorité.
+
+## Moniteurs de condition
+
+- Un personnage en jeu (dans une room) a 4 **moniteurs de condition** : physique, mental, pathologique, endurance. Max de chacun = compétence du groupe Résistances (Physique, Mentale, Pathologique, Endurance ; PCP + PCR) + attribut **Résistance**.
+- Un 5ᵉ moniteur, le **mana**, n'existe que pour les personnages qui ont du mana : son max est le mana max de la fiche.
+- À l'entrée en jeu, chaque moniteur est à son max. Un moniteur à 0 est **brisé**.
+- **Immunodéficience** : max du moniteur pathologique − 2.
+- **Revenant** (« vous perdez 1/4 de ses moniteurs (valeur max), avec un minimum de 2 ») : chaque moniteur de condition perd ¼ de son max, arrondi en dessous, et **la perte est d'au moins 2** (une perte de 1 devient 2). Le mana n'est pas un moniteur de condition : il n'est pas touché. Immunodéficience est appliquée avant.
+- Monstres : à définir (leurs moniteurs se construisent différemment).

@@ -68,3 +68,13 @@ def can_view(session: Session, user: User, character: Character) -> bool:
 def is_room_member(room: Room, user: User) -> bool:
     """Le MJ ou un joueur de la room."""
     return room.gm_id == user.id or any(m.user_id == user.id for m in room.members)
+
+
+def room_or_404(session: Session, room_id: int, user: User, gm_only: bool = False) -> Room:
+    """404 si on n'est pas membre (la room n'existe pas pour nous), 403 si l'action est réservée au MJ."""
+    room = session.get(Room, room_id)
+    if room is None or not is_room_member(room, user):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Room introuvable")
+    if gm_only and room.gm_id != user.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Réservé au MJ de la room")
+    return room

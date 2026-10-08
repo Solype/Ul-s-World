@@ -1274,6 +1274,165 @@
         }
       }
     },
+    "/api/rooms/{room_id}/instances": {
+      "get": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Personnages en jeu et moniteurs",
+        "operationId": "list_instances_api_rooms__room_id__instances_get",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstanceRead"
+                  },
+                  "title": "Response List Instances Api Rooms  Room Id  Instances Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}/instances/{instance_id}": {
+      "patch": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Modifier des moniteurs",
+        "operationId": "change_monitors_api_rooms__room_id__instances__instance_id__patch",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Instance Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonitorChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}/instances/{instance_id}/resync": {
+      "post": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Reprendre les max de la fiche",
+        "description": "Les max sont recalculés d'après la fiche, les dégâts subis (max - actuel) sont conservés.\nUn moniteur qui apparaît (mana gagné) commence au max.",
+        "operationId": "resync_instance_api_rooms__room_id__instances__instance_id__resync_post",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Instance Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -2609,6 +2768,56 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "InstanceRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "room_id": {
+            "type": "integer",
+            "title": "Room Id"
+          },
+          "character": {
+            "$ref": "#/components/schemas/CharacterSummary"
+          },
+          "monitors": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Monitor"
+            },
+            "type": "object",
+            "title": "Monitors"
+          },
+          "sheet_max": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Sheet Max"
+          },
+          "outdated": {
+            "type": "boolean",
+            "title": "Outdated"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "room_id",
+          "character",
+          "monitors",
+          "sheet_max",
+          "outdated",
+          "updated_at"
+        ],
+        "title": "InstanceRead",
+        "description": "Un personnage en jeu dans une room, avec ses moniteurs.\n\n`sheet_max` : les max que donnerait la fiche aujourd'hui. S'ils diffèrent de ceux des moniteurs\n(la fiche a changé depuis), `POST .../resync` les applique en gardant les dégâts subis."
+      },
       "Issue": {
         "properties": {
           "field": {
@@ -2661,6 +2870,75 @@
         "type": "object",
         "title": "Mana",
         "description": "Ressource commune à la magie et à la religion."
+      },
+      "Monitor": {
+        "properties": {
+          "current": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Current"
+          },
+          "max": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Max"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current",
+          "max"
+        ],
+        "title": "Monitor"
+      },
+      "MonitorChange": {
+        "properties": {
+          "delta": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Delta",
+            "default": {}
+          },
+          "set": {
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            "type": "object",
+            "title": "Set",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "title": "MonitorChange",
+        "description": "Modifier des moniteurs. `delta` ajoute (positif : soin, négatif : dégâts), `set` fixe la valeur.\nLe résultat reste entre 0 et le max. Préférer `delta` : deux changements simultanés s'additionnent."
+      },
+      "MonitorDef": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "skill": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "skill"
+        ],
+        "title": "MonitorDef"
       },
       "OwnerUpdate": {
         "properties": {
@@ -3326,6 +3604,13 @@
             "type": "object",
             "title": "Traits"
           },
+          "monitors": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MonitorDef"
+            },
+            "type": "object",
+            "title": "Monitors"
+          },
           "texts": {
             "items": {
               "$ref": "#/components/schemas/RuleText"
@@ -3350,6 +3635,7 @@
           "resource_defs",
           "catalogs",
           "traits",
+          "monitors",
           "texts"
         ],
         "title": "Rules"
@@ -3684,6 +3970,21 @@
             "title": "Mana Bonus",
             "description": "Mana max en plus (Demi-démon / demi-vengeur).",
             "default": 0
+          },
+          "monitor_bonus": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Monitor Bonus",
+            "description": "Ajout au max d'un moniteur de condition (Immunodéficience : -2).",
+            "default": {}
+          },
+          "monitor_quarter_loss": {
+            "type": "boolean",
+            "title": "Monitor Quarter Loss",
+            "description": "Revenant : chaque moniteur de condition perd 1/4 de son max.",
+            "default": false
           }
         },
         "type": "object",

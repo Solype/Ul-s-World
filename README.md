@@ -67,6 +67,7 @@ backend/app/
 │   ├── roles_catalog.py # ★ catalogue des rôles (refdoc/Roles.pdf)
 │   ├── catalogs.py      # ★ langues et animaux totems (refdoc/Langues.pdf)
 │   ├── traits.py        # ★ traits de personnage et calcul de leurs effets (refdoc/Traits de personnage.pdf)
+│   ├── monitors.py      # ★ moniteurs de condition (physique, mental, pathologique, endurance, mana)
 │   ├── texts/           # ★ textes des règles à lire (Markdown), ex. creation.md
 │   └── validation.py    # vérification d'un personnage contre les règles
 ├── api/
@@ -75,6 +76,7 @@ backend/app/
 │   ├── rules.py         # GET /api/rules, POST /api/rules/validate
 │   ├── characters.py    # CRUD /api/characters (?kind=pj|pnj|monstre) + GET /{id}/validation, PUT /{id}/owner
 │   ├── rooms.py         # /api/rooms : rooms, membres, personnages proposés / acceptés, chat
+│   ├── instances.py     # /api/rooms/{id}/instances : personnages en jeu et leurs moniteurs
 │   └── ws.py            # websocket /ws/{channel}
 └── realtime/manager.py  # diffusion des événements aux clients websocket
 ```
@@ -116,7 +118,8 @@ Une room est une table de jeu (`app/api/rooms.py`, tables `rooms`, `room_members
 - **Sortir** : un joueur quitte, le MJ exclut ; ses personnages sortent de la room et son websocket de room est fermé (4403). Le MJ ne quitte pas, il supprime la room (le chat est effacé, les personnages restent).
 - **Personnages** : un joueur propose un ou plusieurs de ses personnages, de n'importe quel type (PJ, animal de compagnie…) → `pending`. Le MJ accepte (`accepted`) ou refuse (la ligne est supprimée). Ceux du MJ entrent directement.
 - **Qui voit quoi** : tous les membres et le MJ lisent les fiches des personnages acceptés ; le MJ lit aussi les propositions en attente. Seul le propriétaire modifie (le MJ non plus).
-- **Temps réel** (canal `room:<id>`) : la présence, le chat, et les propositions / décisions sur les personnages (signal `room.characters`, sans contenu : chaque client relit la room avec ses droits, puisque le MJ voit toutes les propositions et un joueur seulement les siennes). Les fiches et le reste de la room (membres, nom) ne sont pas poussés : la page les relit après chaque action. Les messages s'envoient en REST (`POST /api/rooms/{id}/messages`, enregistrés en base) puis sont poussés à la room ; l'historique se lit par pages (`GET .../messages?before=<id>&limit=50`).
+- **Personnages en jeu (instances)** (`api/instances.py`, table `character_instances`) : la fiche est le modèle, l'instance porte l'état. Quand le MJ accepte un PJ, son instance est créée avec ses **moniteurs** au max (calcul : `rules/monitors.py`, interprétations : `refdoc/infos.md`). Elle est rattachée au lien room ↔ personnage et disparaît avec lui ; un même PJ dans deux rooms a deux états indépendants. Si la fiche change, les max ne bougent pas : `outdated` le signale et `POST .../instances/{id}/resync` reprend les max en gardant les dégâts subis. Tout membre modifie les moniteurs d'un PJ (`PATCH` avec `delta`, ou `set`, borné entre 0 et le max) ; les autres types (monstres, plus tard) seront réservés au MJ. Seuls les PJ ont une instance pour l'instant.
+- **Temps réel** (canal `room:<id>`) : la présence, le chat, les moniteurs (`room.instance`, avec l'instance à jour), et les propositions / décisions sur les personnages (signal `room.characters`, sans contenu : chaque client relit la room avec ses droits, puisque le MJ voit toutes les propositions et un joueur seulement les siennes). Les fiches et le reste de la room (membres, nom) ne sont pas poussés : la page les relit après chaque action. Les messages s'envoient en REST (`POST /api/rooms/{id}/messages`, enregistrés en base) puis sont poussés à la room ; l'historique se lit par pages (`GET .../messages?before=<id>&limit=50`).
 
 ## Websockets
 
@@ -124,7 +127,7 @@ Le client se connecte à `/ws/<canal>`. Il doit être connecté (cookie de sessi
 
 - `characters` : événements `character.created`, `character.updated` et `character.deleted` sur ses personnages (sur tous pour un admin). La liste du frontend s'en sert pour se rafraîchir toute seule. En interne, le serveur branche le client sur `characters:user:<id>` ou `characters:all` ; `notify_character` (`realtime/manager.py`) prévient les bons canaux.
 - `character:<id>` : événements d'un de ses personnages.
-- `room:<id>` (membres et MJ) : `{"type": "room.presence", "online": [ids]}` à chaque arrivée ou départ, `{"type": "room.message", "message": {...}}` pour le chat, et `{"type": "room.characters"}` quand un personnage est proposé, accepté, refusé ou retiré. Le gestionnaire retient le compte derrière chaque connexion (`manager.online`) et peut couper un compte (`manager.kick`).
+- `room:<id>` (membres et MJ) : `{"type": "room.presence", "online": [ids]}` à chaque arrivée ou départ, `{"type": "room.message", "message": {...}}` pour le chat, `{"type": "room.characters"}` quand un personnage est proposé, accepté, refusé ou retiré, et `{"type": "room.instance", "instance": {...}}` quand des moniteurs changent. Le gestionnaire retient le compte derrière chaque connexion (`manager.online`) et peut couper un compte (`manager.kick`).
 
 Les messages ont la forme `{"type": "character.updated", "id": 3}`. Pour la suite (jets de dés, édition à plusieurs, table de jeu…) :
 
@@ -140,6 +143,7 @@ Le gestionnaire actuel garde les connexions en mémoire, ce qui suffit avec un s
 | Modifier une règle (limites, coûts, compétences) | `backend/app/rules/data.py`, puis compléter `tests/test_rules.py` |
 | Ajouter, renommer ou supprimer une compétence, un groupe ou un attribut | voir [docs/faire-evoluer-les-regles.md](docs/faire-evoluer-les-regles.md) |
 | Ajouter un champ au personnage | `models.py` + `schemas.py`, puis `uv run alembic revision --autogenerate -m "..."` et `alembic upgrade head` |
+| Réinitialiser des mots de passe | `docker compose exec backend python scripts/reset_password.py <identifiant>… \| --all [--password …]` : mot de passe aléatoire affiché une fois, sessions fermées |
 | Ajouter une route | un `APIRouter` dans `app/api/`, branché dans `main.py` ; elle apparaît automatiquement dans `/docs` |
 | Mettre à jour les types du frontend après un changement d'API | `cd backend && uv run python scripts/export_openapi.py ../frontend/openapi.json`, puis `cd frontend && npm run gen:api` |
 

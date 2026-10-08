@@ -236,7 +236,8 @@ TRAITS: dict[str, TraitDef] = {
         automated="Les bonus des animaux totems ne sont pas comptés."),
     "immunodeficience": TraitDef(
         label="Immunodéficience", kind="malus", variants=_one(1),
-        effect="Votre moniteur pathologique est définitivement réduit de 2."),
+        effect="Votre moniteur pathologique est définitivement réduit de 2.",
+        automated="Max du moniteur pathologique réduit de 2."),
     "incompetent": TraitDef(
         label="Incompétent !", kind="malus", variants=_one(2),
         choice=TraitChoice(
@@ -261,7 +262,8 @@ TRAITS: dict[str, TraitDef] = {
     "revenant": TraitDef(
         label="Revenant", kind="malus", variants=_one(3),
         effect="Ramené d'entre les morts par un nécromancien : vos moniteurs de condition perdent 1/4 de leur "
-               "valeur maximale (au moins 2)."),
+               "valeur maximale (au moins 2).",
+        automated="Chaque moniteur de condition perd 1/4 de son max (arrondi en dessous, au moins 2). Pas le mana."),
 }
 
 
@@ -281,6 +283,8 @@ class TraitEffects(BaseModel):
     no_totem_bonus: bool = False
     requires_mana: bool = False
     mana_bonus: int = Field(0, description="Mana max en plus (Demi-démon / demi-vengeur).")
+    monitor_bonus: dict[str, int] = Field({}, description="Ajout au max d'un moniteur de condition (Immunodéficience : -2).")
+    monitor_quarter_loss: bool = Field(False, description="Revenant : chaque moniteur de condition perd 1/4 de son max.")
 
 
 def _choice_catalog(choice: TraitChoice) -> list[str]:
@@ -418,6 +422,9 @@ def trait_effects(picks: list[TraitPick], species: str | None, piety: int = 0) -
     fx.requires_mana = has("hyperhidrose_manafique")
     if has("demi_demon"):
         fx.mana_bonus = DEMON_MANA
+    if has("immunodeficience"):
+        fx.monitor_bonus["pathologique"] = -2
+    fx.monitor_quarter_loss = has("revenant")
     return fx, issues
 
 

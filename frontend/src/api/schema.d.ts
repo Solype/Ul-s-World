@@ -422,6 +422,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/rooms/{room_id}/instances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Personnages en jeu et moniteurs */
+        get: operations["list_instances_api_rooms__room_id__instances_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/instances/{instance_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Modifier des moniteurs */
+        patch: operations["change_monitors_api_rooms__room_id__instances__instance_id__patch"];
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/instances/{instance_id}/resync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reprendre les max de la fiche
+         * @description Les max sont recalculés d'après la fiche, les dégâts subis (max - actuel) sont conservés.
+         *     Un moniteur qui apparaît (mana gagné) commence au max.
+         */
+        post: operations["resync_instance_api_rooms__room_id__instances__instance_id__resync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1153,6 +1208,35 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /**
+         * InstanceRead
+         * @description Un personnage en jeu dans une room, avec ses moniteurs.
+         *
+         *     `sheet_max` : les max que donnerait la fiche aujourd'hui. S'ils diffèrent de ceux des moniteurs
+         *     (la fiche a changé depuis), `POST .../resync` les applique en gardant les dégâts subis.
+         */
+        InstanceRead: {
+            /** Id */
+            id: number;
+            /** Room Id */
+            room_id: number;
+            character: components["schemas"]["CharacterSummary"];
+            /** Monitors */
+            monitors: {
+                [key: string]: components["schemas"]["Monitor"];
+            };
+            /** Sheet Max */
+            sheet_max: {
+                [key: string]: number;
+            };
+            /** Outdated */
+            outdated: boolean;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** Issue */
         Issue: {
             /** Field */
@@ -1183,6 +1267,41 @@ export interface components {
              * @default 0
              */
             max?: number;
+        };
+        /** Monitor */
+        Monitor: {
+            /** Current */
+            current: number;
+            /** Max */
+            max: number;
+        };
+        /**
+         * MonitorChange
+         * @description Modifier des moniteurs. `delta` ajoute (positif : soin, négatif : dégâts), `set` fixe la valeur.
+         *     Le résultat reste entre 0 et le max. Préférer `delta` : deux changements simultanés s'additionnent.
+         */
+        MonitorChange: {
+            /**
+             * Delta
+             * @default {}
+             */
+            delta?: {
+                [key: string]: number;
+            };
+            /**
+             * Set
+             * @default {}
+             */
+            set?: {
+                [key: string]: number;
+            };
+        };
+        /** MonitorDef */
+        MonitorDef: {
+            /** Label */
+            label: string;
+            /** Skill */
+            skill: string | null;
         };
         /** OwnerUpdate */
         OwnerUpdate: {
@@ -1488,6 +1607,10 @@ export interface components {
             traits: {
                 [key: string]: components["schemas"]["TraitDef"];
             };
+            /** Monitors */
+            monitors: {
+                [key: string]: components["schemas"]["MonitorDef"];
+            };
             /** Texts */
             texts: components["schemas"]["RuleText"][];
         };
@@ -1687,6 +1810,20 @@ export interface components {
              * @default 0
              */
             mana_bonus?: number;
+            /**
+             * Monitor Bonus
+             * @description Ajout au max d'un moniteur de condition (Immunodéficience : -2).
+             * @default {}
+             */
+            monitor_bonus?: {
+                [key: string]: number;
+            };
+            /**
+             * Monitor Quarter Loss
+             * @description Revenant : chaque moniteur de condition perd 1/4 de son max.
+             * @default false
+             */
+            monitor_quarter_loss?: boolean;
         };
         /**
          * TraitPick
@@ -2717,6 +2854,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChatMessageRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_instances_api_rooms__room_id__instances_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_monitors_api_rooms__room_id__instances__instance_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                instance_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MonitorChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resync_instance_api_rooms__room_id__instances__instance_id__resync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                instance_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceRead"];
                 };
             };
             /** @description Validation Error */

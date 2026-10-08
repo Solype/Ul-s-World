@@ -3,7 +3,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { api, type Character, type ChatMessage, type Room, type RoomCharacter, type UserPublic } from "@/api/client";
+import { api, type Character, type ChatMessage, type Instance, type Room, type RoomCharacter, type UserPublic } from "@/api/client";
 import { useUser } from "@/auth/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useChannel, WS_FORBIDDEN } from "@/hooks/useChannel";
 import { formatInviteCode, inviteLink, isLocalOnly } from "@/lib/rooms";
 import { cn } from "@/lib/utils";
+import InstanceCard from "@/components/room/InstanceCard";
+import { useRules } from "@/hooks/useRules";
 import { KIND_LABELS } from "./CharacterEditor";
 
 type Props = {
@@ -42,6 +44,25 @@ export default function RoomPage({ id, onBack, onGone, onSheet }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hasOlder, setHasOlder] = useState(false);
   const [mine, setMine] = useState<Character[]>([]);
+  const rules = useRules();
+  const [instances, setInstances] = useState<Instance[]>([]);
+  const loadInstances = useCallback(() => {
+    api.GET("/api/rooms/{room_id}/instances", path(id)).then(({ data }) => data && setInstances(data));
+  }, [id]);
+  useEffect(loadInstances, [loadInstances]);
+  const putInstance = (i: Instance) => setInstances((prev) => prev.map((p) => (p.id === i.id ? i : p)));
+  const changeMonitors = async (instanceId: number, body: { delta?: Record<string, number>; set?: Record<string, number> }) => {
+    const { data } = await api.PATCH("/api/rooms/{room_id}/instances/{instance_id}",
+      { params: { path: { room_id: id, instance_id: instanceId } }, body });
+    if (data) putInstance(data);
+    else toast.error("Modification impossible");
+  };
+  const resync = async (instanceId: number) => {
+    const { data } = await api.POST("/api/rooms/{room_id}/instances/{instance_id}/resync",
+      { params: { path: { room_id: id, instance_id: instanceId } } });
+    if (data) { putInstance(data); toast.success(`${data.character.name} : max repris de la fiche`); }
+    else toast.error("Resynchronisation impossible");
+  };
   const [confirm, setConfirm] = useState<"leave" | "delete" | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
 
@@ -89,7 +110,8 @@ export default function RoomPage({ id, onBack, onGone, onSheet }: Props) {
   useChannel(room ? `room:${id}` : null, (event) => {
     if (event.type === "room.presence") setOnline(event.online);
     if (event.type === "room.message") addMessage(event.message);
-    if (event.type === "room.characters") refreshCharacters();
+    if (event.type === "room.characters") { refreshCharacters(); loadInstances(); }
+    if (event.type === "room.instance") putInstance(event.instance);
   }, (code) => {
     if (code === WS_FORBIDDEN) { toast.info("Tu n'as plus accès à cette room"); onGone(); }
   });
@@ -158,6 +180,25 @@ export default function RoomPage({ id, onBack, onGone, onSheet }: Props) {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="flex flex-col gap-6">
+          {rules && (
+            <section className="flex flex-col gap-3">
+              <h2 className="font-heading text-lg font-semibold">En jeu</h2>
+              {instances.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Aucun personnage en jeu : un PJ y entre dès que le MJ l'accepte dans la room.
+                </p>
+              ) : (
+                <div className="grid gap-4 @2xl/main:grid-cols-2">
+                  {instances.map((i) => (
+                    <InstanceCard key={i.id} instance={i} defs={rules.monitors} canEdit={isGM || i.character.kind === "pj"}
+                      onDelta={(m, d) => changeMonitors(i.id, { delta: { [m]: d } })}
+                      onSet={(m, v) => changeMonitors(i.id, { set: { [m]: v } })}
+                      onResync={() => resync(i.id)} onSheet={() => onSheet(i.character.id)} />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
           {isGM && room.invite_code && <InviteCard room={room} onUpdate={act} />}
           <MembersCard room={room} online={online} isGM={isGM} currentUser={user}
             onAdd={(username) => act(api.POST("/api/rooms/{room_id}/members", { ...path(id), body: { username } }),

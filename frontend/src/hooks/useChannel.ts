@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { ChatMessage } from "@/api/client";
+import type { ChatMessage, Instance } from "@/api/client";
 
 /** Événements poussés par le backend. Personnages : `{type, id}`. Rooms : présence et chat. */
 export type ServerEvent =
@@ -7,7 +7,9 @@ export type ServerEvent =
   | { type: "room.presence"; online: number[] }
   | { type: "room.message"; message: ChatMessage }
   /** Un personnage a été proposé, accepté, refusé ou retiré : relire la room. */
-  | { type: "room.characters" };
+  | { type: "room.characters" }
+  /** Les moniteurs d'un personnage en jeu ont changé. */
+  | { type: "room.instance"; instance: Instance };
 
 /** Le serveur a refusé ou coupé l'accès au canal (pas connecté, exclu de la room...). */
 export const WS_FORBIDDEN = 4403;

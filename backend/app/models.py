@@ -13,7 +13,7 @@ pour les personnages créés avant les comptes : ils sont rattachés au premier 
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, ForeignKeyConstraint, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -127,6 +127,29 @@ class RoomCharacter(Base):
 
     room: Mapped[Room] = relationship(back_populates="characters")
     character: Mapped[Character] = relationship(back_populates="room_links", lazy="joined")
+    # Personnage en jeu (moniteurs). Une seule pour un PJ ; plusieurs possibles plus tard (monstres).
+    instances: Mapped[list["CharacterInstance"]] = relationship(
+        back_populates="link", cascade="all, delete-orphan", lazy="selectin", order_by="CharacterInstance.id")
+
+
+class CharacterInstance(Base):
+    """Un personnage en jeu dans une room : la fiche sert de modèle, l'instance porte l'état
+    (moniteurs de condition). Elle vit et meurt avec la présence du personnage dans la room."""
+
+    __tablename__ = "character_instances"
+    __table_args__ = (ForeignKeyConstraint(
+        ["room_id", "character_id"], ["room_characters.room_id", "room_characters.character_id"],
+        ondelete="CASCADE", name="fk_character_instances_room_character"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    room_id: Mapped[int] = mapped_column(Integer, index=True)
+    character_id: Mapped[int] = mapped_column(Integer, index=True)
+    # Moniteur -> {"current": n, "max": n} (clés : rules/monitors.MONITORS).
+    monitors: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+    link: Mapped[RoomCharacter] = relationship(back_populates="instances")
 
 
 class ChatMessage(Base):
