@@ -5,7 +5,9 @@ import type { ChatMessage } from "@/api/client";
 export type ServerEvent =
   | { type: "character.created" | "character.updated" | "character.deleted"; id: number }
   | { type: "room.presence"; online: number[] }
-  | { type: "room.message"; message: ChatMessage };
+  | { type: "room.message"; message: ChatMessage }
+  /** Un personnage a été proposé, accepté, refusé ou retiré : relire la room. */
+  | { type: "room.characters" };
 
 /** Le serveur a refusé ou coupé l'accès au canal (pas connecté, exclu de la room...). */
 export const WS_FORBIDDEN = 4403;

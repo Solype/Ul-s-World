@@ -164,6 +164,23 @@ def test_presence_and_chat_are_pushed(table):
         assert alice_ws.receive_json() == {"type": "room.presence", "online": [ids["alice"]]}
 
 
+def test_submissions_and_decisions_are_pushed(table):
+    gm, alice, bob, room = table["gm"], table["alice"], table["bob"], table["room"]
+    url = f"/api/rooms/{room}/characters"
+    with gm.websocket_connect(f"/ws/room:{room}") as gm_ws, bob.websocket_connect(f"/ws/room:{room}") as bob_ws:
+        for _ in range(2):
+            gm_ws.receive_json()  # présence : MJ, puis MJ + bob
+        bob_ws.receive_json()
+        # Signal sans contenu : chacun relit la room avec ses droits (bob ne voit pas la proposition d'alice).
+        steps = [lambda: alice.post(url, json={"character_id": table["pj"]}),
+                 lambda: gm.post(f"{url}/{table['pj']}/accept"),
+                 lambda: alice.delete(f"{url}/{table['pj']}")]
+        for step in steps:
+            assert step().status_code < 300
+            assert gm_ws.receive_json() == {"type": "room.characters"}
+            assert bob_ws.receive_json() == {"type": "room.characters"}
+
+
 def test_room_channel_is_for_members_only(table):
     with pytest.raises(WebSocketDisconnect) as refused:
         with table["outsider"].websocket_connect(f"/ws/room:{table['room']}") as ws:

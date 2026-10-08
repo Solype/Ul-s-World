@@ -60,9 +60,36 @@ export default function RoomPage({ id, onBack, onGone, onSheet }: Props) {
   const addMessage = (m: ChatMessage) =>
     setMessages((prev) => (prev.some((p) => p.id === m.id) ? prev : [...prev, m]));
 
+  // Personnages qu'on vient de retirer soi-même : pas de « refusé par le MJ » si le signal arrive avant la réponse.
+  const withdrawn = useRef(new Set<number>());
+
+  // Propositions et décisions poussées par le serveur : on relit la room, et on signale ce qui nous concerne.
+  const refreshCharacters = async () => {
+    const { data } = await api.GET("/api/rooms/{room_id}", path(id));
+    if (!data) return;
+    const before = new Map((room?.characters ?? []).map((rc) => [rc.character.id, rc.status]));
+    const after = new Map(data.characters.map((rc) => [rc.character.id, rc]));
+    if (data.gm.id === user.id) {
+      for (const rc of data.characters) {
+        if (rc.status === "pending" && !before.has(rc.character.id)) {
+          toast.info(`${rc.character.owner?.username} propose ${rc.character.name}`);
+        }
+      }
+    } else {
+      for (const [cid, status] of before) {
+        const rc = room?.characters.find((r) => r.character.id === cid);
+        if (status !== "pending" || rc?.character.owner?.id !== user.id) continue;
+        if (after.get(cid)?.status === "accepted") toast.success(`${rc.character.name} est accepté par le MJ`);
+        else if (!after.has(cid) && !withdrawn.current.has(cid)) toast.info(`${rc.character.name} n'a pas été retenu par le MJ`);
+      }
+    }
+    setRoom(data);
+  };
+
   useChannel(room ? `room:${id}` : null, (event) => {
     if (event.type === "room.presence") setOnline(event.online);
     if (event.type === "room.message") addMessage(event.message);
+    if (event.type === "room.characters") refreshCharacters();
   }, (code) => {
     if (code === WS_FORBIDDEN) { toast.info("Tu n'as plus accès à cette room"); onGone(); }
   });
@@ -141,8 +168,11 @@ export default function RoomPage({ id, onBack, onGone, onSheet }: Props) {
               "Proposition impossible")}
             onAccept={(character_id) => act(api.POST("/api/rooms/{room_id}/characters/{character_id}/accept",
               { params: { path: { room_id: id, character_id } } }), "Action impossible")}
-            onRemove={(character_id) => act(api.DELETE("/api/rooms/{room_id}/characters/{character_id}",
-              { params: { path: { room_id: id, character_id } } }), "Action impossible")} />
+            onRemove={(character_id) => {
+              withdrawn.current.add(character_id);
+              act(api.DELETE("/api/rooms/{room_id}/characters/{character_id}",
+                { params: { path: { room_id: id, character_id } } }), "Action impossible");
+            }} />
         </div>
         <ChatCard roomId={id} messages={messages} hasOlder={hasOlder} currentUser={user}
           onOlder={loadOlder} onSent={addMessage} />

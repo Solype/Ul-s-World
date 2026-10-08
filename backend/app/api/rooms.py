@@ -5,8 +5,9 @@ ou le MJ les ajoute par identifiant. Un joueur propose ses personnages (PJ, anim
 que le MJ accepte ou refuse ; ceux du MJ entrent directement. Tous les membres voient les fiches des
 personnages acceptés (voir `can_view` dans deps.py), mais seul le propriétaire les modifie.
 
-Le temps réel (canal `room:<id>`) se limite à la présence et au chat. Le reste (membres, propositions)
-se relit avec `GET /api/rooms/{id}`.
+Le temps réel (canal `room:<id>`) : la présence, le chat, et un signal `room.characters` quand un
+personnage est proposé, accepté, refusé ou retiré (les clients relisent alors `GET /api/rooms/{id}`).
+Le reste (membres, nom) n'est pas poussé.
 """
 
 import secrets
@@ -18,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import current_user, is_room_member
 from app.db import get_session
 from app.models import Character, ChatMessage, Room, RoomCharacter, RoomMember, User
-from app.realtime.manager import manager, remove_from_room, room_channel
+from app.realtime.manager import manager, notify_room_characters, remove_from_room, room_channel
 from app.schemas import (
     AddMember,
     ChatMessageCreate,
@@ -164,9 +165,12 @@ def remove_member(room_id: int, user_id: int, background: BackgroundTasks, user:
     if member is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Ce compte n'est pas joueur de la room")
     room.members.remove(member)
+    had_characters = any(rc.character.owner_id == user_id for rc in room.characters)
     room.characters[:] = [rc for rc in room.characters if rc.character.owner_id != user_id]
     session.commit()
     background.add_task(remove_from_room, room_id, user_id)
+    if had_characters:
+        background.add_task(notify_room_characters, room_id)
 
 
 # --- Personnages ---------------------------------------------------------------------------------------
@@ -181,8 +185,8 @@ def _link_or_404(room: Room, character_id: int) -> RoomCharacter:
 
 @router.post("/{room_id}/characters", response_model=RoomRead, status_code=status.HTTP_201_CREATED,
              summary="Proposer un de ses personnages")
-def submit_character(room_id: int, payload: SubmitCharacter, user: User = Depends(current_user),
-                     session: Session = Depends(get_session)) -> RoomRead:
+def submit_character(room_id: int, payload: SubmitCharacter, background: BackgroundTasks,
+                     user: User = Depends(current_user), session: Session = Depends(get_session)) -> RoomRead:
     """N'importe quel type (PJ, animal de compagnie...). En attente de l'accord du MJ ; ceux du MJ entrent directement."""
     room = _room_or_404(session, room_id, user)
     character = session.get(Character, payload.character_id)
@@ -194,29 +198,32 @@ def submit_character(room_id: int, payload: SubmitCharacter, user: User = Depend
     room.characters.append(RoomCharacter(
         character=character, status=RoomCharacterStatus.ACCEPTED if accepted else RoomCharacterStatus.PENDING))
     session.commit()
+    background.add_task(notify_room_characters, room_id)
     return _read(room, user)
 
 
 @router.post("/{room_id}/characters/{character_id}/accept", response_model=RoomRead,
              summary="Accepter un personnage proposé (MJ)")
-def accept_character(room_id: int, character_id: int, user: User = Depends(current_user),
-                     session: Session = Depends(get_session)) -> RoomRead:
+def accept_character(room_id: int, character_id: int, background: BackgroundTasks,
+                     user: User = Depends(current_user), session: Session = Depends(get_session)) -> RoomRead:
     room = _room_or_404(session, room_id, user, gm_only=True)
     _link_or_404(room, character_id).status = RoomCharacterStatus.ACCEPTED
     session.commit()
+    background.add_task(notify_room_characters, room_id)
     return _read(room, user)
 
 
 @router.delete("/{room_id}/characters/{character_id}", response_model=RoomRead,
                summary="Refuser ou retirer un personnage (MJ), ou retirer le sien")
-def remove_character(room_id: int, character_id: int, user: User = Depends(current_user),
-                     session: Session = Depends(get_session)) -> RoomRead:
+def remove_character(room_id: int, character_id: int, background: BackgroundTasks,
+                     user: User = Depends(current_user), session: Session = Depends(get_session)) -> RoomRead:
     room = _room_or_404(session, room_id, user)
     link = _link_or_404(room, character_id)
     if room.gm_id != user.id and link.character.owner_id != user.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Seuls le MJ et le propriétaire peuvent le retirer")
     room.characters.remove(link)
     session.commit()
+    background.add_task(notify_room_characters, room_id)
     return _read(room, user)
 
 

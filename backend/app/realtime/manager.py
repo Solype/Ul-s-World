@@ -73,6 +73,14 @@ async def broadcast_presence(room_id: int) -> None:
     await manager.broadcast(channel, {"type": "room.presence", "online": manager.online(channel)})
 
 
+async def notify_room_characters(room_id: int) -> None:
+    """Les personnages de la room ont changé (proposition, acceptation, refus, retrait).
+
+    Sans contenu : chacun ne voit pas la même chose (le MJ voit toutes les propositions, un joueur
+    seulement les siennes), les clients relisent donc la room avec leurs propres droits."""
+    await manager.broadcast(room_channel(room_id), {"type": "room.characters"})
+
+
 async def remove_from_room(room_id: int, user_id: int | None = None) -> None:
     """Coupe le canal de la room pour un compte (exclu ou parti), ou pour tous (room supprimée)."""
     await manager.kick(room_channel(room_id), user_id)
