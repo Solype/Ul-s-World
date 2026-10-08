@@ -1318,9 +1318,164 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Mettre un monstre en jeu (MJ)",
+        "description": "Un monstre du MJ, ou un monstre de joueur accepté dans la room. Chaque appel ajoute un exemplaire,\nmoniteurs au max, caché par défaut. Un monstre du MJ qui n'est pas dans la room y est rattaché par un\nlien `mj`, que les joueurs ne voient pas.",
+        "operationId": "add_monster_api_rooms__room_id__instances_post",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonsterAdd"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}/instances/{instance_id}/visibility": {
+      "put": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Cacher, montrer ou révéler un personnage en jeu (MJ)",
+        "operationId": "set_visibility_api_rooms__room_id__instances__instance_id__visibility_put",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Instance Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisibilityUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/rooms/{room_id}/instances/{instance_id}": {
+      "delete": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Retirer un monstre du jeu (MJ)",
+        "description": "Retire un exemplaire. Un PJ sort du jeu en sortant de la room, pas ici. Le lien `mj` d'un monstre\ndu MJ disparaît avec son dernier exemplaire.",
+        "operationId": "remove_instance_api_rooms__room_id__instances__instance_id__delete",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Instance Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "tags": [
           "instances"
@@ -1919,6 +2074,16 @@
                 "type": "null"
               }
             ]
+          },
+          "monster": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Monster"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -2095,6 +2260,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Creation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "monster": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Monster"
               },
               {
                 "type": "null"
@@ -2315,6 +2490,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Creation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "monster": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Monster"
               },
               {
                 "type": "null"
@@ -2576,6 +2761,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Creation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "monster": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Monster"
               },
               {
                 "type": "null"
@@ -2997,6 +3192,32 @@
             "type": "boolean",
             "title": "Outdated"
           },
+          "visibility": {
+            "$ref": "#/components/schemas/InstanceVisibility",
+            "default": "revele"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "natural_armor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Natural Armor"
+          },
           "updated_at": {
             "type": "string",
             "format": "date-time",
@@ -3015,6 +3236,16 @@
         ],
         "title": "InstanceRead",
         "description": "Un personnage en jeu dans une room, avec ses moniteurs.\n\n`sheet_max` : les max que donnerait la fiche aujourd'hui. S'ils diffèrent de ceux des moniteurs\n(la fiche a changé depuis), `POST .../resync` les applique en gardant les dégâts subis."
+      },
+      "InstanceVisibility": {
+        "type": "string",
+        "enum": [
+          "cache",
+          "visible",
+          "revele"
+        ],
+        "title": "InstanceVisibility",
+        "description": "Ce que les joueurs voient d'un personnage en jeu. Le MJ voit toujours tout.\n\n`cache` : rien (il n'est pas envoyé). `visible` : le personnage et ses statuts publics, sans\nmoniteurs. `revele` : tout. Un PJ est toujours révélé ; un monstre ajouté par le MJ entre caché."
       },
       "Issue": {
         "properties": {
@@ -3137,6 +3368,184 @@
           "skill"
         ],
         "title": "MonitorDef"
+      },
+      "Monster": {
+        "properties": {
+          "traits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Traits",
+            "description": "Caractéristiques (Physique, Mobile...) et autres traits (Mort vivant...).",
+            "default": []
+          },
+          "natural_armor": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Natural Armor",
+            "description": "Armure naturelle.",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "Monster",
+        "description": "Propre aux monstres (rules/monsters.py). Absent : fiche de monstre d'avant les caractéristiques, non restreinte."
+      },
+      "MonsterAccess": {
+        "properties": {
+          "attributes": {
+            "items": {
+              "$ref": "#/components/schemas/Attribute"
+            },
+            "type": "array",
+            "title": "Attributes"
+          },
+          "skill_groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skill Groups"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "pools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pools"
+          },
+          "magic": {
+            "type": "boolean",
+            "title": "Magic"
+          },
+          "knowledges": {
+            "type": "boolean",
+            "title": "Knowledges"
+          },
+          "forbidden_resources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Forbidden Resources",
+            "description": "Ressources que ce monstre n'a pas (non ouvertes, ou jamais : montures)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "attributes",
+          "skill_groups",
+          "skills",
+          "pools",
+          "magic",
+          "knowledges",
+          "forbidden_resources"
+        ],
+        "title": "MonsterAccess",
+        "description": "Ce qu'un monstre possède, d'après ses caractéristiques."
+      },
+      "MonsterAdd": {
+        "properties": {
+          "character_id": {
+            "type": "integer",
+            "title": "Character Id"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/InstanceVisibility",
+            "default": "cache"
+          }
+        },
+        "type": "object",
+        "required": [
+          "character_id"
+        ],
+        "title": "MonsterAdd",
+        "description": "Mettre en jeu un monstre : un des siens, ou un monstre de joueur accepté dans la room.\nLe même monstre peut être ajouté plusieurs fois (une instance par exemplaire)."
+      },
+      "MonsterTraitDef": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "caracteristique",
+              "autre"
+            ],
+            "title": "Kind"
+          },
+          "effect": {
+            "type": "string",
+            "title": "Effect"
+          },
+          "requires": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Requires",
+            "description": "Caractéristiques à avoir aussi (Civilisé : Intelligent et Empathique).",
+            "default": []
+          },
+          "attributes": {
+            "items": {
+              "$ref": "#/components/schemas/Attribute"
+            },
+            "type": "array",
+            "title": "Attributes",
+            "default": []
+          },
+          "skill_groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skill Groups",
+            "description": "Groupes ouverts en entier.",
+            "default": []
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skills",
+            "description": "Compétences ouvertes seules (les résistances).",
+            "default": []
+          },
+          "magic": {
+            "type": "boolean",
+            "title": "Magic",
+            "description": "Attribut Magie et mana.",
+            "default": false
+          },
+          "resources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Resources",
+            "description": "Ressources ouvertes (sorts, langues, bottes...), voir GATED_RESOURCES.",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "kind",
+          "effect"
+        ],
+        "title": "MonsterTraitDef"
       },
       "OwnerUpdate": {
         "properties": {
@@ -3529,7 +3938,8 @@
         "type": "string",
         "enum": [
           "pending",
-          "accepted"
+          "accepted",
+          "mj"
         ],
         "title": "RoomCharacterStatus"
       },
@@ -3802,6 +4212,20 @@
             "type": "object",
             "title": "Traits"
           },
+          "monster_base_attributes": {
+            "items": {
+              "$ref": "#/components/schemas/Attribute"
+            },
+            "type": "array",
+            "title": "Monster Base Attributes"
+          },
+          "monster_traits": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MonsterTraitDef"
+            },
+            "type": "object",
+            "title": "Monster Traits"
+          },
           "monitors": {
             "additionalProperties": {
               "$ref": "#/components/schemas/MonitorDef"
@@ -3833,6 +4257,8 @@
           "resource_defs",
           "catalogs",
           "traits",
+          "monster_base_attributes",
+          "monster_traits",
           "monitors",
           "texts"
         ],
@@ -4544,6 +4970,16 @@
               }
             ]
           },
+          "monster_access": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MonsterAccess"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "issues": {
             "items": {
               "$ref": "#/components/schemas/Issue"
@@ -4566,6 +5002,18 @@
           "issues"
         ],
         "title": "ValidationReport"
+      },
+      "VisibilityUpdate": {
+        "properties": {
+          "visibility": {
+            "$ref": "#/components/schemas/InstanceVisibility"
+          }
+        },
+        "type": "object",
+        "required": [
+          "visibility"
+        ],
+        "title": "VisibilityUpdate"
       }
     }
   }

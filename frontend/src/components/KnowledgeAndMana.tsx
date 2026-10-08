@@ -19,6 +19,9 @@ type Props = {
     traitMana: number;
   } | null;
   onChange: (patch: Pick<CharacterInput, "knowledges" | "mana">) => void;
+  /** Monstre : pas de mana sans être Doué magiquement, pas de connaissances sans être Intelligent. */
+  showMana?: boolean;
+  showKnowledges?: boolean;
 };
 
 type Row = { name: string; level: number };
@@ -34,7 +37,7 @@ const toDict = (rows: Row[]) =>
  * les joueurs inventent l'intitulé qu'ils veulent (voir refdoc/infos.md). Les connaissances
  * données par les rôles ne peuvent pas descendre sous leur minimum ni être supprimées.
  */
-export default function KnowledgeAndMana({ character, knowledgeFloors, rules, onChange }: Props) {
+export default function KnowledgeAndMana({ character, knowledgeFloors, rules, onChange, showMana = true, showKnowledges = true }: Props) {
   const [rows, setRows] = useState<Row[]>(() => toRows(character.knowledges));
 
   // Recharge les lignes quand les connaissances changent hors de ce composant (chargement, rôles).
@@ -54,7 +57,7 @@ export default function KnowledgeAndMana({ character, knowledgeFloors, rules, on
 
   return (
     <div className="flex flex-col gap-5">
-      <Field label="Mana max" hint={rules
+      {showMana && <Field label="Mana max" hint={rules
         ? `Rôles ${rules.roleMana - rules.totemMana}${rules.totemMana ? ` + animaux totems ${rules.totemMana}` : ""}`
           + ` + ${rules.manaFromPool} par les PCP mis dans « Mana » (Compétence magique)`
           + `${rules.traitMana ? ` + ${rules.traitMana} (demi-démon / demi-vengeur)` : ""}. Commun à la magie et à la religion.`
@@ -64,9 +67,9 @@ export default function KnowledgeAndMana({ character, knowledgeFloors, rules, on
         ) : (
           <NumberStepper value={mana.max ?? 0} onChange={(v) => onChange({ mana: { ...mana, max: v } })} />
         )}
-      </Field>
+      </Field>}
 
-      <div className="flex flex-col gap-2">
+      {showKnowledges && <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">
             Connaissances libres, inventées par le joueur. Celles marquées d'un cadenas viennent des rôles.
@@ -111,7 +114,7 @@ export default function KnowledgeAndMana({ character, knowledgeFloors, rules, on
             <Plus data-icon="inline-start" />Connaissance
           </Button>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

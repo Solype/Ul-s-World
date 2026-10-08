@@ -54,8 +54,9 @@ def _normalize_code(code: str) -> str:
 
 def _read(room: Room, user: User) -> RoomRead:
     is_gm = room.gm_id == user.id
-    visible = [rc for rc in room.characters
-               if is_gm or rc.status == RoomCharacterStatus.ACCEPTED or rc.character.owner_id == user.id]
+    # Les liens `mj` (monstres du MJ mis en jeu sans être dans la room) ne sont pas des personnages de la room.
+    visible = [rc for rc in room.characters if rc.status != RoomCharacterStatus.GM and (
+               is_gm or rc.status == RoomCharacterStatus.ACCEPTED or rc.character.owner_id == user.id)]
     return RoomRead.model_validate({
         "id": room.id, "name": room.name, "gm": room.gm, "created_at": room.created_at,
         "invite_code": room.invite_code if is_gm else None,
@@ -183,9 +184,16 @@ def submit_character(room_id: int, payload: SubmitCharacter, background: Backgro
     character = session.get(Character, payload.character_id)
     if character is None or character.owner_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Personnage introuvable parmi les vôtres")
-    if any(rc.character_id == character.id for rc in room.characters):
-        raise HTTPException(status.HTTP_409_CONFLICT, "Ce personnage est déjà dans la room")
+    existing = next((rc for rc in room.characters if rc.character_id == character.id), None)
     accepted = room.gm_id == user.id
+    if existing is not None and existing.status == RoomCharacterStatus.GM and accepted:
+        # Monstre du MJ déjà en jeu : il entre dans la room, ses exemplaires restent.
+        existing.status = RoomCharacterStatus.ACCEPTED
+        session.commit()
+        background.add_task(notify_room_characters, room_id)
+        return _read(room, user)
+    if existing is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ce personnage est déjà dans la room")
     link = RoomCharacter(
         character=character, status=RoomCharacterStatus.ACCEPTED if accepted else RoomCharacterStatus.PENDING)
     room.characters.append(link)

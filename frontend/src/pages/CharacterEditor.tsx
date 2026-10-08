@@ -1,6 +1,6 @@
 import {
   Activity, ArrowLeft, Backpack, BookOpen, CircleAlert, CircleCheck, Download, Drama, FileJson, Gem, ListOrdered, Loader2,
-  Printer, Save, Shield,
+  Printer, Save, Shield, Skull,
   Sparkles, UserRound,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -10,6 +10,7 @@ import {
 } from "@/api/client";
 import Section, { Field } from "@/components/editor/Section";
 import KnowledgeAndMana from "@/components/KnowledgeAndMana";
+import MonsterSection from "@/components/MonsterSection";
 import NumberStepper from "@/components/NumberStepper";
 import ResourcesSection from "@/components/ResourcesSection";
 import RelationsField from "@/components/RelationsField";
@@ -50,6 +51,7 @@ const NONE = "none";
 
 const SECTIONS = [
   { id: "identite", title: "Identité", icon: UserRound },
+  { id: "monstre", title: "Monstre", icon: Skull, monsterOnly: true },
   { id: "priorites", title: "Priorités", icon: ListOrdered, rulesOnly: true },
   { id: "traits", title: "Traits", icon: Drama },
   { id: "attributs", title: "Attributs", icon: Activity },
@@ -63,6 +65,7 @@ type SectionId = (typeof SECTIONS)[number]["id"];
 
 /** Section de l'éditeur concernée par un problème de validation. */
 function sectionOf(field: string): SectionId {
+  if (field.startsWith("monster")) return "monstre";
   if (field === "creation.money_spent" || field === "relations") return "equipement";
   if (field.startsWith("creation.role_choices") || field === "roles") return "roles";
   if (field.startsWith("creation.priorities")) return "priorites";
@@ -82,7 +85,11 @@ type Props = { id: number | null; kind: CharacterKind; onClose: () => void };
 export default function CharacterEditor({ id, kind, onClose }: Props) {
   const rules = useRules();
   // Un PJ se crée selon les règles ; PNJ et monstres en saisie libre (modifiable).
-  const [c, setC] = useState<CharacterInput>({ name: "", kind, creation_mode: kind === "pj" ? "rules" : "free" });
+  // Un nouveau monstre part de l'entité de base : ses caractéristiques lui ouvrent le reste.
+  const [c, setC] = useState<CharacterInput>({
+    name: "", kind, creation_mode: kind === "pj" ? "rules" : "free",
+    monster: kind === "monstre" ? { traits: [], natural_armor: 0 } : null,
+  });
   const [report, setReport] = useState<ValidationReport | null>(null);
   const [saving, setSaving] = useState(false);
   // Recalcul des PCR à l'enregistrement. Coché automatiquement si on touche aux rôles ou aux choix.
@@ -137,7 +144,17 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
   const issueFor = (field: string) => issues.find((i) => i.field === field)?.message;
   const issueCount = (section: SectionId) => issues.filter((i) => sectionOf(i.field) === section).length;
   const floors = roleFloors(report);
-  const sections = SECTIONS.filter((s) => !("rulesOnly" in s) || rulesMode);
+  const isMonster = c.kind === "monstre";
+  // Monstre avec caractéristiques : on n'affiche que ce qu'il possède (et ce qui a encore des points, pour pouvoir les retirer).
+  const access = isMonster ? report?.monster_access ?? null : null;
+  const hiddenSections = new Set<SectionId>(access ? [
+    ...((c.traits ?? []).length ? [] : ["traits" as const]),
+    ...((c.roles?.primary ?? []).length + (c.roles?.secondary ?? []).length ? [] : ["roles" as const]),
+    ...(access.magic || access.knowledges || (c.mana?.max ?? 0) > 0 || Object.keys(c.knowledges ?? {}).length ? [] : ["connaissances" as const]),
+  ] : []);
+  const sections = SECTIONS.filter((s) => (!("rulesOnly" in s) || rulesMode) && (!("monsterOnly" in s) || isMonster)
+    && !hiddenSections.has(s.id));
+  const shown = (id: SectionId) => sections.some((s) => s.id === id);
 
   const save = async () => {
     if (!c.name.trim()) {
@@ -260,6 +277,13 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
             </div>
           </Section>
 
+          {shown("monstre") && (
+            <Section id="monstre" title="Monstre" icon={Skull} issues={issueCount("monstre")}
+              description="Caractéristiques : ce qu'elles n'ouvrent pas n'existe pas pour ce monstre.">
+              <MonsterSection rules={rules} monster={c.monster} onChange={(monster) => set({ monster })} />
+            </Section>
+          )}
+
           {/* Priorités */}
           {rulesMode && (
             <Section id="priorites" action={<RulesLink page="creation" section="choix-des-priorites" />} title="Priorités" icon={ListOrdered} issues={issueCount("priorites")}
@@ -311,11 +335,11 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
           )}
 
           {/* Traits */}
-          <Section id="traits" action={<RulesLink page="traits" />} title="Traits" icon={Drama} issues={issueCount("traits")}
+          {shown("traits") && <Section id="traits" action={<RulesLink page="traits" />} title="Traits" icon={Drama} issues={issueCount("traits")}
             description="Les bonus coûtent des PC, les malus en rapportent.">
             <TraitsSection rules={rules} traits={c.traits ?? []} species={c.species} report={report} rulesMode={rulesMode}
               onChange={(traits) => { setSyncRoles(true); set({ traits }); }} />
-          </Section>
+          </Section>}
 
           {/* Attributs */}
           <Section id="attributs" action={<RulesLink page="creation" section="repartition-des-attributs" />} title="Attributs" icon={Activity} issues={issueCount("attributs")}
@@ -323,7 +347,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
               ? `${report?.attribute_points_spent ?? 0} / ${report?.attribute_points_available ?? "?"} points répartis, dans les limites de l'espèce.`
               : undefined}>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {rules.attributes.map((a: Attribute) => {
+              {rules.attributes.filter((a) => !access || access.attributes.includes(a) || (c.attributes?.[a] ?? 0) > 0).map((a: Attribute) => {
                 const value = c.attributes?.[a] ?? 0;
                 // Mode règles : plafonné par le maximum de l'espèce et par les points d'attributs restants.
                 const max = budget
@@ -339,7 +363,16 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
                   </div>
                 );
               })}
-              <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-3">
+              {isMonster && (
+                <div className="flex flex-col items-center gap-2 rounded-xl border p-3">
+                  <span className="text-sm font-medium">Armure naturelle</span>
+                  <NumberStepper value={c.monster?.natural_armor ?? 0}
+                    onChange={(v) => set({ monster: { traits: [], ...c.monster, natural_armor: v } })} />
+                  <span className="text-xs text-muted-foreground">monstre</span>
+                </div>
+              )}
+              {(!access || access.magic || (c.magic ?? 0) > 0) && <div className={cn("flex flex-col items-center gap-2 rounded-xl border border-dashed p-3",
+                issueFor("magic") && "border-destructive/60 bg-destructive/5")}>
                 <span className="text-sm font-medium">Magie</span>
                 {rulesMode ? (
                   <NumberStepper value={c.magic ?? 0} readOnly title="Rôles + PC restants" />
@@ -347,12 +380,12 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
                   <NumberStepper value={c.magic ?? 0} onChange={(v) => set({ magic: v })} />
                 )}
                 <span className="text-xs text-muted-foreground">{rulesMode ? "rôles + PC" : " "}</span>
-              </div>
+              </div>}
             </div>
           </Section>
 
           {/* Rôles */}
-          <Section id="roles" action={<RulesLink page="roles" />} title="Rôles" icon={Shield} issues={issueCount("roles")}
+          {shown("roles") && <Section id="roles" action={<RulesLink page="roles" />} title="Rôles" icon={Shield} issues={issueCount("roles")}
             description={rulesMode && !creation.priorities?.roles ? "Choisis d'abord la priorité des rôles." : undefined}>
             <div className="flex flex-col gap-4">
               {(["primary", "secondary"] as const).map((k) => {
@@ -386,7 +419,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
                 </Alert>
               )}
             </div>
-          </Section>
+          </Section>}
 
           {/* Compétences */}
           <Section id="competences" action={<RulesLink page="creation" section="groupes-de-competences" />} title="Compétences" icon={BookOpen} issues={issueCount("competences")}
@@ -394,12 +427,14 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
               ? `Points de groupe : ${report?.skill_group_points_spent ?? 0} / ${report?.skill_group_points_available ?? "?"}. Chaque niveau donne 2 PCP à répartir dans le groupe.`
               : undefined}>
             {/* Nouveau personnage ou mise à jour demandée : aperçu des PCR calculés ; sinon PCR enregistrés. */}
-            <SkillsSection rules={rules} character={c} report={report} onChange={set} roleMana={floors.stats.mana ?? 0}
+            <SkillsSection rules={rules} character={c} report={report} onChange={set} roleMana={floors.stats.mana ?? 0} access={access}
               pcrSource={id === null || syncRoles ? "computed" : "stored"} />
           </Section>
 
-          <Section id="connaissances" action={<RulesLink page="creation" section="repartition-des-competences" />} title="Mana et connaissances" icon={Sparkles} issues={issueCount("connaissances")}>
+          {shown("connaissances") && <Section id="connaissances"action={<RulesLink page="creation" section="repartition-des-competences" />} title="Mana et connaissances" icon={Sparkles} issues={issueCount("connaissances")}>
             <KnowledgeAndMana character={c} onChange={set} knowledgeFloors={floors.knowledges}
+              showMana={!access || access.magic || (c.mana?.max ?? 0) > 0}
+              showKnowledges={!access || access.knowledges || Object.keys(c.knowledges ?? {}).length > 0}
               rules={rulesMode ? {
                 roleMana: floors.stats.mana ?? 0,
                 // Part du mana des rôles qui vient des animaux totems (Cerf).
@@ -410,11 +445,12 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
                 freeKnowledge: (c.pools?.connaissances ?? 0) * rules.skill_pools.connaissances.per_point
                   + (report?.role_points?.free_knowledge ?? 0),
               } : null} />
-          </Section>
+          </Section>}
 
           <Section id="ressources" action={<RulesLink page="langues" />} title="Ressources" icon={Gem} issues={issueCount("ressources")}
             description="Sorts, langues, bottes, dieux, compagnons… : chaque ressource donne accès à des choix.">
             <ResourcesSection rules={rules} character={c} rulesMode={rulesMode} floors={floors.stats} imposed={floors.imposed}
+              forbidden={access?.forbidden_resources ?? []}
               onChange={(patch) => {
                 // Les animaux totems (bonus comptés en PCR, mana du Cerf...) et la Piété (Absorption
                 // avec Incompétent !) changent ce que donnent les rôles : on recalcule, comme pour les rôles.

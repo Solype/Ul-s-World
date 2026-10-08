@@ -1,6 +1,8 @@
-import { FileText, Minus, Pin, PinOff, Plus, RefreshCw, Skull } from "lucide-react";
+import {
+  Eye, EyeOff, FileText, Minus, Pin, PinOff, Plus, RefreshCw, ScanEye, Shield, Skull, Trash2, type LucideIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { Instance, MonitorDef } from "@/api/client";
+import type { Instance, InstanceVisibility, MonitorDef } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import StatusTags, { COLORS, type StatusActions, type StatusSuggestion } from "./StatusTags";
@@ -41,7 +43,18 @@ type Props = {
   onDelta: (monitor: string, delta: number) => void;
   onSet: (monitor: string, value: number) => void;
   onResync: () => void;
-  onSheet: () => void;
+  /** Absent : fiche illisible pour ce compte (monstre du MJ hors de la room, vu par un joueur). */
+  onSheet?: () => void;
+  /** MJ, pour un monstre : cacher, montrer ou révéler aux joueurs, et retirer cet exemplaire du jeu. */
+  onVisibility?: (visibility: InstanceVisibility) => void;
+  onRemove?: () => void;
+};
+
+/** Ce que voient les joueurs (le MJ voit toujours tout). */
+const VISIBILITY: Record<InstanceVisibility, { label: string; hint: string; icon: LucideIcon }> = {
+  cache: { label: "Caché", hint: "Seul le MJ le voit", icon: EyeOff },
+  visible: { label: "Visible", hint: "Tout le monde le voit, sans ses moniteurs", icon: Eye },
+  revele: { label: "Révélé", hint: "Tout est révélé", icon: ScanEye },
 };
 
 /** Arc de 270° de rayon r, du bas-gauche au bas-droit en passant par le haut. */
@@ -51,8 +64,12 @@ function arcPath(r: number) {
 }
 
 /** Le jeton : un anneau par moniteur de condition, l'initiale (ou un crâne si un moniteur est brisé) au centre. */
-function Token({ name, rings, defs, className, onClick }: {
+function Token({ name, rings, defs, className, onClick, unknown, armor }: {
   name: string; rings: [string, Monitor][]; defs: Record<string, MonitorDef>; className?: string; onClick?: () => void;
+  /** Moniteurs non révélés (monstre visible, vu par un joueur) : un « ? » au centre, sans anneaux. */
+  unknown?: boolean;
+  /** Armure naturelle d'un monstre, en écusson. */
+  armor?: number | null;
 }) {
   const broken = rings.some(([, m]) => m.max > 0 && m.current === 0);
   return (
@@ -84,10 +101,19 @@ function Token({ name, rings, defs, className, onClick }: {
         })}
       </svg>
       <span className="absolute inset-0 flex items-center justify-center">
-        {broken
+        {unknown
+          ? <span className="font-heading text-3xl font-bold text-muted-foreground/60">?</span>
+          : broken
           ? <Skull className="size-5 animate-pulse text-destructive drop-shadow-[0_0_4px_var(--color-red-500)]" />
           : <span className="font-heading text-lg font-bold text-primary/80">{name.charAt(0).toLocaleUpperCase()}</span>}
       </span>
+      {armor != null && (
+        <span title={`Armure naturelle : ${armor}`}
+          className="absolute top-0 left-0 flex size-7 items-center justify-center text-slate-600 dark:text-slate-300">
+          <Shield className="absolute size-7 fill-card" />
+          <span className="relative text-[0.65rem] font-bold tabular-nums">{armor}</span>
+        </span>
+      )}
     </button>
   );
 }
@@ -157,10 +183,16 @@ function MonitorRow({ label, dot, monitor: { current, max }, canEdit, onDelta, o
 }
 
 /** Cartouche du nom. */
-function Nameplate({ name, outdated }: { name: string; outdated?: boolean }) {
+function Nameplate({ name, outdated, monster, hidden }: { name: string; outdated?: boolean; monster?: boolean; hidden?: boolean }) {
   return (
-    <div className="relative rounded-sm border border-primary/50 bg-linear-to-b from-card to-secondary px-3 py-1 text-center shadow-sm ring-1 ring-primary/15 ring-offset-1 ring-offset-card">
-      <span className="block truncate font-heading text-sm font-semibold text-primary">{name}</span>
+    <div className={cn("relative rounded-sm border bg-linear-to-b from-card px-3 py-1 text-center shadow-sm ring-1 ring-offset-1 ring-offset-card",
+      monster ? "border-red-800/50 to-red-950/10 ring-red-800/15 dark:border-red-400/40" : "border-primary/50 to-secondary ring-primary/15",
+      hidden && "border-dashed")}>
+      <span className={cn("flex items-center justify-center gap-1 truncate font-heading text-sm font-semibold",
+        monster ? "text-red-900 dark:text-red-300" : "text-primary")}>
+        {hidden && <EyeOff className="size-3.5 shrink-0" aria-label="caché aux joueurs" />}
+        <span className="truncate">{name}</span>
+      </span>
       {outdated && <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-warning ring-2 ring-card" title="La fiche a changé depuis l'entrée en jeu" />}
     </div>
   );
@@ -172,9 +204,16 @@ function Nameplate({ name, outdated }: { name: string; outdated?: boolean }) {
  * par-dessus ses voisines avec les valeurs, la modification et la gestion des statuts.
  */
 export default function InstanceCard({
-  instance, defs, canEdit, isGM, statusSuggestions, statusActions, onDelta, onSet, onResync, onSheet,
+  instance, defs, canEdit, isGM, statusSuggestions, statusActions, onDelta, onSet, onResync, onSheet, onVisibility, onRemove,
 }: Props) {
   const c = instance.character;
+  const isMonster = c.kind === "monstre";
+  const visibility = instance.visibility ?? "revele";
+  // Plusieurs exemplaires du même monstre : « Loup 2 ».
+  const name = instance.number ? `${c.name} ${instance.number}` : c.name;
+  // Monstre visible mais pas révélé : le serveur n'a pas envoyé ses moniteurs au joueur.
+  const unknown = !isGM && visibility === "visible";
+  const hiddenFromPlayers = isGM && visibility === "cache";
   const keys = Object.keys(defs).filter((k) => k in instance.monitors);
   const rings = keys.filter((k) => k !== "mana").map((k) => [k, instance.monitors[k]] as [string, Monitor]);
   const mana = instance.monitors.mana as Monitor | undefined;
@@ -194,11 +233,14 @@ export default function InstanceCard({
       onMouseLeave={() => { leaveTimer.current = setTimeout(() => setHovered(false), LEAVE_DELAY_MS); }}
       onFocus={(e) => setFocused(e.target instanceof HTMLInputElement)} onBlur={() => setFocused(false)}>
       {/* Jeton replié : il garde sa place dans la grille même quand la carte dépliée le recouvre. */}
-      <div className={cn("flex flex-col gap-1.5 transition-opacity", expanded && "opacity-0")} inert={expanded}>
-        <Nameplate name={c.name} outdated={instance.outdated} />
+      {/* Caché aux joueurs : le MJ le voit estompé. */}
+      <div className={cn("flex flex-col gap-1.5 transition-opacity", hiddenFromPlayers && "opacity-55", expanded && "opacity-0")}
+        inert={expanded}>
+        <Nameplate name={name} outdated={instance.outdated} monster={isMonster} hidden={hiddenFromPlayers} />
         {mana && <ManaBar mana={mana} />}
         <div className="relative mx-auto mt-1 w-[120px]">
-          <Token name={c.name} rings={rings} defs={defs} onClick={() => setPinned(true)} />
+          <Token name={c.name} rings={rings} defs={defs} unknown={unknown} armor={instance.natural_armor}
+            onClick={() => setPinned(true)} />
           {statuses.slice(0, MAX_HANGING).map((s, i) => {
             // En alternance à droite puis à gauche du jeton, de plus en plus bas ; l'étiquette pend en se balançant.
             const left = i % 2 === 1;
@@ -229,12 +271,18 @@ export default function InstanceCard({
       {expanded && (
         <div className="arcane-card absolute -top-2 left-1/2 z-30 flex w-80 -translate-x-1/2 flex-col gap-2 rounded-xl bg-card p-3 text-card-foreground ring-1 shadow-xl animate-in fade-in zoom-in-95 duration-150">
           <div className="flex items-center gap-1">
-            <div className="min-w-0 flex-1"><Nameplate name={c.name} outdated={instance.outdated} /></div>
+            <div className="min-w-0 flex-1">
+              <Nameplate name={name} outdated={instance.outdated} monster={isMonster} hidden={hiddenFromPlayers} />
+            </div>
             {instance.outdated && canEdit && (
               <Button variant="ghost" size="icon-sm" aria-label="Resynchroniser" onClick={onResync}
                 title="Reprendre les max de la fiche (les dégâts subis sont conservés)"><RefreshCw /></Button>
             )}
-            <Button variant="ghost" size="icon-sm" aria-label="Fiche" title="Fiche" onClick={onSheet}><FileText /></Button>
+            {onSheet && <Button variant="ghost" size="icon-sm" aria-label="Fiche" title="Fiche" onClick={onSheet}><FileText /></Button>}
+            {onRemove && (
+              <Button variant="ghost" size="icon-sm" aria-label="Retirer du jeu" title="Retirer cet exemplaire du jeu"
+                onClick={onRemove}><Trash2 /></Button>
+            )}
             <Button variant="ghost" size="icon-sm" aria-label={pinned ? "Replier" : "Garder ouvert"} title={pinned ? "Replier" : "Garder ouvert"}
               onClick={() => { setPinned(!pinned); if (pinned) { setHovered(false); setFocused(false); } }}>
               {pinned ? <PinOff /> : <Pin />}
@@ -244,8 +292,28 @@ export default function InstanceCard({
             {[c.species, c.owner?.username].filter(Boolean).join(" · ")}
             {instance.outdated && " · fiche modifiée"}
           </p>
+          {onVisibility && (
+            <div role="radiogroup" aria-label="Visibilité pour les joueurs" className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
+              {(Object.keys(VISIBILITY) as InstanceVisibility[]).map((v) => {
+                const { label, hint, icon: Icon } = VISIBILITY[v];
+                const on = visibility === v;
+                return (
+                  <button key={v} type="button" role="radio" aria-checked={on} title={hint} onClick={() => !on && onVisibility(v)}
+                    className={cn("flex items-center justify-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+                      on ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                    <Icon className="size-3.5" />{label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {mana && <ManaBar mana={mana} large />}
-          <Token name={c.name} rings={rings} defs={defs} className="mx-auto" onClick={() => setPinned(!pinned)} />
+          <Token name={c.name} rings={rings} defs={defs} unknown={unknown} armor={instance.natural_armor}
+            className="mx-auto" onClick={() => setPinned(!pinned)} />
+          {unknown && <p className="text-center text-xs text-muted-foreground">Le MJ n'a pas révélé son état.</p>}
+          {instance.natural_armor != null && (
+            <p className="text-center text-xs text-muted-foreground">Armure naturelle {instance.natural_armor}</p>
+          )}
           <div className="flex flex-col gap-0.5">
             {keys.map((k) => (
               <MonitorRow key={k} label={defs[k].label} monitor={instance.monitors[k]} canEdit={canEdit}

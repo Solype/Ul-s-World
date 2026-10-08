@@ -13,7 +13,8 @@ from pydantic import BaseModel
 
 from app.rules.data import Attribute
 from app.rules.traits import TraitEffects, trait_effects
-from app.schemas import CharacterBase
+from app.rules.monsters import monster_access
+from app.schemas import CharacterBase, CharacterKind
 
 
 class MonitorDef(BaseModel):
@@ -44,13 +45,19 @@ def monitor_maxima(character: CharacterBase, fx: TraitEffects | None = None) -> 
     if fx is None:
         fx, _ = trait_effects(character.traits, character.species, character.resources.get("piete", 0))
     resistance = character.attributes.get(Attribute.RESISTANCE, 0)
+    # Monstre : seulement les moniteurs dont ses caractéristiques ouvrent la résistance (et le mana s'il est
+    # doué magiquement). Un monstre sans caractéristiques enregistrées les a tous, comme avant.
+    access = (monster_access(character.monster.traits)
+              if character.kind == CharacterKind.MONSTRE and character.monster is not None else None)
     maxima: dict[str, int] = {}
     for key in CONDITION_MONITORS:
+        if access and MONITORS[key].skill not in access.skills:
+            continue
         score = character.skills.get(MONITORS[key].skill)  # type: ignore[arg-type]
         value = resistance + (score.total if score else 0) + fx.monitor_bonus.get(key, 0)
         if fx.monitor_quarter_loss:
             value -= _revenant_loss(value)
         maxima[key] = max(0, value)
-    if character.mana.max > 0:
+    if character.mana.max > 0 and (access is None or access.magic):
         maxima["mana"] = character.mana.max
     return maxima

@@ -75,6 +75,8 @@ class Character(Base):
     relations: Mapped[list] = mapped_column(JSON, default=list)
     notes: Mapped[str] = mapped_column(Text, default="")
     creation: Mapped[dict | None] = mapped_column(JSON)
+    # Monstres : caractéristiques et armure naturelle (schemas.Monster).
+    monster: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
     # Rooms où le personnage est proposé ou accepté : supprimé avec lui.
@@ -148,6 +150,8 @@ class CharacterInstance(Base):
     monitors: Mapped[dict] = mapped_column(JSON, default=dict)
     # Statuts (tags libres : enflammé, empoisonné...) : [{"id", "label", "hidden"}]. `hidden` : vu du MJ seul.
     statuses: Mapped[list] = mapped_column(JSON, default=list)
+    # Ce que voient les joueurs : cache | visible | revele (schemas.InstanceVisibility).
+    visibility: Mapped[str] = mapped_column(String(10), default="revele", server_default="revele")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 

@@ -31,6 +31,7 @@ from app.rules.data import (
 )
 from app.rules.role_model import RESOURCE_DEFS, RESOURCE_STATS, STATS
 from app.rules.roles import RolePoints, choice_is_valid, compute_role_points
+from app.rules.monsters import GATED_RESOURCES, MONSTER_TRAITS, MonsterAccess, monster_access, monster_issues
 from app.rules.traits import TRAITS, TraitEffects, expected_mana_max, trait_effects
 from app.schemas import CharacterBase, CharacterKind, Creation, CreationMode
 
@@ -54,7 +55,48 @@ class ValidationReport(BaseModel):
     role_points_outdated: bool = False
     # Effets des traits (mode règles) : limites d'attributs, compétences inaccessibles...
     trait_effects: TraitEffects | None = None
+    # Monstres : ce que leurs caractéristiques leur donnent (absent pour les autres personnages).
+    monster_access: MonsterAccess | None = None
     issues: list[Issue]
+
+
+def _granted_by(field: str, key: str) -> str:
+    """Caractéristiques qui donneraient cet élément (« Mobile »), pour expliquer un refus."""
+    labels = [t.label for t in MONSTER_TRAITS.values()
+              if key in getattr(t, field) or (field == "skills" and ALL_SKILLS.get(key) in t.skill_groups)]
+    return " ou ".join(labels) or "aucune caractéristique"
+
+
+def _monster_access_issues(c: CharacterBase, access: MonsterAccess) -> list[tuple[str, str]]:
+    """Points mis dans ce qu'un monstre n'a pas (attribut, compétence, magie...)."""
+    issues = []
+    for attr, value in c.attributes.items():
+        if value and attr not in access.attributes:
+            issues.append((f"attributes.{attr}", f"{attr} : ce monstre n'a pas cet attribut (il faut {_granted_by('attributes', attr)})."))
+    for group, score in c.skill_groups.items():
+        if group in SKILL_GROUPS and (score.pcp or score.pcr) and group not in access.skill_groups:
+            issues.append((f"skill_groups.{group}", f"{SKILL_GROUPS[group]['label']} : groupe inaccessible "
+                                                    f"(il faut {_granted_by('skill_groups', group)})."))
+    for name, score in c.skills.items():
+        if name in ALL_SKILLS and score.total and name not in access.skills:
+            issues.append((f"skills.{name}", f"{SKILL_LABELS[name]} : compétence inaccessible (il faut {_granted_by('skills', name)})."))
+    for name, value in c.pools.items():
+        if name in SKILL_POOLS and value and name not in access.pools:
+            issues.append((f"pools.{name}", f"{SKILL_POOLS[name]['label']} : inaccessible à ce monstre."))
+    if not access.magic:
+        magic = MONSTER_TRAITS["doue_magiquement"].label
+        if c.magic:
+            issues.append(("magic", f"Magie : il faut être {magic}."))
+        if c.mana.max or c.mana.current:
+            issues.append(("mana", f"Mana : il faut être {magic}."))
+    for key in access.forbidden_resources:
+        if (c.bottes if key == "bottes" else c.resources.get(key)) or c.selections.get(key):
+            field = "bottes" if key == "bottes" else f"resources.{key}"
+            why = f"il faut {_granted_by('resources', key)}" if key in GATED_RESOURCES else "un monstre n'en a pas"
+            issues.append((field, f"{RESOURCE_DEFS[key].label} : {why}."))
+    if not access.knowledges and any(c.knowledges.values()):
+        issues.append(("knowledges", "Connaissances : il faut être Intelligent."))
+    return issues
 
 
 def validate_character(c: CharacterBase) -> ValidationReport:
@@ -116,6 +158,15 @@ def validate_character(c: CharacterBase) -> ValidationReport:
     for field, message in trait_issues:
         issue(field, message)
 
+    # --- Monstres : ce que leurs caractéristiques n'ouvrent pas n'existe pas pour eux ---
+    access = None
+    if c.kind == CharacterKind.MONSTRE and c.monster is not None:
+        for field, message in monster_issues(c.monster.traits):
+            issue(field, message)
+        access = monster_access(c.monster.traits)
+        for field, message in _monster_access_issues(c, access):
+            issue(field, message)
+
     attr_spent = sum(c.attributes.get(a, 0) for a in Attribute)
     groups_spent = sum(group_level_cost(level.pcp) for level in c.skill_groups.values())
 
@@ -130,6 +181,7 @@ def validate_character(c: CharacterBase) -> ValidationReport:
             skill_group_points_available=None,
             skill_group_points_spent=groups_spent,
             money_available=None,
+            monster_access=access,
             issues=issues,
         )
 
@@ -287,5 +339,6 @@ def validate_character(c: CharacterBase) -> ValidationReport:
         role_points=role_points,
         role_points_outdated=role_points_outdated,
         trait_effects=fx,
+        monster_access=access,
         issues=issues,
     )

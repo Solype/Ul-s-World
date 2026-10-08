@@ -61,3 +61,18 @@ Décisions de conception qui ne figurent pas (ou pas clairement) dans les PDF de
 - **Immunodéficience** : max du moniteur pathologique − 2.
 - **Revenant** (« vous perdez 1/4 de ses moniteurs (valeur max), avec un minimum de 2 ») : chaque moniteur de condition perd ¼ de son max, arrondi en dessous, et **la perte est d'au moins 2** (une perte de 1 devient 2). Le mana n'est pas un moniteur de condition : il n'est pas touché. Immunodéficience est appliquée avant.
 - Monstres : à définir (leurs moniteurs se construisent différemment).
+
+## Monstres (Caractéristique monstres.pdf)
+
+- Un monstre part de l'**entité de base** (Résistance, Dextérité, Force, Vivacité). Ses **caractéristiques** lui ouvrent le reste ; ce qu'elles n'ouvrent pas **n'existe pas** pour lui (pas de points possibles, rien à l'affichage).
+- **Les compétences de combat (les trois groupes) sont réservées aux humanoïdes** : caractéristique **Humanoïde**, absente du document. Les autres monstres se battent avec d'autres compétences (Course pour une charge…).
+- **Physique** → Résistance physique ; **Organique** (requiert Physique) → Résistance pathologique et Endurance ; **Empathique** → Résistance mentale. Le groupe Résistances n'est donc ouvert qu'en partie.
+- **Mobile** → Agilité et le groupe Déplacement (« Compétence de Déplacement »).
+- **Intelligent** → Intellect, groupes Survie et Intellect, donc aussi les **connaissances** (elles appartiennent au groupe Intellect).
+- **Civilisé** (requiert Intelligent et Empathique) → Social, groupes Sociale et Artisanat.
+- **Doué magiquement** : « Groupe de compétence » (sans nom dans le document) = **Compétence magique** ; « Attribut mana » = l'attribut **Magie** (confirmé) ; mana ; **langues**, dieux, codes, piété, sorts et animaux totems. Sans lui, tout cela est inaccessible.
+- **Bottes** : réservées aux **Humanoïdes**.
+- **Montures** : un monstre n'en a jamais.
+- **Autres traits** (Mort vivant, Draconique, Arthropode, Créature marine, Reptile) : **descriptifs**, sans effet calculé pour l'instant.
+- **Armure naturelle** : propre aux monstres, rangée avec les attributs à l'affichage mais stockée à part (`monster.natural_armor`).
+- Les fiches de monstres créées **avant** les caractéristiques (sans bloc `monster`) ne sont pas restreintes ; cocher une caractéristique applique les restrictions.

@@ -87,6 +87,13 @@ class Creation(BaseModel):
     role_choices: dict[str, list[str]] = {}
 
 
+class Monster(BaseModel):
+    """Propre aux monstres (rules/monsters.py). Absent : fiche de monstre d'avant les caractéristiques, non restreinte."""
+
+    traits: list[str] = Field([], description="Caractéristiques (Physique, Mobile...) et autres traits (Mort vivant...).")
+    natural_armor: int = Field(0, ge=0, description="Armure naturelle.")
+
+
 class CharacterBase(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     kind: CharacterKind = CharacterKind.PJ
@@ -114,6 +121,7 @@ class CharacterBase(BaseModel):
     relations: list[str] = []
     notes: str = ""
     creation: Creation | None = None
+    monster: Monster | None = None
 
 
 class CharacterCreate(CharacterBase):
@@ -201,6 +209,20 @@ class SubmitCharacter(BaseModel):
 class RoomCharacterStatus(StrEnum):
     PENDING = "pending"
     ACCEPTED = "accepted"
+    # Monstre du MJ mis en jeu sans être intégré à la room : il ne sert qu'à porter ses instances.
+    # Jamais montré aux joueurs (ni dans la room, ni en lecture de fiche).
+    GM = "mj"
+
+
+class InstanceVisibility(StrEnum):
+    """Ce que les joueurs voient d'un personnage en jeu. Le MJ voit toujours tout.
+
+    `cache` : rien (il n'est pas envoyé). `visible` : le personnage et ses statuts publics, sans
+    moniteurs. `revele` : tout. Un PJ est toujours révélé ; un monstre ajouté par le MJ entre caché."""
+
+    CACHE = "cache"
+    VISIBLE = "visible"
+    REVELE = "revele"
 
 
 class CharacterSummary(BaseModel):
@@ -283,7 +305,24 @@ class InstanceRead(BaseModel):
     statuses: list["StatusRead"] = []
     sheet_max: dict[str, int]
     outdated: bool
+    visibility: InstanceVisibility = InstanceVisibility.REVELE
+    # Rang parmi les exemplaires du même personnage (3 loups : 1, 2, 3) ; absent s'il est seul.
+    number: int | None = None
+    # Monstres : armure naturelle (absente pour un joueur tant que le monstre n'est pas révélé).
+    natural_armor: int | None = None
     updated_at: datetime
+
+
+class MonsterAdd(BaseModel):
+    """Mettre en jeu un monstre : un des siens, ou un monstre de joueur accepté dans la room.
+    Le même monstre peut être ajouté plusieurs fois (une instance par exemplaire)."""
+
+    character_id: int
+    visibility: InstanceVisibility = InstanceVisibility.CACHE
+
+
+class VisibilityUpdate(BaseModel):
+    visibility: InstanceVisibility
 
 
 class MonitorChange(BaseModel):

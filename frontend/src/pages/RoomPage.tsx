@@ -1,9 +1,11 @@
 import {
-  ArrowLeft, Check, Copy, Crown, FileText, LogOut, Pencil, RefreshCw, Send, Trash2, UserPlus, Users, UserX, X,
+  ArrowLeft, Check, Copy, Crown, FileText, LogOut, Pencil, Plus, RefreshCw, Send, Skull, Trash2, UserPlus, Users, UserX, X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { api, type Character, type ChatMessage, type Instance, type Room, type RoomCharacter, type UserPublic } from "@/api/client";
+import {
+  api, type Character, type ChatMessage, type Instance, type InstanceVisibility, type Room, type RoomCharacter, type UserPublic,
+} from "@/api/client";
 import { useUser } from "@/auth/AuthContext";
 import InstanceCard from "@/components/room/InstanceCard";
 import type { StatusActions, StatusColor } from "@/components/room/StatusTags";
@@ -56,6 +58,7 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
   const [confirm, setConfirm] = useState<"leave" | "delete" | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [charactersOpen, setCharactersOpen] = useState(false);
+  const [monstersOpen, setMonstersOpen] = useState(false);
   // Fiche affichée par-dessus la room.
   const [sheetId, setSheetId] = useState<number | null>(null);
 
@@ -77,7 +80,29 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
 
   const addMessage = (m: ChatMessage) =>
     setMessages((prev) => (prev.some((p) => p.id === m.id) ? prev : [...prev, m]));
-  const putInstance = (i: Instance) => setInstances((prev) => prev.map((p) => (p.id === i.id ? i : p)));
+  // Ajout ou mise à jour : un monstre ajouté, ou qui devient visible pour un joueur, arrive comme une nouvelle instance.
+  const putInstance = (i: Instance) => setInstances((prev) =>
+    prev.some((p) => p.id === i.id) ? prev.map((p) => (p.id === i.id ? i : p)) : [...prev, i]);
+  const dropInstance = (instanceId: number) => setInstances((prev) => prev.filter((p) => p.id !== instanceId));
+
+  // Monstres (MJ) : mise en jeu d'un exemplaire, visibilité, retrait.
+  const addMonster = async (character_id: number) => {
+    const { data } = await api.POST("/api/rooms/{room_id}/instances", { ...path(id), body: { character_id } });
+    if (data) { putInstance(data); toast.success(`${data.character.name} ajouté, caché aux joueurs`); }
+    else toast.error("Ajout impossible");
+  };
+  const setVisibility = async (instanceId: number, visibility: InstanceVisibility) => {
+    const { data } = await api.PUT("/api/rooms/{room_id}/instances/{instance_id}/visibility",
+      { params: { path: { room_id: id, instance_id: instanceId } }, body: { visibility } });
+    if (data) putInstance(data);
+    else toast.error("Action impossible");
+  };
+  const removeInstance = async (instanceId: number) => {
+    const { error } = await api.DELETE("/api/rooms/{room_id}/instances/{instance_id}",
+      { params: { path: { room_id: id, instance_id: instanceId } } });
+    if (error) toast.error("Retrait impossible");
+    else dropInstance(instanceId);
+  };
 
   const changeMonitors = async (instanceId: number, body: { delta?: Record<string, number>; set?: Record<string, number> }) => {
     const { data } = await api.PATCH("/api/rooms/{room_id}/instances/{instance_id}",
@@ -152,6 +177,7 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
     if (event.type === "room.message") addMessage(event.message);
     if (event.type === "room.characters") { refreshCharacters(); loadInstances(); }
     if (event.type === "room.instance") putInstance(event.instance);
+    if (event.type === "room.instance.removed") dropInstance(event.id);
   }, (code) => {
     if (code === WS_FORBIDDEN) { toast.info("Tu n'as plus accès à cette room"); onGone(); }
   });
@@ -199,6 +225,15 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
   };
 
   const pendingCount = room.characters.filter((rc) => rc.status === "pending").length;
+  // Monstres que le MJ peut mettre en jeu : les siens, et ceux des joueurs acceptés dans la room.
+  const monsterChoices = [...new Map([
+    ...mine.filter((c) => c.kind === "monstre").map((c) => ({ id: c.id, name: c.name, species: c.species, owner: c.owner })),
+    ...room.characters.filter((rc) => rc.status === "accepted" && rc.character.kind === "monstre").map((rc) => rc.character),
+  ].map((c) => [c.id, c])).values()].sort((a, b) => a.name.localeCompare(b.name));
+  const inPlayCount = (cid: number) => instances.filter((i) => i.character.id === cid).length;
+  // Fiche lisible : tout pour le MJ ; pour un joueur, pas les monstres du MJ qui ne sont pas dans la room.
+  const canReadSheet = (i: Instance) =>
+    isGM || i.character.kind !== "monstre" || room.characters.some((rc) => rc.character.id === i.character.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -221,6 +256,9 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
             <Users data-icon="inline-start" />Personnages
             {isGM && pendingCount > 0 && <Badge title="Propositions à valider">{pendingCount}</Badge>}
           </Button>
+          {isGM && (
+            <Button variant="outline" onClick={() => setMonstersOpen(true)}><Skull data-icon="inline-start" />Ajouter un monstre</Button>
+          )}
           {isGM && room.invite_code && (
             <InvitePopover room={room} onUpdate={act}
               onAdd={(username) => act(api.POST("/api/rooms/{room_id}/members", { ...path(id), body: { username } }),
@@ -242,7 +280,8 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
           ) : instances.length === 0 ? (
             <Card className="items-center py-10 text-center">
               <CardDescription className="max-w-sm">
-                Aucun personnage en jeu. Un PJ y entre dès que le MJ l'accepte (bouton « Personnages »).
+                Aucun personnage en jeu. Un PJ y entre dès que le MJ l'accepte (bouton « Personnages ») ;
+                le MJ y met ses monstres avec « Ajouter un monstre ».
               </CardDescription>
             </Card>
           ) : (
@@ -252,7 +291,9 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
                   isGM={isGM} statusSuggestions={statusSuggestions} statusActions={statusActions(i.id)}
                   onDelta={(m, d) => changeMonitors(i.id, { delta: { [m]: d } })}
                   onSet={(m, v) => changeMonitors(i.id, { set: { [m]: v } })}
-                  onResync={() => resync(i.id)} onSheet={() => setSheetId(i.character.id)} />
+                  onResync={() => resync(i.id)} onSheet={canReadSheet(i) ? () => setSheetId(i.character.id) : undefined}
+                  onVisibility={isGM && i.character.kind !== "pj" ? (v) => setVisibility(i.id, v) : undefined}
+                  onRemove={isGM && i.character.kind !== "pj" ? () => removeInstance(i.id) : undefined} />
               ))}
             </div>
           )}
@@ -285,6 +326,36 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
               act(api.DELETE("/api/rooms/{room_id}/characters/{character_id}",
                 { params: { path: { room_id: id, character_id } } }), "Action impossible");
             }} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={monstersOpen} onOpenChange={setMonstersOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Ajouter un monstre</DialogTitle>
+            <DialogDescription>
+              Tes monstres et ceux des joueurs acceptés dans la room. Chaque clic ajoute un exemplaire, caché aux joueurs :
+              tu le montres ou le révèles depuis sa plaquette.
+            </DialogDescription>
+          </DialogHeader>
+          {monsterChoices.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucun monstre : crée-en un depuis la liste « Monstres ».</p>
+          ) : (
+            <ul className="flex max-h-[60svh] flex-col gap-1 overflow-y-auto">
+              {monsterChoices.map((m) => (
+                <li key={m.id} className="flex items-center gap-2 rounded-lg border px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{m.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {[m.species, m.owner && m.owner.id !== user.id ? `à ${m.owner.username}` : null].filter(Boolean).join(" · ") || "—"}
+                    </p>
+                  </div>
+                  {inPlayCount(m.id) > 0 && <Badge variant="secondary">{inPlayCount(m.id)} en jeu</Badge>}
+                  <Button size="sm" onClick={() => addMonster(m.id)}><Plus data-icon="inline-start" />Ajouter</Button>
+                </li>
+              ))}
+            </ul>
+          )}
         </DialogContent>
       </Dialog>
 

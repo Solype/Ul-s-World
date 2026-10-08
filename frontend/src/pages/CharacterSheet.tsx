@@ -60,6 +60,15 @@ export default function CharacterSheet({ id, onClose, embedded = false }: {
   const list = (items: string[]) => (items.length ? items.join(", ") : <Empty />);
   const roleLabel = (k: string) => rules.roles[k]?.label ?? k;
   const skillGroupOf = (g: string) => c.skill_groups?.[g] ?? {};
+  // Monstre : seulement ce que ses caractéristiques lui donnent (ou ce qui a des points), et pas de blocs vides.
+  const isMonster = c.kind === "monstre";
+  const access = isMonster ? report?.monster_access ?? null : null;
+  const hasSkill = (s: string) => (c.skills?.[s]?.pcp ?? 0) + (c.skills?.[s]?.pcr ?? 0) > 0;
+  const skillShown = (s: string) => !access || access.skills.includes(s) || hasSkill(s);
+  const groupShown = (g: string, skills: string[]) =>
+    !access || access.skill_groups.includes(g) || (c.skill_groups?.[g]?.pcp ?? 0) > 0 || skills.some(hasSkill);
+  const showBlock = (filled: boolean) => !isMonster || filled;
+  const monsterTraits = (c.monster?.traits ?? []).map((t) => rules.monster_traits[t]?.label ?? t);
   const moneyLeft = rulesMode && report?.money_available != null ? report.money_available - (creation.money_spent ?? 0) : null;
 
   const skillRow = (key: string, label: string, pcp: number, pcr: number, pool = false) => (
@@ -113,6 +122,9 @@ export default function CharacterSheet({ id, onClose, embedded = false }: {
           </div>
           <p><span className="text-muted-foreground">Espèce</span> <span className="capitalize">{c.species || "—"}</span></p>
           <p><span className="text-muted-foreground">Âge</span> {c.age ?? "—"}</p>
+          {isMonster && c.monster && (
+            <p><span className="text-muted-foreground">Caractéristiques</span> {monsterTraits.length ? monsterTraits.join(", ") : "entité de base"}</p>
+          )}
           {rulesMode && (
             <p><span className="text-muted-foreground">Priorités</span>{" "}
               <span className="font-semibold tracking-widest">{[p.roles, p.attributes, p.skill_groups, p.money].map((x) => x ?? "_").join("|")}</span></p>
@@ -122,23 +134,29 @@ export default function CharacterSheet({ id, onClose, embedded = false }: {
         <div className="columns-1 gap-8 md:columns-2 print:columns-2">
           <Block title="Attributs">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-              {rules.attributes.map((a) => (
+              {rules.attributes.filter((a) => !access || access.attributes.includes(a) || (c.attributes?.[a] ?? 0) > 0).map((a) => (
                 <div key={a} className="flex justify-between"><dt>{ATTRIBUTE_LABELS[a]}</dt><dd className="font-semibold tabular-nums">{c.attributes?.[a] ?? 0}</dd></div>
               ))}
-              <div className="flex justify-between"><dt>Magie</dt><dd className="font-semibold tabular-nums">{c.magic ?? 0}</dd></div>
+              {(!access || access.magic || (c.magic ?? 0) > 0) && (
+                <div className="flex justify-between"><dt>Magie</dt><dd className="font-semibold tabular-nums">{c.magic ?? 0}</dd></div>
+              )}
+              {isMonster && (
+                <div className="flex justify-between"><dt>Armure naturelle</dt><dd className="font-semibold tabular-nums">{c.monster?.natural_armor ?? 0}</dd></div>
+              )}
             </dl>
           </Block>
 
-          <Block title="Rôles">
+          {showBlock((c.roles?.primary ?? []).length + (c.roles?.secondary ?? []).length > 0) && <Block title="Rôles">
             <p><span className="text-muted-foreground">Principaux :</span> {list((c.roles?.primary ?? []).map(roleLabel))}</p>
             <p><span className="text-muted-foreground">Secondaires :</span> {list((c.roles?.secondary ?? []).map(roleLabel))}</p>
-          </Block>
+          </Block>}
 
-          {Object.entries(rules.skill_groups).map(([g, group]) => {
+          {Object.entries(rules.skill_groups).filter(([g, group]) => groupShown(g, Object.keys(group.skills))).map(([g, group]) => {
             const level = skillGroupOf(g);
             const pools = Object.entries(rules.skill_pools).filter(([, pool]) => pool.group === g);
             const poolRows = (which: "before" | "after") => pools
               .filter(([name]) => (name === "mana") === (which === "after"))
+              .filter(([name]) => !access || access.pools.includes(name) || (c.pools?.[name] ?? 0) > 0)
               .map(([name, pool]) => skillRow(`pool-${name}`, pool.label, c.pools?.[name] ?? 0, 0, true));
             return (
               <Block key={g} title={`${group.label} · niv. ${level.pcp ?? 0}${level.pcr ? ` (+${level.pcr})` : ""}`}>
@@ -150,7 +168,7 @@ export default function CharacterSheet({ id, onClose, embedded = false }: {
                   )}
                   <tbody>
                     {poolRows("before")}
-                    {Object.entries(group.skills).map(([s, label]) =>
+                    {Object.entries(group.skills).filter(([s]) => skillShown(s)).map(([s, label]) =>
                       skillRow(s, label, c.skills?.[s]?.pcp ?? 0, c.skills?.[s]?.pcr ?? 0))}
                     {poolRows("after")}
                   </tbody>
@@ -162,37 +180,37 @@ export default function CharacterSheet({ id, onClose, embedded = false }: {
                     ))}
                   </ul>
                 )}
-                {g === "magie" && (
+                {g === "magie" && (!access || access.magic || (c.mana?.max ?? 0) > 0) && (
                   <p className="mt-1 border-t pt-1 font-medium">Mana {c.mana?.current ?? 0} / {c.mana?.max ?? 0}</p>
                 )}
               </Block>
             );
           })}
 
-          <Block title="Langues"><p>{list(names("langues"))}</p></Block>
-          <Block title="Animaux totems"><p>{list(names("animaux_totems"))}</p></Block>
+          {showBlock(names("langues").length > 0) && <Block title="Langues"><p>{list(names("langues"))}</p></Block>}
+          {showBlock(names("animaux_totems").length > 0) && <Block title="Animaux totems"><p>{list(names("animaux_totems"))}</p></Block>}
 
-          <Block title="Religion">
+          {showBlock(names("dieux").length + (selections.codes ?? []).length + (c.resources?.piete ?? 0) > 0) && <Block title="Religion">
             <p><span className="text-muted-foreground">Dieux :</span> {list(names("dieux"))}</p>
             <p><span className="text-muted-foreground">Piété :</span> {c.resources?.piete ?? 0}/10</p>
             {(selections.codes ?? []).length > 0 && (
               <p><span className="text-muted-foreground">Codes :</span> {(selections.codes ?? []).map((i) => `${i.name} (${i.value ?? 0})`).join(", ")}</p>
             )}
-          </Block>
+          </Block>}
 
-          <Block title="Relations">
+          {showBlock((c.relations ?? []).length > 0) && <Block title="Relations">
             {(c.relations ?? []).length ? <ul className="list-disc pl-4">{(c.relations ?? []).map((r) => <li key={r}>{r}</li>)}</ul> : <Empty />}
-          </Block>
+          </Block>}
 
-          <Block title="Compagnons">
+          {showBlock(COMPANIONS.some((k) => names(k).length)) && <Block title="Compagnons">
             {COMPANIONS.some((k) => names(k).length) ? COMPANIONS.filter((k) => names(k).length).map((k) => (
               <p key={k}><span className="text-muted-foreground">{rules.resource_defs[k]?.label ?? k} :</span> {names(k).join(", ")}</p>
             )) : <Empty />}
-          </Block>
+          </Block>}
 
-          <Block title="Traits">
+          {showBlock((c.traits ?? []).length > 0) && <Block title="Traits">
             {(c.traits ?? []).length ? <ul className="list-disc pl-4">{(c.traits ?? []).map((t, i) => <li key={i}>{traitText(t)}</li>)}</ul> : <Empty />}
-          </Block>
+          </Block>}
 
           <Block title="Inventaire">
             <p><span className="text-muted-foreground">Sous :</span> {moneyLeft ?? "—"}
@@ -200,8 +218,8 @@ export default function CharacterSheet({ id, onClose, embedded = false }: {
             {(c.equipment ?? []).length > 0 && <ul className="list-disc pl-4">{(c.equipment ?? []).map((e) => <li key={e}>{e}</li>)}</ul>}
           </Block>
 
-          <Block title={`Bottes (${c.bottes ?? 0})`}><p>{list(names("bottes"))}</p></Block>
-          <Block title={`Sorts (${c.resources?.sorts ?? 0})`}><p>{list(names("sorts"))}</p></Block>
+          {showBlock((c.bottes ?? 0) + names("bottes").length > 0) && <Block title={`Bottes (${c.bottes ?? 0})`}><p>{list(names("bottes"))}</p></Block>}
+          {showBlock((c.resources?.sorts ?? 0) + names("sorts").length > 0) && <Block title={`Sorts (${c.resources?.sorts ?? 0})`}><p>{list(names("sorts"))}</p></Block>}
 
           {c.notes && (
             <Block title="Notes"><p className="whitespace-pre-wrap">{c.notes}</p></Block>

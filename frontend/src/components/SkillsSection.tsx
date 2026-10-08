@@ -1,5 +1,5 @@
 import { Ban, Lock } from "lucide-react";
-import type { CharacterInput, Rules, SkillScore, ValidationReport } from "@/api/client";
+import type { CharacterInput, MonsterAccess, Rules, SkillScore, ValidationReport } from "@/api/client";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -20,6 +20,8 @@ type Props = {
   roleMana: number;
   /** PCR affichés en mode règles : ceux enregistrés, ou ceux calculés à partir des rôles. */
   pcrSource: "stored" | "computed";
+  /** Monstre : ce que ses caractéristiques lui donnent. Le reste n'est montré que s'il a encore des points. */
+  access?: MonsterAccess | null;
 };
 
 /**
@@ -35,7 +37,7 @@ type Props = {
  * magique) reçoivent des PCP du groupe, sans PCR ni PCT. Chaque PCP donne 2 points de connaissance
  * libres, ou 15 de mana max.
  */
-export default function SkillsSection({ rules, character, report, onChange, pcrSource, roleMana }: Props) {
+export default function SkillsSection({ rules, character, report, onChange, pcrSource, roleMana, access }: Props) {
   const rulesMode = character.creation_mode !== "free";
   const isPC = (character.kind ?? "pj") === "pj";
   const pcrLocked = rulesMode;
@@ -55,7 +57,19 @@ export default function SkillsSection({ rules, character, report, onChange, pcrS
   // Mode règles : les « + » sont bornés par les points de groupe restants et les PCP à répartir.
   const groupsLeft = rulesMode ? creationBudget(rules, character, report).groupsLeft : null;
   // Compétences rendues inaccessibles par un trait (Incompétent !, Asocial...) -> trait responsable.
-  const forbidden: Record<string, string> = report?.trait_effects?.forbidden_skills ?? {};
+  const forbidden: Record<string, string> = Object.fromEntries(
+    Object.entries(report?.trait_effects?.forbidden_skills ?? {}).map(([s, trait]) => [s, `trait « ${trait} »`]));
+  // Monstre : compétences que ses caractéristiques n'ouvrent pas, cachées sauf s'il leur reste des points.
+  const hasPoints = (s: string) => (skills[s]?.pcp ?? 0) + (skills[s]?.pcr ?? 0) > 0;
+  if (access) {
+    for (const grp of Object.values(rules.skill_groups)) {
+      for (const s of Object.keys(grp.skills)) if (!access.skills.includes(s)) forbidden[s] = "aucune caractéristique du monstre ne l'ouvre";
+    }
+  }
+  const skillShown = (s: string) => !access || access.skills.includes(s) || hasPoints(s);
+  const poolShown = (name: string) => !access || access.pools.includes(name) || (pools[name] ?? 0) > 0;
+  const groupShown = (g: string, groupSkills: string[]) =>
+    !access || access.skill_groups.includes(g) || (groups[g]?.pcp ?? 0) > 0 || groupSkills.some(hasPoints);
 
   const setGroup = (g: string, level: number) =>
     onChange({ skill_groups: { ...groups, [g]: { ...groups[g], pcp: level } } });
@@ -65,9 +79,9 @@ export default function SkillsSection({ rules, character, report, onChange, pcrS
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      {Object.entries(rules.skill_groups).map(([g, group]) => {
+      {Object.entries(rules.skill_groups).filter(([g, group]) => groupShown(g, Object.keys(group.skills))).map(([g, group]) => {
         const level = groups[g]?.pcp ?? 0;
-        const groupPools = Object.entries(rules.skill_pools).filter(([, pool]) => pool.group === g);
+        const groupPools = Object.entries(rules.skill_pools).filter(([name, pool]) => pool.group === g && poolShown(name));
         const distributed =
           Object.keys(group.skills).reduce((sum, s) => sum + (skills[s]?.pcp ?? 0), 0) +
           groupPools.reduce((sum, [name]) => sum + (pools[name] ?? 0), 0);
@@ -127,7 +141,7 @@ export default function SkillsSection({ rules, character, report, onChange, pcrS
               <TableBody>
                 {/* Sur la fiche, « Connaissances » ouvre le groupe Intellect et « Mana » suit la magie. */}
                 {groupPools.filter(([name]) => name !== "mana").map(([name, pool]) => poolRow(name, pool))}
-                {Object.entries(group.skills).map(([s, label]) => {
+                {Object.entries(group.skills).filter(([s]) => skillShown(s)).map(([s, label]) => {
                   const score = skills[s] ?? {};
                   const total = (score.pcp ?? 0) + (isPC ? pcr(s) : 0);
                   const blockedBy = forbidden[s];
@@ -139,7 +153,7 @@ export default function SkillsSection({ rules, character, report, onChange, pcrS
                             <TooltipTrigger className="inline-flex items-center gap-1.5 line-through decoration-muted-foreground/60">
                               <Ban className="size-3.5" />{label}
                             </TooltipTrigger>
-                            <TooltipContent>Inaccessible : trait « {blockedBy} »</TooltipContent>
+                            <TooltipContent>Inaccessible : {blockedBy}</TooltipContent>
                           </Tooltip>
                         ) : label}
                       </TableCell>

@@ -432,6 +432,29 @@ export interface paths {
         /** Personnages en jeu et moniteurs */
         get: operations["list_instances_api_rooms__room_id__instances_get"];
         put?: never;
+        /**
+         * Mettre un monstre en jeu (MJ)
+         * @description Un monstre du MJ, ou un monstre de joueur accepté dans la room. Chaque appel ajoute un exemplaire,
+         *     moniteurs au max, caché par défaut. Un monstre du MJ qui n'est pas dans la room y est rattaché par un
+         *     lien `mj`, que les joueurs ne voient pas.
+         */
+        post: operations["add_monster_api_rooms__room_id__instances_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/instances/{instance_id}/visibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Cacher, montrer ou révéler un personnage en jeu (MJ) */
+        put: operations["set_visibility_api_rooms__room_id__instances__instance_id__visibility_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -449,7 +472,12 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Retirer un monstre du jeu (MJ)
+         * @description Retire un exemplaire. Un PJ sort du jeu en sortant de la room, pas ici. Le lien `mj` d'un monstre
+         *     du MJ disparaît avec son dernier exemplaire.
+         */
+        delete: operations["remove_instance_api_rooms__room_id__instances__instance_id__delete"];
         options?: never;
         head?: never;
         /** Modifier des moniteurs */
@@ -686,6 +714,7 @@ export interface components {
              */
             notes?: string;
             creation?: components["schemas"]["Creation"] | null;
+            monster?: components["schemas"]["Monster"] | null;
         };
         /** CharacterCreate */
         CharacterCreate: {
@@ -793,6 +822,7 @@ export interface components {
              */
             notes?: string;
             creation?: components["schemas"]["Creation"] | null;
+            monster?: components["schemas"]["Monster"] | null;
         };
         /**
          * CharacterExport
@@ -930,6 +960,7 @@ export interface components {
              */
             notes?: string;
             creation?: components["schemas"]["Creation"] | null;
+            monster?: components["schemas"]["Monster"] | null;
             /** Id */
             id: number;
             owner?: components["schemas"]["UserPublic"] | null;
@@ -1067,6 +1098,7 @@ export interface components {
              */
             notes?: string;
             creation?: components["schemas"]["Creation"] | null;
+            monster?: components["schemas"]["Monster"] | null;
         };
         /** ChatMessageCreate */
         ChatMessageCreate: {
@@ -1275,12 +1307,27 @@ export interface components {
             };
             /** Outdated */
             outdated: boolean;
+            /** @default revele */
+            visibility?: components["schemas"]["InstanceVisibility"];
+            /** Number */
+            number?: number | null;
+            /** Natural Armor */
+            natural_armor?: number | null;
             /**
              * Updated At
              * Format: date-time
              */
             updated_at: string;
         };
+        /**
+         * InstanceVisibility
+         * @description Ce que les joueurs voient d'un personnage en jeu. Le MJ voit toujours tout.
+         *
+         *     `cache` : rien (il n'est pas envoyé). `visible` : le personnage et ses statuts publics, sans
+         *     moniteurs. `revele` : tout. Un PJ est toujours révélé ; un monstre ajouté par le MJ entre caché.
+         * @enum {string}
+         */
+        InstanceVisibility: "cache" | "visible" | "revele";
         /** Issue */
         Issue: {
             /** Field */
@@ -1346,6 +1393,105 @@ export interface components {
             label: string;
             /** Skill */
             skill: string | null;
+        };
+        /**
+         * Monster
+         * @description Propre aux monstres (rules/monsters.py). Absent : fiche de monstre d'avant les caractéristiques, non restreinte.
+         */
+        Monster: {
+            /**
+             * Traits
+             * @description Caractéristiques (Physique, Mobile...) et autres traits (Mort vivant...).
+             * @default []
+             */
+            traits?: string[];
+            /**
+             * Natural Armor
+             * @description Armure naturelle.
+             * @default 0
+             */
+            natural_armor?: number;
+        };
+        /**
+         * MonsterAccess
+         * @description Ce qu'un monstre possède, d'après ses caractéristiques.
+         */
+        MonsterAccess: {
+            /** Attributes */
+            attributes: components["schemas"]["Attribute"][];
+            /** Skill Groups */
+            skill_groups: string[];
+            /** Skills */
+            skills: string[];
+            /** Pools */
+            pools: string[];
+            /** Magic */
+            magic: boolean;
+            /** Knowledges */
+            knowledges: boolean;
+            /**
+             * Forbidden Resources
+             * @description Ressources que ce monstre n'a pas (non ouvertes, ou jamais : montures).
+             */
+            forbidden_resources: string[];
+        };
+        /**
+         * MonsterAdd
+         * @description Mettre en jeu un monstre : un des siens, ou un monstre de joueur accepté dans la room.
+         *     Le même monstre peut être ajouté plusieurs fois (une instance par exemplaire).
+         */
+        MonsterAdd: {
+            /** Character Id */
+            character_id: number;
+            /** @default cache */
+            visibility?: components["schemas"]["InstanceVisibility"];
+        };
+        /** MonsterTraitDef */
+        MonsterTraitDef: {
+            /** Label */
+            label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "caracteristique" | "autre";
+            /** Effect */
+            effect: string;
+            /**
+             * Requires
+             * @description Caractéristiques à avoir aussi (Civilisé : Intelligent et Empathique).
+             * @default []
+             */
+            requires?: string[];
+            /**
+             * Attributes
+             * @default []
+             */
+            attributes?: components["schemas"]["Attribute"][];
+            /**
+             * Skill Groups
+             * @description Groupes ouverts en entier.
+             * @default []
+             */
+            skill_groups?: string[];
+            /**
+             * Skills
+             * @description Compétences ouvertes seules (les résistances).
+             * @default []
+             */
+            skills?: string[];
+            /**
+             * Magic
+             * @description Attribut Magie et mana.
+             * @default false
+             */
+            magic?: boolean;
+            /**
+             * Resources
+             * @description Ressources ouvertes (sorts, langues, bottes...), voir GATED_RESOURCES.
+             * @default []
+             */
+            resources?: string[];
         };
         /** OwnerUpdate */
         OwnerUpdate: {
@@ -1526,7 +1672,7 @@ export interface components {
          * RoomCharacterStatus
          * @enum {string}
          */
-        RoomCharacterStatus: "pending" | "accepted";
+        RoomCharacterStatus: "pending" | "accepted" | "mj";
         /** RoomCreate */
         RoomCreate: {
             /** Name */
@@ -1650,6 +1796,12 @@ export interface components {
             /** Traits */
             traits: {
                 [key: string]: components["schemas"]["TraitDef"];
+            };
+            /** Monster Base Attributes */
+            monster_base_attributes: components["schemas"]["Attribute"][];
+            /** Monster Traits */
+            monster_traits: {
+                [key: string]: components["schemas"]["MonsterTraitDef"];
             };
             /** Monitors */
             monitors: {
@@ -2026,8 +2178,13 @@ export interface components {
              */
             role_points_outdated?: boolean;
             trait_effects?: components["schemas"]["TraitEffects"] | null;
+            monster_access?: components["schemas"]["MonsterAccess"] | null;
             /** Issues */
             issues: components["schemas"]["Issue"][];
+        };
+        /** VisibilityUpdate */
+        VisibilityUpdate: {
+            visibility: components["schemas"]["InstanceVisibility"];
         };
     };
     responses: never;
@@ -2975,6 +3132,107 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["InstanceRead"][];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_monster_api_rooms__room_id__instances_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MonsterAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_visibility_api_rooms__room_id__instances__instance_id__visibility_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                instance_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisibilityUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_instance_api_rooms__room_id__instances__instance_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                instance_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

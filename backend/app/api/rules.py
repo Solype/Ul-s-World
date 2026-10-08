@@ -17,6 +17,7 @@ from app.rules.data import (
 from app.rules import roles as roles_catalog
 from app.rules.catalogs import CATALOGS, CatalogEntry
 from app.rules.monitors import MONITORS, MonitorDef
+from app.rules.monsters import BASE_ATTRIBUTES, MONSTER_TRAITS, MonsterTraitDef
 from app.rules.role_model import RESOURCE_DEFS, STATS, Grant, ResourceDef, Role
 from app.rules.roles import ROLE_CATEGORIES
 from app.rules.traits import TRAITS, AttributeLimit, TraitDef
@@ -96,6 +97,9 @@ class Rules(BaseModel):
     catalogs: dict[str, list[CatalogEntry]]
     # Traits de personnage : bonus (coûtent des PC) et malus (en rapportent).
     traits: dict[str, TraitDef]
+    # Monstres : attributs de l'entité de base, caractéristiques et autres traits (refdoc/Caractéristique monstres.pdf).
+    monster_base_attributes: list[Attribute]
+    monster_traits: dict[str, MonsterTraitDef]
     # Moniteurs de condition d'un personnage en jeu, dans l'ordre d'affichage.
     monitors: dict[str, MonitorDef]
     # Textes des règles (pages à lire), en Markdown.
@@ -126,6 +130,8 @@ def get_rules() -> Rules:
         resource_defs=RESOURCE_DEFS,
         catalogs=CATALOGS,
         traits=TRAITS,
+        monster_base_attributes=BASE_ATTRIBUTES,
+        monster_traits=MONSTER_TRAITS,
         monitors=MONITORS,
         texts=RULE_TEXTS,
     )

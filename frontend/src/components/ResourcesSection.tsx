@@ -17,6 +17,8 @@ type Props = {
   floors: Record<string, number>;
   /** Éléments de catalogue imposés par les rôles, par ressource (la langue runique de l'Exorciste). */
   imposed: Record<string, string[]>;
+  /** Ressources inaccessibles (monstre qui n'est pas doué magiquement) : cachées sauf s'il en a encore. */
+  forbidden?: string[];
   onChange: (patch: Pick<CharacterInput, "resources" | "bottes" | "selections">) => void;
 };
 
@@ -29,7 +31,7 @@ type Props = {
  * catalogue (langues, animaux totems) se choisissent dans une liste qui montre l'effet de chaque
  * élément ; les autres sont des intitulés libres en attendant leur catalogue (sorts, dieux, codes...).
  */
-export default function ResourcesSection({ rules, character, rulesMode, floors, imposed, onChange }: Props) {
+export default function ResourcesSection({ rules, character, rulesMode, floors, imposed, forbidden = [], onChange }: Props) {
   const resources = character.resources ?? {};
   const selections = (character.selections ?? {}) as Record<string, Selection[]>;
   const allowance = (key: string) => (key === "bottes" ? character.bottes ?? 0 : resources[key] ?? 0);
@@ -46,7 +48,8 @@ export default function ResourcesSection({ rules, character, rulesMode, floors, 
       : null;
 
   const defs = Object.entries(rules.resource_defs);
-  const visible = defs.filter(([key]) => !rulesMode || allowance(key) > 0 || (selections[key]?.length ?? 0) > 0);
+  const used = (key: string) => allowance(key) > 0 || (selections[key]?.length ?? 0) > 0;
+  const visible = defs.filter(([key]) => used(key) || (!rulesMode && !forbidden.includes(key)));
   const groups = [...new Set(visible.map(([, d]) => d.group))];
 
   if (visible.length === 0) {

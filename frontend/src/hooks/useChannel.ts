@@ -9,7 +9,9 @@ export type ServerEvent =
   /** Un personnage a été proposé, accepté, refusé ou retiré : relire la room. */
   | { type: "room.characters" }
   /** Les moniteurs d'un personnage en jeu ont changé. */
-  | { type: "room.instance"; instance: Instance };
+  | { type: "room.instance"; instance: Instance }
+  // Personnage sorti du jeu, ou monstre que le MJ vient de cacher.
+  | { type: "room.instance.removed"; id: number };
 
 /** Le serveur a refusé ou coupé l'accès au canal (pas connecté, exclu de la room...). */
 export const WS_FORBIDDEN = 4403;
