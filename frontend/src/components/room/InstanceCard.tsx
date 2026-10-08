@@ -1,21 +1,33 @@
-import { FileText, Minus, Plus, RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { FileText, Minus, Pin, PinOff, Plus, RefreshCw, Skull } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { Instance, MonitorDef } from "@/api/client";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import StatusTags, { type StatusActions, type StatusSuggestion } from "./StatusTags";
+import StatusTags, { COLORS, type StatusActions, type StatusSuggestion } from "./StatusTags";
 
-/** Couleur de chaque jauge (clés : rules/monitors.py MONITORS). */
-const BAR_COLORS: Record<string, string> = {
-  physique: "bg-red-600 dark:bg-red-500",
-  mental: "bg-violet-600 dark:bg-violet-400",
-  pathologique: "bg-emerald-600 dark:bg-emerald-500",
-  endurance: "bg-amber-500",
-  mana: "bg-sky-600 dark:bg-sky-400",
+/** Couleur de chaque moniteur de condition (clés : rules/monitors.py MONITORS), de l'anneau extérieur vers le centre. */
+const RING_COLORS: Record<string, { stroke: string; glow: string; dot: string }> = {
+  physique: { stroke: "stroke-red-500", glow: "drop-shadow-[0_0_3px_var(--color-red-500)]", dot: "bg-red-500" },
+  mental: { stroke: "stroke-violet-500", glow: "drop-shadow-[0_0_3px_var(--color-violet-500)]", dot: "bg-violet-500" },
+  pathologique: { stroke: "stroke-emerald-500", glow: "drop-shadow-[0_0_3px_var(--color-emerald-500)]", dot: "bg-emerald-500" },
+  endurance: { stroke: "stroke-amber-400", glow: "drop-shadow-[0_0_3px_var(--color-amber-400)]", dot: "bg-amber-400" },
 };
+const DEFAULT_RING = { stroke: "stroke-primary", glow: "", dot: "bg-primary" };
+
+/** Géométrie du jeton (unités du viewBox) : anneaux concentriques ouverts en bas (arc de 270°). */
+const SIZE = 120;
+const C = SIZE / 2;
+const OUTER_R = 54;
+const RING_STEP = 10;
+const STROKE = 7;
+/** Au-delà, les cases d'un anneau seraient trop fines pour être lisibles. */
+const MAX_TICKS = 30;
+/** Statuts pendus au jeton replié ; les autres sont résumés par « +n ». */
+const MAX_HANGING = 4;
+/** Délai avant de replier la carte quand la souris sort (évite le clignotement en bordure). */
+const LEAVE_DELAY_MS = 150;
+
+type Monitor = { current: number; max: number };
 
 type Props = {
   instance: Instance;
@@ -32,8 +44,81 @@ type Props = {
   onSheet: () => void;
 };
 
-function MonitorRow({ label, current, max, color, canEdit, onDelta, onSet }: {
-  label: string; current: number; max: number; color: string; canEdit: boolean;
+/** Arc de 270° de rayon r, du bas-gauche au bas-droit en passant par le haut. */
+function arcPath(r: number) {
+  const d = r * Math.SQRT1_2;
+  return `M ${C - d} ${C + d} A ${r} ${r} 0 1 1 ${C + d} ${C + d}`;
+}
+
+/** Le jeton : un anneau par moniteur de condition, l'initiale (ou un crâne si un moniteur est brisé) au centre. */
+function Token({ name, rings, defs, className, onClick }: {
+  name: string; rings: [string, Monitor][]; defs: Record<string, MonitorDef>; className?: string; onClick?: () => void;
+}) {
+  const broken = rings.some(([, m]) => m.max > 0 && m.current === 0);
+  return (
+    <button type="button" onClick={onClick} aria-label={`Détails de ${name}`}
+      className={cn("relative block size-[120px] shrink-0 rounded-full", className)}>
+      <span className="absolute inset-2 rounded-full bg-radial from-primary/15 via-card to-card shadow-[inset_0_0_12px_-2px] shadow-primary/40 ring-1 ring-primary/30" />
+      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="relative size-full" aria-hidden>
+        {rings.map(([k, m], i) => {
+          const r = OUTER_R - i * RING_STEP;
+          const path = arcPath(r);
+          const color = RING_COLORS[k] ?? DEFAULT_RING;
+          // Séparateurs de cases d'environ 1,5 unité, centrés sur chaque limite de point.
+          const gap = m.max > 0 ? 1.5 / ((1.5 * Math.PI * r) / m.max) : 0;
+          return (
+            <g key={k}>
+              <title>{`${defs[k]?.label ?? k} : ${m.current} / ${m.max}`}</title>
+              <path d={path} fill="none" strokeWidth={STROKE} strokeLinecap="round" className="stroke-foreground/10" />
+              {m.max > 0 && m.current > 0 && (
+                <path d={path} fill="none" strokeWidth={STROKE} strokeLinecap="round" pathLength={m.max}
+                  strokeDasharray={`${m.current} ${m.max + 1}`}
+                  className={cn("transition-[stroke-dasharray] duration-500", color.stroke, color.glow)} />
+              )}
+              {m.max > 1 && m.max <= MAX_TICKS && (
+                <path d={path} fill="none" strokeWidth={STROKE + 1} pathLength={m.max} className="stroke-card"
+                  strokeDasharray={`${gap} ${1 - gap}`} strokeDashoffset={gap / 2} />
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center">
+        {broken
+          ? <Skull className="size-5 animate-pulse text-destructive drop-shadow-[0_0_4px_var(--color-red-500)]" />
+          : <span className="font-heading text-lg font-bold text-primary/80">{name.charAt(0).toLocaleUpperCase()}</span>}
+      </span>
+    </button>
+  );
+}
+
+/** Barre de mana façon MOBA : cadre doré, remplissage bleu brillant, une case par point. */
+function ManaBar({ mana, large }: { mana: Monitor; large?: boolean }) {
+  const pct = mana.max > 0 ? (mana.current / mana.max) * 100 : 0;
+  return (
+    <div role="meter" aria-label="Mana" aria-valuemin={0} aria-valuemax={mana.max} aria-valuenow={mana.current}
+      title={`Mana : ${mana.current} / ${mana.max}`}
+      className={cn("relative w-full overflow-hidden rounded-[3px] border border-black/70 bg-slate-950 ring-1 ring-amber-600/60",
+        large ? "h-4" : "h-2.5")}>
+      <div className="h-full bg-linear-to-b from-sky-300 via-blue-500 to-blue-800 shadow-[0_0_6px_var(--color-sky-400)] transition-[width] duration-500"
+        style={{ width: `${pct}%` }} />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[40%] bg-white/25" />
+      {mana.max > 1 && mana.max <= MAX_TICKS && (
+        <div className="pointer-events-none absolute inset-0"
+          style={{ backgroundImage: "linear-gradient(to right, rgb(0 0 0 / 0.55) 1px, transparent 1px)", backgroundSize: `${100 / mana.max}% 100%` }} />
+      )}
+      {large && (
+        <span className="absolute inset-0 flex items-center justify-center text-[0.65rem] font-bold tabular-nums text-white [text-shadow:0_1px_2px_black]">
+          {mana.current} / {mana.max}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Ligne détaillée d'un moniteur (carte dépliée) : intitulé, − valeur +. */
+function MonitorRow({ label, dot, monitor: { current, max }, canEdit, onDelta, onSet }: {
+  label: string; dot: string; monitor: Monitor; canEdit: boolean;
   onDelta: (d: number) => void; onSet: (v: number) => void;
 }) {
   // Saisie directe de la valeur ; resynchronisée quand la valeur change (autre joueur, temps réel).
@@ -44,73 +129,138 @@ function MonitorRow({ label, current, max, color, canEdit, onDelta, onSet }: {
     if (draft.trim() !== "" && Number.isInteger(v) && v !== current) onSet(Math.max(0, Math.min(max, v)));
     else setDraft(String(current));
   };
-  const pct = max > 0 ? (current / max) * 100 : 0;
   const broken = max > 0 && current === 0;
-
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2 text-sm">
-        <span className={cn("font-medium", broken && "text-destructive")}>{label}</span>
-        {broken && <Badge variant="destructive">brisé</Badge>}
-        <span className="ml-auto flex items-center gap-1 tabular-nums">
-          {canEdit ? (
-            <Input aria-label={`${label} actuel`} className="h-7 w-14 px-1 text-right tabular-nums" inputMode="numeric"
-              value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit}
-              onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
-          ) : <span>{current}</span>}
-          <span className="text-muted-foreground">/ {max}</span>
-        </span>
-      </div>
-      <div className="flex items-center gap-2">
-        {canEdit && (
-          <Button variant="outline" size="icon-sm" aria-label={`${label} -1`} disabled={current <= 0}
-            onClick={() => onDelta(-1)}><Minus /></Button>
-        )}
-        <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted" role="meter" aria-label={label}
-          aria-valuemin={0} aria-valuemax={max} aria-valuenow={current}>
-          <div className={cn("h-full rounded-full transition-[width]", color)} style={{ width: `${pct}%` }} />
-        </div>
-        {canEdit && (
-          <Button variant="outline" size="icon-sm" aria-label={`${label} +1`} disabled={current >= max}
-            onClick={() => onDelta(1)}><Plus /></Button>
-        )}
-      </div>
+    <div className="flex items-center gap-2 text-sm">
+      <span className={cn("size-2.5 shrink-0 rounded-full", dot)} />
+      <span className={cn("flex-1 font-heading font-semibold", broken && "text-destructive")}>{label}</span>
+      {broken && <Skull className="size-3.5 text-destructive" aria-label="brisé" />}
+      {canEdit && (
+        <Button variant="ghost" size="icon-xs" aria-label={`${label} -1`} disabled={current <= 0}
+          onClick={() => onDelta(-1)}><Minus /></Button>
+      )}
+      <span className="flex items-baseline tabular-nums">
+        {canEdit ? (
+          <input aria-label={`${label} actuel`} inputMode="numeric"
+            className="w-7 rounded-sm bg-transparent text-right font-semibold outline-none focus:bg-background focus:ring-1 focus:ring-ring"
+            value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit}
+            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
+        ) : <span className="font-semibold">{current}</span>}
+        <span className="w-8 text-muted-foreground">/{max}</span>
+      </span>
+      {canEdit && (
+        <Button variant="ghost" size="icon-xs" aria-label={`${label} +1`} disabled={current >= max}
+          onClick={() => onDelta(1)}><Plus /></Button>
+      )}
     </div>
   );
 }
 
-/** Un personnage en jeu : ses moniteurs de condition (et de mana s'il en a). */
+/** Cartouche du nom. */
+function Nameplate({ name, outdated }: { name: string; outdated?: boolean }) {
+  return (
+    <div className="relative rounded-sm border border-primary/50 bg-linear-to-b from-card to-secondary px-3 py-1 text-center shadow-sm ring-1 ring-primary/15 ring-offset-1 ring-offset-card">
+      <span className="block truncate font-heading text-sm font-semibold text-primary">{name}</span>
+      {outdated && <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-warning ring-2 ring-card" title="La fiche a changé depuis l'entrée en jeu" />}
+    </div>
+  );
+}
+
+/**
+ * Un personnage en jeu, sous forme de jeton : cartouche du nom, barre de mana, anneaux des moniteurs de
+ * condition et statuts pendus au jeton. Au survol (ou épinglée d'un clic sur le jeton), la carte se déplie
+ * par-dessus ses voisines avec les valeurs, la modification et la gestion des statuts.
+ */
 export default function InstanceCard({
   instance, defs, canEdit, isGM, statusSuggestions, statusActions, onDelta, onSet, onResync, onSheet,
 }: Props) {
   const c = instance.character;
   const keys = Object.keys(defs).filter((k) => k in instance.monitors);
+  const rings = keys.filter((k) => k !== "mana").map((k) => [k, instance.monitors[k]] as [string, Monitor]);
+  const mana = instance.monitors.mana as Monitor | undefined;
+  const statuses = instance.statuses ?? [];
+
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const leaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(leaveTimer.current), []);
+  const expanded = hovered || focused || pinned;
+
   return (
-    <Card size="sm">
-      <CardHeader>
-        <CardTitle className="font-heading text-base">{c.name}</CardTitle>
-        <CardDescription className="flex flex-wrap items-center gap-1.5">
-          {c.species && <span className="capitalize">{c.species}</span>}
-          {c.owner && <span>· {c.owner.username}</span>}
-          {instance.outdated && <Badge variant="outline" title="La fiche a changé depuis l'entrée en jeu">fiche modifiée</Badge>}
-        </CardDescription>
-        <CardAction className="flex gap-1">
-          {instance.outdated && canEdit && (
-            <Button variant="ghost" size="icon-sm" aria-label="Resynchroniser" onClick={onResync}
-              title="Reprendre les max de la fiche (les dégâts subis sont conservés)"><RefreshCw /></Button>
+    // Les évènements des popovers (rendus en portail) remontent l'arbre React : la carte reste dépliée pendant leur usage.
+    <div className="relative w-56"
+      onMouseEnter={() => { clearTimeout(leaveTimer.current); setHovered(true); }}
+      onMouseLeave={() => { leaveTimer.current = setTimeout(() => setHovered(false), LEAVE_DELAY_MS); }}
+      onFocus={(e) => setFocused(e.target instanceof HTMLInputElement)} onBlur={() => setFocused(false)}>
+      {/* Jeton replié : il garde sa place dans la grille même quand la carte dépliée le recouvre. */}
+      <div className={cn("flex flex-col gap-1.5 transition-opacity", expanded && "opacity-0")} inert={expanded}>
+        <Nameplate name={c.name} outdated={instance.outdated} />
+        {mana && <ManaBar mana={mana} />}
+        <div className="relative mx-auto mt-1 w-[120px]">
+          <Token name={c.name} rings={rings} defs={defs} onClick={() => setPinned(true)} />
+          {statuses.slice(0, MAX_HANGING).map((s, i) => {
+            // En alternance à droite puis à gauche du jeton, de plus en plus bas ; l'étiquette pend en se balançant.
+            const left = i % 2 === 1;
+            const angle = 5 + Math.floor(i / 2) * 35;
+            const rad = (angle * Math.PI) / 180;
+            const dx = 56 * Math.cos(rad);
+            const top = C + 56 * Math.sin(rad);
+            const hang = angle * 0.5 + 20;
+            return (
+              <div key={s.id} className={cn("hanging-tag pointer-events-none absolute flex items-center", left && "flex-row-reverse")}
+                style={{
+                  ...(left ? { right: C + dx, transformOrigin: "100% 50%" } : { left: C + dx }), top,
+                  ["--hang" as string]: `${left ? -hang : hang}deg`, animationDelay: `${i * -0.7}s`,
+                }}>
+                <span className={cn("size-1.5 rounded-full bg-primary/70 ring-1 ring-card", left ? "translate-x-1/2" : "-translate-x-1/2")} />
+                <span className="h-px w-2.5 bg-primary/50" />
+                <span className={cn("max-w-[5rem] truncate rounded-sm border px-1.5 py-px text-[0.65rem] font-medium shadow-sm",
+                  COLORS[s.color ?? "neutre"].badge, s.hidden && "border-dashed opacity-80")}>{s.label}</span>
+              </div>
+            );
+          })}
+          {statuses.length > MAX_HANGING && (
+            <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[0.65rem] text-muted-foreground">+{statuses.length - MAX_HANGING}</span>
           )}
-          <Button variant="ghost" size="icon-sm" aria-label="Fiche" title="Fiche" onClick={onSheet}><FileText /></Button>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <StatusTags statuses={instance.statuses ?? []} canEdit={canEdit} isGM={isGM}
-          suggestions={statusSuggestions} {...statusActions} />
-        {keys.map((k) => (
-          <MonitorRow key={k} label={defs[k].label} current={instance.monitors[k].current} max={instance.monitors[k].max}
-            color={BAR_COLORS[k] ?? "bg-primary"} canEdit={canEdit}
-            onDelta={(d) => onDelta(k, d)} onSet={(v) => onSet(k, v)} />
-        ))}
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="arcane-card absolute -top-2 left-1/2 z-30 flex w-80 -translate-x-1/2 flex-col gap-2 rounded-xl bg-card p-3 text-card-foreground ring-1 shadow-xl animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center gap-1">
+            <div className="min-w-0 flex-1"><Nameplate name={c.name} outdated={instance.outdated} /></div>
+            {instance.outdated && canEdit && (
+              <Button variant="ghost" size="icon-sm" aria-label="Resynchroniser" onClick={onResync}
+                title="Reprendre les max de la fiche (les dégâts subis sont conservés)"><RefreshCw /></Button>
+            )}
+            <Button variant="ghost" size="icon-sm" aria-label="Fiche" title="Fiche" onClick={onSheet}><FileText /></Button>
+            <Button variant="ghost" size="icon-sm" aria-label={pinned ? "Replier" : "Garder ouvert"} title={pinned ? "Replier" : "Garder ouvert"}
+              onClick={() => { setPinned(!pinned); if (pinned) { setHovered(false); setFocused(false); } }}>
+              {pinned ? <PinOff /> : <Pin />}
+            </Button>
+          </div>
+          <p className="-mt-1 truncate text-center text-xs text-muted-foreground">
+            {[c.species, c.owner?.username].filter(Boolean).join(" · ")}
+            {instance.outdated && " · fiche modifiée"}
+          </p>
+          {mana && <ManaBar mana={mana} large />}
+          <Token name={c.name} rings={rings} defs={defs} className="mx-auto" onClick={() => setPinned(!pinned)} />
+          <div className="flex flex-col gap-0.5">
+            {keys.map((k) => (
+              <MonitorRow key={k} label={defs[k].label} monitor={instance.monitors[k]} canEdit={canEdit}
+                dot={k === "mana" ? "bg-sky-500" : (RING_COLORS[k] ?? DEFAULT_RING).dot}
+                onDelta={(d) => onDelta(k, d)} onSet={(v) => onSet(k, v)} />
+            ))}
+          </div>
+          <div className="flex items-center gap-2 text-primary/50" aria-hidden>
+            <span className="h-px flex-1 bg-linear-to-r from-transparent to-primary/40" />
+            <span className="text-[0.5rem]">◆</span>
+            <span className="h-px flex-1 bg-linear-to-l from-transparent to-primary/40" />
+          </div>
+          <StatusTags statuses={statuses} canEdit={canEdit} isGM={isGM} suggestions={statusSuggestions} {...statusActions} />
+        </div>
+      )}
+    </div>
   );
 }

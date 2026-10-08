@@ -246,7 +246,7 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
               </CardDescription>
             </Card>
           ) : (
-            <div className="grid gap-4 @3xl/main:grid-cols-2">
+            <div className="flex flex-wrap gap-x-12 gap-y-8 pb-4">
               {instances.map((i) => (
                 <InstanceCard key={i.id} instance={i} defs={rules.monitors} canEdit={isGM || i.character.kind === "pj"}
                   isGM={isGM} statusSuggestions={statusSuggestions} statusActions={statusActions(i.id)}

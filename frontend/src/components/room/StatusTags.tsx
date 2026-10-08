@@ -15,7 +15,7 @@ export type StatusColor = components["schemas"]["StatusColor"];
 export type StatusSuggestion = { label: string; color: StatusColor };
 
 /** Palette des statuts (noms : schemas.StatusColor). Badge : fond pâle en clair, foncé en sombre. */
-const COLORS: Record<StatusColor, { label: string; badge: string; swatch: string }> = {
+export const COLORS: Record<StatusColor, { label: string; badge: string; swatch: string }> = {
   neutre: { label: "Neutre", badge: "bg-secondary text-secondary-foreground border-border", swatch: "bg-muted-foreground/40" },
   rouge: { label: "Rouge", badge: "bg-red-100 text-red-800 border-red-300 dark:bg-red-950 dark:text-red-200 dark:border-red-800", swatch: "bg-red-500" },
   orange: { label: "Orange", badge: "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-950 dark:text-orange-200 dark:border-orange-800", swatch: "bg-orange-500" },
