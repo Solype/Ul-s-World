@@ -146,6 +146,8 @@ class CharacterInstance(Base):
     character_id: Mapped[int] = mapped_column(Integer, index=True)
     # Moniteur -> {"current": n, "max": n} (clés : rules/monitors.MONITORS).
     monitors: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Statuts (tags libres : enflammé, empoisonné...) : [{"id", "label", "hidden"}]. `hidden` : vu du MJ seul.
+    statuses: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 

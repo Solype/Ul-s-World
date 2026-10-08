@@ -5,6 +5,7 @@ par un bus partagé (Redis pub/sub par exemple) en gardant la même interface.
 """
 
 from collections import defaultdict
+from collections.abc import Callable
 
 from fastapi import WebSocket
 
@@ -29,6 +30,18 @@ class ConnectionManager:
         for ws in list(self._channels.get(channel, ())):
             try:
                 await ws.send_json(event)
+            except Exception:
+                self.disconnect(channel, ws)
+
+    async def broadcast_each(self, channel: str, build: Callable[[int | None], dict]) -> None:
+        """Comme `broadcast`, mais l'événement est construit pour chaque destinataire (son compte) :
+        pour ne pas envoyer à un joueur ce que seul le MJ doit voir."""
+        cache: dict[int | None, dict] = {}
+        for ws, uid in list(self._channels.get(channel, {}).items()):
+            if uid not in cache:
+                cache[uid] = build(uid)
+            try:
+                await ws.send_json(cache[uid])
             except Exception:
                 self.disconnect(channel, ws)
 

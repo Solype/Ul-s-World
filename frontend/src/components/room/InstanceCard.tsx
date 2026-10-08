@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import StatusTags, { type StatusActions } from "./StatusTags";
 
 /** Couleur de chaque jauge (clés : rules/monitors.py MONITORS). */
 const BAR_COLORS: Record<string, string> = {
@@ -21,6 +22,10 @@ type Props = {
   /** Définitions des moniteurs (GET /api/rules), dans l'ordre d'affichage. */
   defs: Record<string, MonitorDef>;
   canEdit: boolean;
+  isGM: boolean;
+  /** Statuts déjà utilisés dans la room (suggestions). */
+  statusSuggestions: string[];
+  statusActions: StatusActions;
   onDelta: (monitor: string, delta: number) => void;
   onSet: (monitor: string, value: number) => void;
   onResync: () => void;
@@ -75,7 +80,9 @@ function MonitorRow({ label, current, max, color, canEdit, onDelta, onSet }: {
 }
 
 /** Un personnage en jeu : ses moniteurs de condition (et de mana s'il en a). */
-export default function InstanceCard({ instance, defs, canEdit, onDelta, onSet, onResync, onSheet }: Props) {
+export default function InstanceCard({
+  instance, defs, canEdit, isGM, statusSuggestions, statusActions, onDelta, onSet, onResync, onSheet,
+}: Props) {
   const c = instance.character;
   const keys = Object.keys(defs).filter((k) => k in instance.monitors);
   return (
@@ -96,6 +103,8 @@ export default function InstanceCard({ instance, defs, canEdit, onDelta, onSet, 
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
+        <StatusTags statuses={instance.statuses ?? []} canEdit={canEdit} isGM={isGM}
+          suggestions={statusSuggestions} {...statusActions} />
         {keys.map((k) => (
           <MonitorRow key={k} label={defs[k].label} current={instance.monitors[k].current} max={instance.monitors[k].max}
             color={BAR_COLORS[k] ?? "bg-primary"} canEdit={canEdit}

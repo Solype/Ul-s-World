@@ -104,3 +104,53 @@ def test_monitor_changes_are_pushed(in_play):
         assert event["type"] == "room.instance"
         assert event["instance"]["id"] == in_play["instance"]["id"]
         assert event["instance"]["monitors"]["mental"]["current"] == in_play["instance"]["monitors"]["mental"]["max"] - 2
+
+
+def _labels(instance: dict) -> dict[str, bool]:
+    return {s["label"]: s["hidden"] for s in instance["statuses"]}
+
+
+def test_members_add_and_remove_public_statuses(in_play):
+    alice, bob, url = in_play["alice"], in_play["bob"], in_play["url"]
+    res = bob.post(f"{url}/statuses", json={"label": "  Enflammé  "})
+    assert res.status_code == 201 and _labels(res.json()) == {"Enflammé": False}
+    # Même intitulé, casse différente : pas de doublon.
+    assert len(alice.post(f"{url}/statuses", json={"label": "enflammé"}).json()["statuses"]) == 1
+    status_id = res.json()["statuses"][0]["id"]
+    assert alice.delete(f"{url}/statuses/{status_id}").json()["statuses"] == []
+    assert alice.post(f"{url}/statuses", json={"label": " "}).status_code == 422
+    assert in_play["outsider"].post(f"{url}/statuses", json={"label": "x"}).status_code == 404
+
+
+def test_hidden_statuses_are_for_the_gm_only(in_play):
+    gm, alice, bob, url, room = in_play["gm"], in_play["alice"], in_play["bob"], in_play["url"], in_play["room"]
+    assert bob.post(f"{url}/statuses", json={"label": "Maudit", "hidden": True}).status_code == 403
+    hidden = gm.post(f"{url}/statuses", json={"label": "Maudit", "hidden": True}).json()
+    gm.post(f"{url}/statuses", json={"label": "Empoisonné"})
+    assert _labels(hidden) == {"Maudit": True}
+    hidden_id = hidden["statuses"][0]["id"]
+
+    # Les joueurs ne le reçoivent jamais : ni dans la liste, ni dans la réponse de leurs propres actions.
+    assert _labels(alice.get(f"/api/rooms/{room}/instances").json()[0]) == {"Empoisonné": False}
+    assert _labels(bob.patch(url, json={"delta": {"physique": -1}}).json()) == {"Empoisonné": False}
+    assert _labels(gm.get(f"/api/rooms/{room}/instances").json()[0]) == {"Maudit": True, "Empoisonné": False}
+    # Il n'existe pas pour eux : ni retrait, ni révélation, ni devinette par doublon.
+    assert bob.delete(f"{url}/statuses/{hidden_id}").status_code == 404
+    assert bob.patch(f"{url}/statuses/{hidden_id}", json={"hidden": False}).status_code == 403
+    guessed = bob.post(f"{url}/statuses", json={"label": "maudit"}).json()
+    assert _labels(guessed) == {"Empoisonné": False, "maudit": False}
+
+    # Le MJ le révèle : tout le monde le voit.
+    gm.patch(f"{url}/statuses/{hidden_id}", json={"hidden": False})
+    assert "Maudit" in _labels(alice.get(f"/api/rooms/{room}/instances").json()[0])
+
+
+def test_hidden_statuses_are_not_pushed_to_players(in_play):
+    gm, bob, url, room = in_play["gm"], in_play["bob"], in_play["url"], in_play["room"]
+    with gm.websocket_connect(f"/ws/room:{room}") as gm_ws, bob.websocket_connect(f"/ws/room:{room}") as bob_ws:
+        for _ in range(2):
+            gm_ws.receive_json()  # présence
+        bob_ws.receive_json()
+        gm.post(f"{url}/statuses", json={"label": "Possédé", "hidden": True})
+        assert _labels(gm_ws.receive_json()["instance"]) == {"Possédé": True}
+        assert _labels(bob_ws.receive_json()["instance"]) == {}

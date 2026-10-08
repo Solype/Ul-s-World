@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { api, type Character, type ChatMessage, type Instance, type Room, type RoomCharacter, type UserPublic } from "@/api/client";
 import { useUser } from "@/auth/AuthContext";
 import InstanceCard from "@/components/room/InstanceCard";
+import type { StatusActions } from "@/components/room/StatusTags";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -90,6 +91,30 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
     if (data) { putInstance(data); toast.success(`${data.character.name} : max repris de la fiche`); }
     else toast.error("Resynchronisation impossible");
   };
+
+  // Statuts (tags libres) des personnages en jeu. Les cachés n'arrivent qu'au MJ, filtrés par le serveur.
+  const statusActions = (instanceId: number): StatusActions => {
+    const p = { params: { path: { room_id: id, instance_id: instanceId } } };
+    const done = (data: Instance | undefined, failure: string) => {
+      if (data) putInstance(data);
+      else toast.error(failure);
+      return !!data;
+    };
+    return {
+      onAdd: async (label, hidden) =>
+        done((await api.POST("/api/rooms/{room_id}/instances/{instance_id}/statuses", { ...p, body: { label, hidden } })).data,
+          "Statut non ajouté"),
+      onRemove: async (statusId) => {
+        done((await api.DELETE("/api/rooms/{room_id}/instances/{instance_id}/statuses/{status_id}",
+          { params: { path: { ...p.params.path, status_id: statusId } } })).data, "Statut non retiré");
+      },
+      onToggleHidden: async (statusId, hidden) => {
+        done((await api.PATCH("/api/rooms/{room_id}/instances/{instance_id}/statuses/{status_id}",
+          { params: { path: { ...p.params.path, status_id: statusId } }, body: { hidden } })).data, "Action impossible");
+      },
+    };
+  };
+  const statusSuggestions = [...new Set(instances.flatMap((i) => (i.statuses ?? []).map((s) => s.label)))].sort();
 
   // Personnages qu'on vient de retirer soi-même : pas de « refusé par le MJ » si le signal arrive avant la réponse.
   const withdrawn = useRef(new Set<number>());
@@ -219,6 +244,7 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
             <div className="grid gap-4 @3xl/main:grid-cols-2">
               {instances.map((i) => (
                 <InstanceCard key={i.id} instance={i} defs={rules.monitors} canEdit={isGM || i.character.kind === "pj"}
+                  isGM={isGM} statusSuggestions={statusSuggestions} statusActions={statusActions(i.id)}
                   onDelta={(m, d) => changeMonitors(i.id, { delta: { [m]: d } })}
                   onSet={(m, v) => changeMonitors(i.id, { set: { [m]: v } })}
                   onResync={() => resync(i.id)} onSheet={() => setSheetId(i.character.id)} />

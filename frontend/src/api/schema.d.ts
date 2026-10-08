@@ -477,6 +477,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/rooms/{room_id}/instances/{instance_id}/statuses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ajouter un statut
+         * @description Un statut déjà présent (même intitulé, sans tenir compte de la casse) n'est pas ajouté deux fois.
+         *     La comparaison ne porte que sur les statuts que l'on voit : un joueur ne peut pas deviner un statut caché.
+         */
+        post: operations["add_status_api_rooms__room_id__instances__instance_id__statuses_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/instances/{instance_id}/statuses/{status_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Retirer un statut */
+        delete: operations["remove_status_api_rooms__room_id__instances__instance_id__statuses__status_id__delete"];
+        options?: never;
+        head?: never;
+        /** Cacher ou révéler un statut (MJ) */
+        patch: operations["update_status_api_rooms__room_id__instances__instance_id__statuses__status_id__patch"];
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1225,6 +1264,11 @@ export interface components {
             monitors: {
                 [key: string]: components["schemas"]["Monitor"];
             };
+            /**
+             * Statuses
+             * @default []
+             */
+            statuses?: components["schemas"]["StatusRead"][];
             /** Sheet Max */
             sheet_max: {
                 [key: string]: number;
@@ -1669,6 +1713,37 @@ export interface components {
          * @enum {string}
          */
         Species: "elfe" | "humain" | "kobold" | "nain" | "orc";
+        /** StatusCreate */
+        StatusCreate: {
+            /** Label */
+            label: string;
+            /**
+             * Hidden
+             * @description Visible du MJ seul (réservé au MJ).
+             * @default false
+             */
+            hidden?: boolean;
+        };
+        /**
+         * StatusRead
+         * @description Statut d'un personnage en jeu (tag libre). `hidden` : visible du MJ seul.
+         */
+        StatusRead: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Hidden
+             * @default false
+             */
+            hidden?: boolean;
+        };
+        /** StatusUpdate */
+        StatusUpdate: {
+            /** Hidden */
+            hidden: boolean;
+        };
         /** SubmitCharacter */
         SubmitCharacter: {
             /** Character Id */
@@ -2945,6 +3020,112 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_status_api_rooms__room_id__instances__instance_id__statuses_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                instance_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatusCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_status_api_rooms__room_id__instances__instance_id__statuses__status_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                instance_id: number;
+                status_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_status_api_rooms__room_id__instances__instance_id__statuses__status_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                instance_id: number;
+                status_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatusUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

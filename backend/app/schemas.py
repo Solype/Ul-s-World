@@ -279,6 +279,8 @@ class InstanceRead(BaseModel):
     room_id: int
     character: CharacterSummary
     monitors: dict[str, Monitor]
+    # Pour un joueur, les statuts cachés sont retirés par le serveur.
+    statuses: list["StatusRead"] = []
     sheet_max: dict[str, int]
     outdated: bool
     updated_at: datetime
@@ -290,3 +292,23 @@ class MonitorChange(BaseModel):
 
     delta: dict[str, int] = {}
     set: dict[str, Annotated[int, Field(ge=0)]] = {}
+
+
+class StatusRead(BaseModel):
+    """Statut d'un personnage en jeu (tag libre). `hidden` : visible du MJ seul."""
+
+    id: str
+    label: str
+    hidden: bool = False
+
+
+class StatusCreate(BaseModel):
+    label: str = Field(min_length=1, max_length=40)
+    hidden: bool = Field(False, description="Visible du MJ seul (réservé au MJ).")
+
+
+class StatusUpdate(BaseModel):
+    hidden: bool
+
+
+InstanceRead.model_rebuild()
