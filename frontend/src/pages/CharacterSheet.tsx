@@ -25,7 +25,11 @@ const Empty = () => <span className="text-muted-foreground">—</span>;
  * Fiche de personnage à lire ou imprimer (Imprimer → PDF), sur le modèle de refdoc/Fiche PJ vide.pdf.
  * Elle montre la version enregistrée du personnage.
  */
-export default function CharacterSheet({ id, onClose }: { id: number; onClose: () => void }) {
+export default function CharacterSheet({ id, onClose, embedded = false }: {
+  id: number; onClose?: () => void;
+  /** Affichée dans une fenêtre par-dessus une autre page (room) : pas de Retour, ni de titre d'onglet. */
+  embedded?: boolean;
+}) {
   const rules = useRules();
   const [c, setC] = useState<Character | null>(null);
   const [report, setReport] = useState<ValidationReport | null>(null);
@@ -39,9 +43,10 @@ export default function CharacterSheet({ id, onClose }: { id: number; onClose: (
   }, [id]);
 
   useEffect(() => {
-    if (c) document.title = `${c.name} — NewMannheim`;
+    if (!c || embedded) return;
+    document.title = `${c.name} — NewMannheim`;
     return () => { document.title = "NewMannheim"; };
-  }, [c]);
+  }, [c, embedded]);
 
   if (missing) return <p className="text-muted-foreground">Personnage introuvable.</p>;
   if (!rules || !c) return <div className="grid gap-4"><Skeleton className="h-10 w-64" /><Skeleton className="h-96" /></div>;
@@ -85,13 +90,18 @@ export default function CharacterSheet({ id, onClose }: { id: number; onClose: (
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2 print:hidden">
-        <Button variant="ghost" size="icon" aria-label="Retour" onClick={onClose}><ArrowLeft /></Button>
+      <div className={cn("flex flex-wrap items-center gap-2 print:hidden", embedded && "pr-8")}>
+        {!embedded && <Button variant="ghost" size="icon" aria-label="Retour" onClick={onClose}><ArrowLeft /></Button>}
         <h1 className="flex-1 truncate text-xl font-semibold">Fiche de {c.name}</h1>
         <Button variant="outline" asChild>
           <a href={`/api/characters/${id}/export`} download><FileJson data-icon="inline-start" />JSON</a>
         </Button>
-        <Button onClick={() => window.print()}><Printer data-icon="inline-start" />Imprimer</Button>
+        {embedded ? (
+          // Imprimer depuis une fenêtre superposée imprimerait la page derrière : on ouvre la fiche seule.
+          <Button asChild><a href={`#/fiche/${id}`} target="_blank" rel="noopener"><Printer data-icon="inline-start" />Imprimer</a></Button>
+        ) : (
+          <Button onClick={() => window.print()}><Printer data-icon="inline-start" />Imprimer</Button>
+        )}
       </div>
 
       <div className="rounded-xl border bg-card p-6 text-sm print:rounded-none print:border-0 print:p-0">

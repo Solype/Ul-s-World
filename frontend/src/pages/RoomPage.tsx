@@ -1,10 +1,11 @@
 import {
-  ArrowLeft, Check, Copy, Crown, FileText, LogOut, Pencil, RefreshCw, Send, Trash2, UserPlus, UserX, X,
+  ArrowLeft, Check, Copy, Crown, FileText, LogOut, Pencil, RefreshCw, Send, Trash2, UserPlus, Users, UserX, X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { api, type Character, type ChatMessage, type Instance, type Room, type RoomCharacter, type UserPublic } from "@/api/client";
 import { useUser } from "@/auth/AuthContext";
+import InstanceCard from "@/components/room/InstanceCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,13 +13,15 @@ import {
   Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChannel, WS_FORBIDDEN } from "@/hooks/useChannel";
+import { useRules } from "@/hooks/useRules";
 import { formatInviteCode, inviteLink, isLocalOnly } from "@/lib/rooms";
 import { cn } from "@/lib/utils";
-import InstanceCard from "@/components/room/InstanceCard";
-import { useRules } from "@/hooks/useRules";
+import CharacterSheet from "./CharacterSheet";
 import { KIND_LABELS } from "./CharacterEditor";
 
 type Props = {
@@ -26,31 +29,55 @@ type Props = {
   onBack: () => void;
   /** Après avoir quitté, été exclu, ou supprimé la room. */
   onGone: () => void;
-  onSheet: (characterId: number) => void;
 };
 
 const HISTORY_PAGE = 50;
 const path = (room_id: number) => ({ params: { path: { room_id } } });
 
 /**
- * Une room. Temps réel : la présence et le chat (canal `room:<id>`). Le reste (membres, personnages)
- * est relu après chaque action.
+ * Une room. Au centre, les personnages en jeu et leurs moniteurs ; à droite, les membres (présence)
+ * au-dessus du chat. Invitation et liste des personnages s'ouvrent à la demande, les fiches dans
+ * une fenêtre par-dessus la room.
+ *
+ * Temps réel (canal `room:<id>`) : présence, chat, moniteurs, propositions de personnages.
+ * Le reste (membres, nom) est relu après chaque action.
  */
-export default function RoomPage({ id, onBack, onGone, onSheet }: Props) {
+export default function RoomPage({ id, onBack, onGone }: Props) {
   const user = useUser();
+  const rules = useRules();
   const [room, setRoom] = useState<Room | null>(null);
   const [missing, setMissing] = useState(false);
   const [online, setOnline] = useState<number[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [hasOlder, setHasOlder] = useState(false);
   const [mine, setMine] = useState<Character[]>([]);
-  const rules = useRules();
   const [instances, setInstances] = useState<Instance[]>([]);
+  const [confirm, setConfirm] = useState<"leave" | "delete" | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [charactersOpen, setCharactersOpen] = useState(false);
+  // Fiche affichée par-dessus la room.
+  const [sheetId, setSheetId] = useState<number | null>(null);
+
+  const isGM = room?.gm.id === user.id;
+
+  const load = useCallback(() => {
+    api.GET("/api/rooms/{room_id}", path(id)).then(({ data }) => (data ? setRoom(data) : setMissing(true)));
+  }, [id]);
+  useEffect(load, [load]);
   const loadInstances = useCallback(() => {
     api.GET("/api/rooms/{room_id}/instances", path(id)).then(({ data }) => data && setInstances(data));
   }, [id]);
   useEffect(loadInstances, [loadInstances]);
+  useEffect(() => {
+    api.GET("/api/rooms/{room_id}/messages", { params: { path: { room_id: id }, query: { limit: HISTORY_PAGE } } })
+      .then(({ data }) => { setMessages(data ?? []); setHasOlder((data?.length ?? 0) === HISTORY_PAGE); });
+    api.GET("/api/characters").then(({ data }) => setMine((data ?? []).filter((c) => c.owner?.id === user.id)));
+  }, [id, user.id]);
+
+  const addMessage = (m: ChatMessage) =>
+    setMessages((prev) => (prev.some((p) => p.id === m.id) ? prev : [...prev, m]));
   const putInstance = (i: Instance) => setInstances((prev) => prev.map((p) => (p.id === i.id ? i : p)));
+
   const changeMonitors = async (instanceId: number, body: { delta?: Record<string, number>; set?: Record<string, number> }) => {
     const { data } = await api.PATCH("/api/rooms/{room_id}/instances/{instance_id}",
       { params: { path: { room_id: id, instance_id: instanceId } }, body });
@@ -63,23 +90,6 @@ export default function RoomPage({ id, onBack, onGone, onSheet }: Props) {
     if (data) { putInstance(data); toast.success(`${data.character.name} : max repris de la fiche`); }
     else toast.error("Resynchronisation impossible");
   };
-  const [confirm, setConfirm] = useState<"leave" | "delete" | null>(null);
-  const [renaming, setRenaming] = useState<string | null>(null);
-
-  const isGM = room?.gm.id === user.id;
-
-  const load = useCallback(() => {
-    api.GET("/api/rooms/{room_id}", path(id)).then(({ data }) => (data ? setRoom(data) : setMissing(true)));
-  }, [id]);
-  useEffect(load, [load]);
-  useEffect(() => {
-    api.GET("/api/rooms/{room_id}/messages", { params: { path: { room_id: id }, query: { limit: HISTORY_PAGE } } })
-      .then(({ data }) => { setMessages(data ?? []); setHasOlder((data?.length ?? 0) === HISTORY_PAGE); });
-    api.GET("/api/characters").then(({ data }) => setMine((data ?? []).filter((c) => c.owner?.id === user.id)));
-  }, [id, user.id]);
-
-  const addMessage = (m: ChatMessage) =>
-    setMessages((prev) => (prev.some((p) => p.id === m.id) ? prev : [...prev, m]));
 
   // Personnages qu'on vient de retirer soi-même : pas de « refusé par le MJ » si le signal arrive avant la réponse.
   const withdrawn = useRef(new Set<number>());
@@ -158,53 +168,83 @@ export default function RoomPage({ id, onBack, onGone, onSheet }: Props) {
       "Renommage impossible")) setRenaming(null);
   };
 
+  const pendingCount = room.characters.filter((rc) => rc.status === "pending").length;
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
-        <Button variant="ghost" size="icon" aria-label="Retour" onClick={onBack}><ArrowLeft /></Button>
-        <div className="min-w-0 flex-1">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            {room.name}
-            {isGM && (
-              <Button variant="ghost" size="icon-sm" aria-label="Renommer" onClick={() => setRenaming(room.name)}><Pencil /></Button>
-            )}
-          </h1>
-          <p className="text-sm text-muted-foreground">{isGM ? "Tu es le MJ de cette room." : `MJ : ${room.gm.username}`}</p>
+        <div className="flex min-w-0 flex-1 basis-64 items-center gap-3">
+          <Button variant="ghost" size="icon" aria-label="Retour" onClick={onBack}><ArrowLeft /></Button>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold break-words">
+              {room.name}
+              {isGM && (
+                <Button variant="ghost" size="icon-sm" className="ml-1 align-middle" aria-label="Renommer"
+                  onClick={() => setRenaming(room.name)}><Pencil /></Button>
+              )}
+            </h1>
+            <p className="text-sm text-muted-foreground">{isGM ? "Tu es le MJ de cette room." : `MJ : ${room.gm.username}`}</p>
+          </div>
         </div>
-        {isGM ? (
-          <Button variant="outline" onClick={() => setConfirm("delete")}><Trash2 data-icon="inline-start" />Supprimer la room</Button>
-        ) : (
-          <Button variant="outline" onClick={() => setConfirm("leave")}><LogOut data-icon="inline-start" />Quitter</Button>
-        )}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => setCharactersOpen(true)}>
+            <Users data-icon="inline-start" />Personnages
+            {isGM && pendingCount > 0 && <Badge title="Propositions à valider">{pendingCount}</Badge>}
+          </Button>
+          {isGM && room.invite_code && (
+            <InvitePopover room={room} onUpdate={act}
+              onAdd={(username) => act(api.POST("/api/rooms/{room_id}/members", { ...path(id), body: { username } }),
+                "Aucun compte avec cet identifiant")} />
+          )}
+          {isGM ? (
+            <Button variant="ghost" onClick={() => setConfirm("delete")}><Trash2 data-icon="inline-start" />Supprimer</Button>
+          ) : (
+            <Button variant="ghost" onClick={() => setConfirm("leave")}><LogOut data-icon="inline-start" />Quitter</Button>
+          )}
+        </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="flex flex-col gap-6">
-          {rules && (
-            <section className="flex flex-col gap-3">
-              <h2 className="font-heading text-lg font-semibold">En jeu</h2>
-              {instances.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Aucun personnage en jeu : un PJ y entre dès que le MJ l'accepte dans la room.
-                </p>
-              ) : (
-                <div className="grid gap-4 @2xl/main:grid-cols-2">
-                  {instances.map((i) => (
-                    <InstanceCard key={i.id} instance={i} defs={rules.monitors} canEdit={isGM || i.character.kind === "pj"}
-                      onDelta={(m, d) => changeMonitors(i.id, { delta: { [m]: d } })}
-                      onSet={(m, v) => changeMonitors(i.id, { set: { [m]: v } })}
-                      onResync={() => resync(i.id)} onSheet={() => onSheet(i.character.id)} />
-                  ))}
-                </div>
-              )}
-            </section>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="flex flex-col gap-3">
+          <h2 className="font-heading text-lg font-semibold">En jeu</h2>
+          {!rules ? (
+            <Skeleton className="h-48" />
+          ) : instances.length === 0 ? (
+            <Card className="items-center py-10 text-center">
+              <CardDescription className="max-w-sm">
+                Aucun personnage en jeu. Un PJ y entre dès que le MJ l'accepte (bouton « Personnages »).
+              </CardDescription>
+            </Card>
+          ) : (
+            <div className="grid gap-4 @3xl/main:grid-cols-2">
+              {instances.map((i) => (
+                <InstanceCard key={i.id} instance={i} defs={rules.monitors} canEdit={isGM || i.character.kind === "pj"}
+                  onDelta={(m, d) => changeMonitors(i.id, { delta: { [m]: d } })}
+                  onSet={(m, v) => changeMonitors(i.id, { set: { [m]: v } })}
+                  onResync={() => resync(i.id)} onSheet={() => setSheetId(i.character.id)} />
+              ))}
+            </div>
           )}
-          {isGM && room.invite_code && <InviteCard room={room} onUpdate={act} />}
-          <MembersCard room={room} online={online} isGM={isGM} currentUser={user}
-            onAdd={(username) => act(api.POST("/api/rooms/{room_id}/members", { ...path(id), body: { username } }),
-              "Aucun compte avec cet identifiant")}
-            onRemove={removeMember} />
-          <CharactersCard room={room} isGM={isGM} currentUser={user} mine={mine} onSheet={onSheet}
+        </section>
+
+        {/* Membres au-dessus du chat, collés en haut de l'écran sur grand écran. */}
+        <aside className="flex flex-col gap-4 lg:sticky lg:top-20 lg:h-[calc(100svh-7rem)]">
+          <MembersCard room={room} online={online} isGM={isGM} currentUser={user} onRemove={removeMember} />
+          <ChatCard roomId={id} messages={messages} hasOlder={hasOlder} currentUser={user}
+            onOlder={loadOlder} onSent={addMessage} />
+        </aside>
+      </div>
+
+      <Dialog open={charactersOpen} onOpenChange={setCharactersOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Personnages de la room</DialogTitle>
+            <DialogDescription>
+              {isGM ? "Les joueurs proposent leurs personnages, tu les acceptes ou les refuses."
+                : "Propose tes personnages (PJ, animaux de compagnie...) au MJ. Tout le monde voit les fiches acceptées."}
+            </DialogDescription>
+          </DialogHeader>
+          <CharactersList room={room} isGM={isGM} currentUser={user} mine={mine} onSheet={setSheetId}
             onSubmit={(character_id) => act(api.POST("/api/rooms/{room_id}/characters", { ...path(id), body: { character_id } }),
               "Proposition impossible")}
             onAccept={(character_id) => act(api.POST("/api/rooms/{room_id}/characters/{character_id}/accept",
@@ -214,10 +254,15 @@ export default function RoomPage({ id, onBack, onGone, onSheet }: Props) {
               act(api.DELETE("/api/rooms/{room_id}/characters/{character_id}",
                 { params: { path: { room_id: id, character_id } } }), "Action impossible");
             }} />
-        </div>
-        <ChatCard roomId={id} messages={messages} hasOlder={hasOlder} currentUser={user}
-          onOlder={loadOlder} onSent={addMessage} />
-      </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={sheetId !== null} onOpenChange={(open) => !open && setSheetId(null)}>
+        <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-5xl">
+          <DialogTitle className="sr-only">Fiche du personnage</DialogTitle>
+          {sheetId !== null && <CharacterSheet key={sheetId} id={sheetId} embedded />}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
         <DialogContent>
@@ -255,35 +300,55 @@ export default function RoomPage({ id, onBack, onGone, onSheet }: Props) {
 
 type Act = (call: Promise<{ data?: Room; error?: unknown }>, failure: string) => Promise<boolean>;
 
-function InviteCard({ room, onUpdate }: { room: Room; onUpdate: Act }) {
+/** MJ : code et lien d'invitation, nouveau code, ajout direct d'un joueur par identifiant. */
+function InvitePopover({ room, onUpdate, onAdd }: { room: Room; onUpdate: Act; onAdd: (username: string) => Promise<boolean> }) {
   const code = room.invite_code!;
+  const [username, setUsername] = useState("");
   const copy = async (text: string, what: string) => {
     try { await navigator.clipboard.writeText(text); toast.success(`${what} copié`); }
     catch { toast.error("Copie impossible"); }
   };
+  const add = async (e: FormEvent) => {
+    e.preventDefault();
+    if (await onAdd(username.trim())) { toast.success(`${username.trim()} ajouté`); setUsername(""); }
+  };
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-heading text-base">Invitation</CardTitle>
-        <CardDescription>Donne ce code ou ce lien aux joueurs. Un nouveau code rend l'ancien inutilisable.</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-wrap items-center gap-2">
-        <code className="rounded-md border bg-muted px-3 py-1.5 font-mono text-lg tracking-widest">{formatInviteCode(code)}</code>
-        <Button variant="outline" size="sm" onClick={() => copy(formatInviteCode(code), "Code")}><Copy data-icon="inline-start" />Code</Button>
-        <Button variant="outline" size="sm" onClick={() => copy(inviteLink(code), "Lien")}><Copy data-icon="inline-start" />Lien</Button>
-        <Button variant="ghost" size="sm" onClick={() => onUpdate(
-          api.POST("/api/rooms/{room_id}/invite-code", path(room.id)), "Impossible de changer le code")}>
-          <RefreshCw data-icon="inline-start" />Nouveau code
-        </Button>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline"><UserPlus data-icon="inline-start" />Inviter</Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80">
+        <PopoverHeader>
+          <PopoverTitle>Invitation</PopoverTitle>
+          <PopoverDescription>Donne ce code ou ce lien aux joueurs.</PopoverDescription>
+        </PopoverHeader>
+        <code className="block rounded-md border bg-muted px-3 py-1.5 text-center font-mono text-lg tracking-widest">
+          {formatInviteCode(code)}
+        </code>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => copy(formatInviteCode(code), "Code")}><Copy data-icon="inline-start" />Code</Button>
+          <Button variant="outline" size="sm" onClick={() => copy(inviteLink(code), "Lien")}><Copy data-icon="inline-start" />Lien</Button>
+          <Button variant="ghost" size="sm" title="L'ancien code ne marchera plus" onClick={() => onUpdate(
+            api.POST("/api/rooms/{room_id}/invite-code", path(room.id)), "Impossible de changer le code")}>
+            <RefreshCw data-icon="inline-start" />Nouveau code
+          </Button>
+        </div>
         {isLocalOnly() && (
-          <p className="basis-full text-xs text-muted-foreground">
-            Tu as ouvert l'app avec <code>{location.host}</code> : le lien ne marchera que sur cette machine.
-            Pour les joueurs sur le même wifi, ouvre l'app avec l'adresse réseau de la machine
-            (par ex. <code>http://192.168.x.x:{location.port || 80}</code>, voir le README), puis copie le lien.
+          <p className="text-xs text-muted-foreground">
+            App ouverte avec <code>{location.host}</code> : le lien ne marchera que sur cette machine. Ouvre l'app avec
+            l'adresse réseau de la machine (ex. <code>http://192.168.x.x:{location.port || 80}</code>) avant de le copier.
           </p>
         )}
-      </CardContent>
-    </Card>
+        <Separator />
+        <form className="flex flex-col gap-2" onSubmit={add}>
+          <span className="text-sm font-medium">Ajouter directement</span>
+          <div className="flex gap-2">
+            <Input placeholder="Identifiant du joueur" value={username} onChange={(e) => setUsername(e.target.value)} />
+            <Button type="submit" variant="outline" disabled={!username.trim()}>Ajouter</Button>
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -292,50 +357,43 @@ function OnlineDot({ on }: { on: boolean }) {
     title={on ? "En ligne" : "Hors ligne"} />;
 }
 
-function MembersCard({ room, online, isGM, currentUser, onAdd, onRemove }: {
-  room: Room; online: number[]; isGM: boolean; currentUser: UserPublic;
-  onAdd: (username: string) => Promise<boolean>; onRemove: (userId: number) => void;
+/** Membres, connectés en premier. */
+function MembersCard({ room, online, isGM, currentUser, onRemove }: {
+  room: Room; online: number[]; isGM: boolean; currentUser: UserPublic; onRemove: (userId: number) => void;
 }) {
-  const [username, setUsername] = useState("");
-  const add = async (e: FormEvent) => {
-    e.preventDefault();
-    if (await onAdd(username.trim())) setUsername("");
-  };
-  const people: { user: UserPublic; gm: boolean }[] = [
-    { user: room.gm, gm: true }, ...room.members.map((m) => ({ user: m.user, gm: false })),
-  ];
+  const people = [{ user: room.gm, gm: true }, ...room.members.map((m) => ({ user: m.user, gm: false }))]
+    .sort((a, b) => Number(online.includes(b.user.id)) - Number(online.includes(a.user.id)));
   return (
-    <Card>
+    <Card size="sm" className="shrink-0">
       <CardHeader>
         <CardTitle className="font-heading text-base">Membres</CardTitle>
         <CardDescription>{online.length} en ligne sur {people.length}</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <ul className="flex flex-col gap-1.5">
-          {people.map(({ user, gm }) => (
-            <li key={user.id} className="flex items-center gap-2 text-sm">
-              <OnlineDot on={online.includes(user.id)} />
-              <span className={cn(user.id === currentUser.id && "font-medium")}>{user.username}</span>
-              {gm && <Badge variant="secondary"><Crown />MJ</Badge>}
-              {isGM && !gm && (
-                <Button variant="ghost" size="icon-sm" className="ml-auto" aria-label={`Exclure ${user.username}`}
-                  title="Exclure" onClick={() => onRemove(user.id)}><UserX /></Button>
-              )}
-            </li>
-          ))}
+      <CardContent>
+        <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto">
+          {people.map(({ user, gm }) => {
+            const on = online.includes(user.id);
+            return (
+              <li key={user.id} className="group flex h-7 items-center gap-2 text-sm">
+                <OnlineDot on={on} />
+                <span className={cn(!on && "text-muted-foreground", user.id === currentUser.id && "font-medium")}>
+                  {user.username}
+                </span>
+                {gm && <Badge variant="secondary"><Crown />MJ</Badge>}
+                {isGM && !gm && (
+                  <Button variant="ghost" size="icon-sm" className="ml-auto opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                    aria-label={`Exclure ${user.username}`} title="Exclure" onClick={() => onRemove(user.id)}><UserX /></Button>
+                )}
+              </li>
+            );
+          })}
         </ul>
-        {isGM && (
-          <form className="flex gap-2" onSubmit={add}>
-            <Input placeholder="Identifiant du joueur" value={username} onChange={(e) => setUsername(e.target.value)} />
-            <Button type="submit" variant="outline" disabled={!username.trim()}><UserPlus data-icon="inline-start" />Ajouter</Button>
-          </form>
-        )}
       </CardContent>
     </Card>
   );
 }
 
-function CharactersCard({ room, isGM, currentUser, mine, onSheet, onSubmit, onAccept, onRemove }: {
+function CharactersList({ room, isGM, currentUser, mine, onSheet, onSubmit, onAccept, onRemove }: {
   room: Room; isGM: boolean; currentUser: UserPublic; mine: Character[]; onSheet: (id: number) => void;
   onSubmit: (id: number) => Promise<boolean>; onAccept: (id: number) => void; onRemove: (id: number) => void;
 }) {
@@ -369,57 +427,56 @@ function CharactersCard({ room, isGM, currentUser, mine, onSheet, onSubmit, onAc
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-heading text-base">Personnages</CardTitle>
-        <CardDescription>
-          {isGM ? "Les joueurs proposent leurs personnages, tu les acceptes ou les refuses."
-            : "Propose tes personnages (PJ, animaux de compagnie...) au MJ. Tout le monde voit les fiches acceptées."}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+    <div className="flex max-h-[60svh] flex-col gap-4 overflow-y-auto">
+      {pending.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {isGM ? "Propositions à valider" : "En attente du MJ"}
+          </h3>
+          <ul className="flex flex-col gap-2">{pending.map(row)}</ul>
+        </div>
+      )}
+      <div className="flex flex-col gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dans la room</h3>
         {accepted.length === 0
-          ? <p className="text-sm text-muted-foreground">Aucun personnage dans la room.</p>
+          ? <p className="text-sm text-muted-foreground">Aucun personnage pour l'instant.</p>
           : <ul className="flex flex-col gap-2">{accepted.map(row)}</ul>}
-        {pending.length > 0 && (
-          <div className="flex flex-col gap-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {isGM ? "Propositions à valider" : "En attente du MJ"}
-            </h3>
-            <ul className="flex flex-col gap-2">{pending.map(row)}</ul>
-          </div>
-        )}
-        {available.length > 0 && (
-          <div className="flex gap-2">
-            <Select value={choice} onValueChange={setChoice}>
-              <SelectTrigger className="flex-1"><SelectValue placeholder="Choisir un de mes personnages" /></SelectTrigger>
-              <SelectContent>
-                {available.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>{c.name} ({KIND_LABELS[c.kind ?? "pj"]})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" disabled={!choice}
-              onClick={async () => { if (await onSubmit(Number(choice))) setChoice(""); }}>
-              {isGM ? "Ajouter" : "Proposer"}
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      </div>
+      {available.length > 0 && (
+        <div className="flex gap-2">
+          <Select value={choice} onValueChange={setChoice}>
+            <SelectTrigger className="flex-1"><SelectValue placeholder="Choisir un de mes personnages" /></SelectTrigger>
+            <SelectContent>
+              {available.map((c) => (
+                <SelectItem key={c.id} value={String(c.id)}>{c.name} ({KIND_LABELS[c.kind ?? "pj"]})</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" disabled={!choice}
+            onClick={async () => { if (await onSubmit(Number(choice))) setChoice(""); }}>
+            {isGM ? "Ajouter" : "Proposer"}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
+/** Chat de table (servira aussi de journal de la partie). */
 function ChatCard({ roomId, messages, hasOlder, currentUser, onOlder, onSent }: {
   roomId: number; messages: ChatMessage[]; hasOlder: boolean; currentUser: UserPublic;
   onOlder: () => void; onSent: (m: ChatMessage) => void;
 }) {
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
-  const bottom = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
   const lastId = messages.at(-1)?.id;
-  // Défile vers le bas à chaque nouveau message (pas quand on charge les plus anciens).
-  useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [lastId]);
+  // Défile en bas de la zone du chat à chaque nouveau message (pas quand on charge les plus anciens),
+  // sans faire défiler la page.
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [lastId]);
 
   const send = async (e: FormEvent) => {
     e.preventDefault();
@@ -432,12 +489,12 @@ function ChatCard({ roomId, messages, hasOlder, currentUser, onOlder, onSent }: 
   };
 
   return (
-    <Card className="flex max-h-[calc(100svh-8rem)] min-h-96 flex-col lg:sticky lg:top-20">
+    <Card size="sm" className="flex min-h-96 flex-1 flex-col lg:min-h-0">
       <CardHeader>
         <CardTitle className="font-heading text-base">Chat</CardTitle>
       </CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto pr-1">
           {hasOlder && (
             <Button variant="ghost" size="sm" className="mb-2 w-full" onClick={onOlder}>Messages plus anciens</Button>
           )}
@@ -455,7 +512,6 @@ function ChatCard({ roomId, messages, hasOlder, currentUser, onOlder, onSent }: 
               </li>
             ))}
           </ul>
-          <div ref={bottom} />
         </div>
         <form className="flex gap-2" onSubmit={send}>
           <Input placeholder="Message" value={body} maxLength={2000} onChange={(e) => setBody(e.target.value)} />

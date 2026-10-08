@@ -107,6 +107,7 @@ backend/app/
 - **Navigation par l'URL** : `#/pj`, `#/pnj`, `#/monstre` (listes), `#/nouveau/<type>` (création), `#/personnage/<id>` (édition), `#/fiche/<id>` (fiche à imprimer), `#/regles/<page>/<section>` (règles en pleine page), `#/rooms` et `#/room/<id>` (rooms), `#/rejoindre/<code>` (lien d'invitation).
 - **Règles** (`src/rules/`) : pages construites à partir de `GET /api/rules` (texte retranscrit + catalogues), recherche sans accents sur toutes les pages, panneau à droite de n'importe quelle page (bouton « Règles » ou Ctrl+K), boutons « ? » dans l'éditeur.
 - **Fiche imprimable** (`src/pages/CharacterSheet.tsx`) : sur le modèle de la Fiche PJ vide ; « Imprimer » → PDF depuis le navigateur.
+- **Page d'une room** (`src/pages/RoomPage.tsx`) : au centre, les personnages en jeu et leurs moniteurs (`components/room/InstanceCard.tsx`) ; à droite, les membres (en ligne d'abord) au-dessus du chat. L'invitation (MJ) s'ouvre dans un menu, la liste des personnages et les fiches dans des fenêtres par-dessus la room (`CharacterSheet` en mode `embedded`) ; « Imprimer » ouvre alors la fiche seule dans un onglet.
 - **Organisation de l'éditeur** (`src/pages/CharacterEditor.tsx`) : une carte par étape. Le panneau latéral contient la navigation (avec le nombre de problèmes par section), les jauges de points et ce qui reste à compléter.
 
 ## Rooms

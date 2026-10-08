@@ -81,7 +81,9 @@ function AccountMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm"><UserRound data-icon="inline-start" />{user.username}</Button>
+        <Button variant="ghost" size="sm" aria-label={user.username}>
+          <UserRound data-icon="inline-start" /><span className="hidden sm:inline">{user.username}</span>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuLabel className="flex items-center gap-2">
@@ -115,25 +117,25 @@ function Layout() {
     <div className="min-h-svh">
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur print:hidden">
         <div className="flex h-14 items-center gap-3 px-4">
-          <button className="flex items-center gap-2 text-primary" onClick={() => setView({ page: "list", kind: listKind })}>
+          <button className="flex items-center gap-2 text-primary" aria-label="NewMannheim, accueil" onClick={() => setView({ page: "list", kind: listKind })}>
             <Swords className="size-5" />
-            <span className="font-heading text-lg font-semibold">NewMannheim</span>
+            <span className="hidden font-heading text-lg font-semibold md:inline">NewMannheim</span>
           </button>
           <nav className="flex items-center gap-1">
             <Button variant={["list", "edit", "sheet"].includes(view.page) ? "secondary" : "ghost"} size="sm"
-              onClick={() => setView({ page: "list", kind: listKind })}>
-              <UserRound data-icon="inline-start" />Personnages
+              aria-label="Personnages" onClick={() => setView({ page: "list", kind: listKind })}>
+              <UserRound data-icon="inline-start" /><span className="hidden sm:inline">Personnages</span>
             </Button>
             <Button variant={["rooms", "room"].includes(view.page) ? "secondary" : "ghost"} size="sm"
-              onClick={() => setView({ page: "rooms" })}>
-              <Users data-icon="inline-start" />Rooms
+              aria-label="Rooms" onClick={() => setView({ page: "rooms" })}>
+              <Users data-icon="inline-start" /><span className="hidden sm:inline">Rooms</span>
             </Button>
           </nav>
           <div className="ml-auto flex items-center gap-1">
             {!onRulesPage && (
               <Button variant={rulesPanel.isOpen ? "secondary" : "ghost"} size="sm" onClick={rulesPanel.toggle}
-                aria-pressed={rulesPanel.isOpen} title="Règles (Ctrl+K pour rechercher)">
-                <ScrollText data-icon="inline-start" />Règles
+                aria-label="Règles" aria-pressed={rulesPanel.isOpen} title="Règles (Ctrl+K pour rechercher)">
+                <ScrollText data-icon="inline-start" /><span className="hidden sm:inline">Règles</span>
               </Button>
             )}
             <ThemeToggle />
@@ -155,8 +157,7 @@ function Layout() {
             {view.page === "sheet" && <CharacterSheet id={view.id} onClose={back} />}
             {view.page === "rooms" && <RoomList onOpen={(id) => setView({ page: "room", id })} />}
             {view.page === "room" && (
-              <RoomPage key={view.id} id={view.id} onBack={back} onGone={() => setView({ page: "rooms" })}
-                onSheet={(id) => setView({ page: "sheet", id })} />
+              <RoomPage key={view.id} id={view.id} onBack={back} onGone={() => setView({ page: "rooms" })} />
             )}
             {view.page === "join" && <JoinRoom code={view.code} />}
             {view.page === "rules" && (
