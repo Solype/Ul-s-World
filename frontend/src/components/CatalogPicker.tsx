@@ -6,11 +6,17 @@ import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { SpellEffect } from "@/api/client";
+import SpellEffects from "@/components/SpellEffects";
 
 type Entry = {
   label: string; effect: string; skill?: string | null; points?: number; mana?: number; free_knowledge?: number;
   /** Sorts : compétence magique et famille (Feu, Eau...). */
   school?: string | null; group?: string | null;
+  /** Enchantements : ce sur quoi ils se posent. */
+  target?: string | null;
+  /** Sorts : effets selon la puissance P (ou le nombre N d'enchantements). */
+  scaling?: "puissance" | "nombre" | null; effects?: SpellEffect[];
 };
 
 type Props = {
@@ -45,7 +51,10 @@ function EntryDetails({ entry, description, required, bonus, subtitle }: {
         </div>
         {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
       </div>
-      {entry.effect ? <p className="text-sm">{entry.effect}</p> : <p className="text-sm text-muted-foreground italic">Effet à venir.</p>}
+      {entry.target && <p className="text-sm"><span className="text-muted-foreground">S'applique à :</span> {entry.target}</p>}
+      {entry.effect && <p className="text-sm">{entry.effect}</p>}
+      <SpellEffects effects={entry.effects ?? []} scaling={entry.scaling} />
+      {!entry.effect && !entry.effects?.length && <p className="text-sm text-muted-foreground italic">Effet à venir.</p>}
       {bonus !== undefined && (
         bonus ? (
           <p className="flex items-center gap-1.5 text-sm"><Gem className="size-3.5 text-primary" />
@@ -72,12 +81,13 @@ export default function CatalogPicker({
   const [search, setSearch] = useState("");
   const find = (name: string) => catalog.find((e) => e.label === name);
   const available = catalog.filter((e) => !selected.includes(e.label));
-  // Catalogue rangé par famille (sorts par élément) : un groupe par famille, sinon « Au choix ».
-  const families = [...new Set(available.filter((e) => !required.includes(e.label)).map((e) => e.group ?? "Au choix"))];
+  // Catalogue rangé par famille (sorts : « Élémentarisme · Feu », « Enchantement · Feu ») ; sinon « Au choix ».
+  const familyOf = (e: Entry) => subtitle?.(e) ?? e.group ?? "Au choix";
+  const families = [...new Set(available.filter((e) => !required.includes(e.label)).map(familyOf))];
   const groups: [string, Entry[]][] = [
     ["Imposé par les rôles", available.filter((e) => required.includes(e.label))],
     ...families.map((f): [string, Entry[]] =>
-      [f, available.filter((e) => !required.includes(e.label) && (e.group ?? "Au choix") === f)]),
+      [f, available.filter((e) => !required.includes(e.label) && familyOf(e) === f)]),
   ];
   // Saisie libre (catalogue ouvert) : ce qui est tapé, s'il n'est ni dans le catalogue ni déjà choisi.
   const typed = search.trim();
@@ -146,7 +156,7 @@ export default function CatalogPicker({
                     {groups.filter(([, entries]) => entries.length > 0).map(([heading, entries]) => (
                       <CommandGroup key={heading} heading={heading}>
                         {entries.map((e) => (
-                          <CommandItem key={e.label} value={e.label} keywords={[e.effect]}
+                          <CommandItem key={e.label} value={e.label} keywords={[e.effect, e.target ?? ""]}
                             onSelect={() => add(e.label)}>
                             {required.includes(e.label) && <Lock className="text-primary" />}
                             {e.label}

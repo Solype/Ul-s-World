@@ -32,6 +32,7 @@ export type SkillScore = components["schemas"]["SkillScore"];
 export type TraitDef = components["schemas"]["TraitDef"];
 export type TraitPick = components["schemas"]["TraitPick"];
 export type TraitEffects = components["schemas"]["TraitEffects"];
+export type SpellEffect = components["schemas"]["SpellEffect"];
 export type RoomSummary = components["schemas"]["RoomSummary"];
 export type Room = components["schemas"]["RoomRead"];
 export type RoomCharacter = components["schemas"]["RoomCharacterRead"];

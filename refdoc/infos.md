@@ -30,9 +30,16 @@ Décisions de conception qui ne figurent pas (ou pas clairement) dans les PDF de
 
 ## Sorts
 
-- Catalogue par **compétence magique** puis par **famille**. Seuls les sorts d'**Élémentarisme** sont transcrits pour l'instant (Feu, Eau, Terre, Air, Électricité, Vie, Ombre, Lumière ; 9 sorts chacun). Les nombres de la liste reçue sont des numéros de page : ils ne sont pas repris.
+- Catalogue par **compétence magique** puis par **famille**. Sont transcrits pour l'instant les sorts d'**Élémentarisme** (Feu, Eau, Terre, Air, Électricité, Vie, Ombre, Lumière ; 9 sorts chacun). Les nombres de la liste reçue sont des numéros de page : ils ne sont pas repris.
+- **Enchantement** : familles élémentaires (Feu, Eau, Terre, Air, Électricité, Vie, Lumière, Ombre ; 4 chacune), **Basique** et **Auxiliaire**, d'après le sommaire du document. Le texte entre parenthèses (« armes mêlée », « armures »…) est ce sur quoi l'enchantement se pose (`target`). Les abréviations des basiques (Pr, E, M, D, P) sont gardées dans le nom. Les entrées d'Auxiliaire (Condition, Effet direct, Coût contrepartie…) sont reprises telles quelles, comme des sorts.
+- **Amélioration** : **Sorts de lien** (unique, basique, complexe) et **Sorts d'amélioration** (un par animal : Discernement de l'aigle, Protection du bison…).
 - Les autres magies ont aussi des sorts, sauf trois ou quatre : le catalogue est donc **ouvert** (`OPEN_CATALOGS`). Un sort qui n'y est pas encore reste accepté ; seuls les doublons sont signalés.
-- Les effets des sorts sont à venir.
+- Les effets des sorts sont à venir. Ils se saisissent dans `_SPELL_EFFECTS` (`backend/app/rules/catalogs.py`), par libellé, et dépendent de la **puissance P** du sort, ou du **nombre N** d'enchantements posés pour l'Enchantement. Un effet est :
+  - un **multiplicateur** : `base + per × P` (« Dégâts : 2 × P PV », `_scaled`) ;
+  - un effet propre à **une puissance** : P = 3 (`_at`) ;
+  - un effet **à partir d'un seuil** : P ≥ 5 (`_from`, ou `at_least` sur un multiplicateur) ;
+  - sinon, un effet qui vaut à toute puissance.
+- La fiche d'un sort permet de choisir P (ou N) : les valeurs sont calculées et les effets qui ne valent pas à cette puissance sont estompés.
 - Prendre un sort **ne demande pas** la compétence magique associée (un sort de Feu sans Élémentarisme est permis).
 
 ## Langues et animaux totems (Langues.pdf)

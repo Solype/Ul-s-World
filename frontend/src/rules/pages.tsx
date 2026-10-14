@@ -2,8 +2,10 @@ import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Attribute, Rules } from "@/api/client";
+import SpellEffects from "@/components/SpellEffects";
 import { Badge } from "@/components/ui/badge";
 import { ATTRIBUTE_LABELS } from "@/lib/labels";
+import { cn } from "@/lib/utils";
 import { cumulate, describeGrant, type GrantLine } from "@/lib/roleGrants";
 
 /**
@@ -267,13 +269,19 @@ function spellsPage(rules: Rules): RulePage {
   const magic = rules.skill_groups.magie?.skills ?? {};
   const families = [...new Map(spells.map((s) => [`${s.school}/${s.group}`, s])).values()];
   const sections: RuleSection[] = families.map((f) => {
-    const names = spells.filter((s) => s.school === f.school && s.group === f.group).map((s) => s.label);
+    const entries = spells.filter((s) => s.school === f.school && s.group === f.group);
     return {
       id: `sorts-${slugify(`${f.school ?? ""}-${f.group ?? ""}`)}`, title: f.group ?? "Sorts",
-      group: f.school ? magic[f.school] ?? f.school : undefined, text: names.join(" "),
+      group: f.school ? magic[f.school] ?? f.school : undefined,
+      text: entries.map((s) => `${s.label} ${s.target ?? ""} ${(s.effects ?? []).map((e) => e.text).join(" ")}`).join(" "),
       content: (
         <ul className="grid gap-x-6 gap-y-0.5 text-sm sm:grid-cols-2">
-          {names.map((n) => <li key={n}>{n}</li>)}
+          {entries.map((s) => (
+            <li key={s.label} className={cn(s.effects?.length && "sm:col-span-2 py-1")}>
+              {s.label}{s.target && <span className="text-muted-foreground"> — {s.target}</span>}
+              {!!s.effects?.length && <div className="mt-1 pl-3"><SpellEffects effects={s.effects} scaling={s.scaling} /></div>}
+            </li>
+          ))}
         </ul>
       ),
     };
