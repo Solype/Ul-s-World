@@ -88,12 +88,78 @@ def _code(content: str, value: int, zeal: int) -> GodCode:
     return GodCode(content=content, value=value, zeal=zeal)
 
 
-# Codes des dieux, par libellé de dieu. Exemple :
-#   "Dieu 1": [_code("Ne jamais mentir à un prêtre.", value=6, zeal=2)]
-_GOD_CODES: dict[str, list[GodCode]] = {}
+# ⚠ DONNÉES DE TEST : descriptions et codes inventés pour essayer l'application, à remplacer par les vrais.
+# Description courte de chaque dieu, montrée lors de son choix.
+_GOD_DESCRIPTIONS: dict[str, str] = {
+    "Dieu 1": "Dieu du pain rassis et des promesses tenues à moitié.",
+    "Dieu 2": "Déesse des clés perdues ; on la prie en vidant ses poches.",
+    "Dieu 3": "Seigneur des files d'attente, patient et légèrement agacé.",
+    "Dieu 4": "Dieu des tempêtes dans un verre d'eau.",
+    "Dieu 5": "Gardienne des chaussettes orphelines et des causes perdues.",
+    "Dieu 6": "Dieu du dernier mot, toujours prononcé trop tard.",
+    "Dieu 7": "Déesse des lundis, crainte et rarement remerciée.",
+    "Dieu 8": "Dieu des ponts qu'on brûle et des tunnels qu'on creuse.",
+    "Dieu 9": "Maîtresse des rumeurs ; elle sait déjà ce que tu vas dire.",
+    "Dieu 10": "Dieu des marmites qui débordent et des banquets improvisés.",
+    "Dieu 11": "Déesse des cartes fausses et des chemins de traverse.",
+    "Dieu 12": "Dieu du silence gêné après une mauvaise blague.",
+}
 
-# Les 12 dieux. Noms et effets provisoires, en attendant leur description.
-GODS = [CatalogEntry(label=f"Dieu {i}", effect="", codes=_GOD_CODES.get(f"Dieu {i}", [])) for i in range(1, 13)]
+# Codes des dieux, par libellé de dieu.
+_GOD_CODES: dict[str, list[GodCode]] = {
+    "Dieu 1": [_code("Ne jamais jeter de pain, même dur comme la pierre.", value=6, zeal=2),
+               _code("Tenir au moins la moitié de chaque promesse.", value=5, zeal=3),
+               _code("Offrir une croûte au premier mendiant du jour.", value=4, zeal=1),
+               _code("Ne jamais manger la dernière part.", value=3, zeal=1)],
+    "Dieu 2": [_code("Vider ses poches devant chaque autel croisé.", value=5, zeal=2),
+               _code("Ne jamais fermer une porte à double tour.", value=7, zeal=4),
+               _code("Rendre tout objet trouvé, même un bouton.", value=4, zeal=1),
+               _code("Porter une clé qui n'ouvre rien.", value=2, zeal=1)],
+    "Dieu 3": [_code("Ne jamais doubler personne dans une file.", value=6, zeal=3),
+               _code("Attendre trois battements de cœur avant de répondre.", value=4, zeal=2),
+               _code("Soupirer bruyamment une fois par jour, pas plus.", value=3, zeal=1),
+               _code("Céder sa place au plus pressé.", value=5, zeal=2)],
+    "Dieu 4": [_code("Exagérer chaque contrariété, sans jamais frapper.", value=4, zeal=2),
+               _code("Toujours porter une gourde pleine.", value=3, zeal=1),
+               _code("Ne jamais traverser une rivière à gué un jour de pluie.", value=6, zeal=3),
+               _code("Renverser un verre d'eau en offrande chaque semaine.", value=5, zeal=2)],
+    "Dieu 5": [_code("Ne jamais jeter une chaussette sans sa paire.", value=4, zeal=1),
+               _code("Défendre une cause que tout le monde a abandonnée.", value=8, zeal=5),
+               _code("Recueillir ce qui est égaré, objet ou animal.", value=5, zeal=2),
+               _code("Porter deux chaussettes dépareillées.", value=2, zeal=1)],
+    "Dieu 6": [_code("Toujours avoir le dernier mot, même à soi-même.", value=6, zeal=3),
+               _code("Ne jamais interrompre un mourant.", value=5, zeal=2),
+               _code("Noter chaque réplique trouvée trop tard.", value=3, zeal=1),
+               _code("Ne pas répondre avant le lendemain à une insulte.", value=7, zeal=4)],
+    "Dieu 7": [_code("Ne commencer aucune entreprise un lundi.", value=5, zeal=2),
+               _code("Se lever avant l'aube le premier jour de la semaine.", value=6, zeal=3),
+               _code("Ne pas se plaindre de la journée avant midi.", value=4, zeal=2),
+               _code("Remercier la déesse à voix haute chaque lundi soir.", value=3, zeal=1)],
+    "Dieu 8": [_code("Ne jamais revenir sur ses pas.", value=7, zeal=4),
+               _code("Creuser un trou chaque fois qu'on brûle un pont.", value=4, zeal=2),
+               _code("Ne pas dormir deux nuits au même endroit.", value=6, zeal=3),
+               _code("Traverser tout pont rencontré.", value=2, zeal=1)],
+    "Dieu 9": [_code("Répéter chaque rumeur à deux personnes.", value=4, zeal=1),
+               _code("Ne jamais démentir une rumeur sur soi.", value=6, zeal=3),
+               _code("Garder un secret par lune, et un seul.", value=5, zeal=2),
+               _code("Écouter aux portes quand l'occasion se présente.", value=3, zeal=1)],
+    "Dieu 10": [_code("Ne jamais refuser une invitation à manger.", value=4, zeal=1),
+                _code("Cuisiner pour plus de convives que prévu.", value=5, zeal=2),
+                _code("Laisser déborder une marmite par semaine.", value=3, zeal=1),
+                _code("Partager son repas avec un inconnu.", value=7, zeal=4)],
+    "Dieu 11": [_code("Prendre un chemin différent à chaque voyage.", value=5, zeal=2),
+                _code("Ne jamais suivre une carte à la lettre.", value=6, zeal=3),
+                _code("Dessiner une fausse carte par saison.", value=4, zeal=2),
+                _code("Se perdre volontairement une fois par mois.", value=3, zeal=1)],
+    "Dieu 12": [_code("Laisser un silence après chaque blague.", value=3, zeal=1),
+                _code("Ne jamais rire de sa propre plaisanterie.", value=5, zeal=2),
+                _code("Raconter une mauvaise blague par jour.", value=4, zeal=2),
+                _code("Garder le silence une journée entière par lune.", value=8, zeal=5)],
+}
+
+# Les 12 dieux. Noms provisoires.
+GODS = [CatalogEntry(label=name, effect=_GOD_DESCRIPTIONS.get(name, ""), codes=_GOD_CODES.get(name, []))
+        for name in (f"Dieu {i}" for i in range(1, 13))]
 
 
 def god_code(god: str, content: str) -> GodCode | None:

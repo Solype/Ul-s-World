@@ -126,8 +126,8 @@ def test_god_catalog_is_closed(monster):
 
 def test_god_codes_target_known_gods():
     """Les codes sont rangés par nom de dieu : une coquille dans le nom les perdrait sans bruit."""
-    from app.rules.catalogs import _GOD_CODES, GODS
-    assert set(_GOD_CODES) <= {g.label for g in GODS}
+    from app.rules.catalogs import _GOD_CODES, _GOD_DESCRIPTIONS, GODS
+    assert set(_GOD_CODES) | set(_GOD_DESCRIPTIONS) <= {g.label for g in GODS}
 
 
 def test_catalog_resources_only_accept_catalog_entries(monster):
