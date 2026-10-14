@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     session_days: int = 30
     # À mettre à true derrière HTTPS : le cookie de session n'est alors jamais envoyé en clair.
     cookie_secure: bool = False
+    # Captcha Cloudflare Turnstile à l'inscription. Sans clé secrète, il est désactivé (dev, tests).
+    turnstile_site_key: str = ""
+    turnstile_secret: str = ""
 
 
 settings = Settings()

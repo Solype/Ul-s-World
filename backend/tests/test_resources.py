@@ -74,6 +74,36 @@ def test_score_resource_has_no_choices(monster):
     assert "selections.piete" in issues(monster)
 
 
+def test_catalog_labels_are_unique():
+    """Un élément choisi est stocké sous son libellé : deux sorts ne peuvent pas porter le même nom."""
+    from app.rules.catalogs import CATALOGS
+    for key, entries in CATALOGS.items():
+        labels = [e.label for e in entries]
+        assert len(labels) == len(set(labels)), key
+
+
+def test_spell_effects_target_known_spells():
+    """Les effets sont rangés par libellé : une coquille dans le nom les perdrait sans bruit."""
+    from app.rules.catalogs import _SPELL_EFFECTS, SPELLS
+    assert set(_SPELL_EFFECTS) <= {s.label for s in SPELLS}
+
+
+def test_spell_scaling():
+    """Les effets d'un enchantement dépendent du nombre posé, ceux des autres sorts de la puissance."""
+    from app.rules.catalogs import SPELLS
+    assert {s.scaling for s in SPELLS if s.school == "enchantement"} == {"nombre"}
+    assert {s.scaling for s in SPELLS if s.school != "enchantement"} == {"puissance"}
+
+
+def test_spell_effect_is_exact_or_threshold():
+    from pydantic import ValidationError
+    from app.rules.catalogs import SpellEffect, _at, _from, _scaled
+    assert _scaled("Dégâts", 2, unit="PV").per == 2
+    assert _at(3, "x").at == 3 and _from(5, "x").at_least == 5
+    with pytest.raises(ValidationError):
+        SpellEffect(text="x", at=3, at_least=5)
+
+
 def test_spell_catalog_is_open(monster):
     """Seuls les sorts d'Élémentarisme sont transcrits : un sort hors catalogue reste accepté, pas les doublons."""
     monster["resources"] = {"sorts": 2}

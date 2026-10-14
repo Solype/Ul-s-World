@@ -173,6 +173,17 @@ class Credentials(BaseModel):
     password: str = Field(min_length=8, max_length=128)
 
 
+class Registration(Credentials):
+    captcha_token: str | None = Field(None, max_length=4096,
+                                      description="Jeton du widget Turnstile, si le captcha est activé.")
+
+
+class CaptchaConfig(BaseModel):
+    """Clé publique du widget Turnstile ; `null` quand le captcha est désactivé."""
+
+    site_key: str | None
+
+
 class OwnerUpdate(BaseModel):
     owner_id: int
 

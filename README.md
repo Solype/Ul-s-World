@@ -34,6 +34,7 @@ hostname -I      # ex. 192.168.1.24  →  http://192.168.1.24:8080   (en dev : :
 - **Le MJ doit lui aussi ouvrir l'app avec cette adresse** (pas `localhost`) avant de copier un lien d'invitation : le lien reprend l'adresse de la barre du navigateur. La carte Invitation le signale.
 - L'IP peut changer (DHCP) : une réservation d'adresse dans la box évite de redonner un nouveau lien.
 - C'est du HTTP sans chiffrement, fait pour un réseau de confiance. Pour une exposition sur Internet, passer en HTTPS et mettre `COOKIE_SECURE=true`.
+- **Captcha à l'inscription** (Cloudflare Turnstile, désactivé par défaut) : créer un widget sur le dashboard Cloudflare pour le domaine du site, puis lancer avec `TURNSTILE_SITE_KEY=<clé du site> TURNSTILE_SECRET=<clé secrète> docker compose up -d --build`. Pour essayer en local, Cloudflare fournit des clés de test qui valident toujours : `1x00000000000000000000AA` / `1x0000000000000000000000000000000AA`.
 
 ### En développement (rechargement à chaud)
 
@@ -57,7 +58,8 @@ Tests backend : `cd backend && uv run pytest`
 ```
 backend/app/
 ├── main.py              # création de l'app, CORS, branchement des routeurs
-├── core/config.py       # variables d'environnement (DATABASE_URL, CORS_ORIGINS, SESSION_DAYS, COOKIE_SECURE)
+├── core/config.py       # variables d'environnement (DATABASE_URL, CORS_ORIGINS, SESSION_DAYS, COOKIE_SECURE, TURNSTILE_*)
+├── core/captcha.py      # vérification du captcha Turnstile à l'inscription
 ├── core/security.py     # mots de passe (scrypt) et jetons de session
 ├── db.py                # moteur SQLAlchemy + session par requête
 ├── models.py            # tables SQL
@@ -86,6 +88,7 @@ backend/app/
 
 - **Comptes et propriétaires.** Inscription libre (identifiant + mot de passe) ; le premier compte créé est admin et récupère les personnages qui n'avaient pas de propriétaire. Chaque personnage (PJ, PNJ ou monstre) appartient au compte qui l'a créé (`owner_id`). Seuls le propriétaire et un admin le modifient (`can_edit`) ; un admin voit tout et peut changer le propriétaire. La lecture (`can_view`, dans `api/deps.py`) s'ouvre en plus aux membres des rooms où le personnage est intégré (voir Rooms). Un personnage qu'on ne peut pas voir répond 404, pour ne pas révéler qu'il existe ; un personnage vu mais pas modifiable répond 403 à une modification. `GET /api/characters` ne liste que ses propres personnages.
 - **Session par cookie** `nm_session` (HttpOnly, SameSite=Lax) : le navigateur l'envoie tout seul sur `/api` et `/ws`. La base ne garde que l'empreinte SHA-256 du jeton (table `user_sessions`), la déconnexion la supprime. Derrière HTTPS, mettre `COOKIE_SECURE=true`. `GET /api/rules` reste public.
+- **Captcha d'inscription** (`core/captcha.py`) : actif seulement si `TURNSTILE_SECRET` est défini. `GET /api/auth/captcha` donne la clé publique au frontend (`null` = pas de captcha), qui affiche le widget dans l'onglet Inscription et envoie son jeton dans `captcha_token`. Le backend le vérifie auprès de Cloudflare avant de créer le compte. La connexion n'en demande pas.
 - **Les règles vivent à un seul endroit** : `app/rules/data.py`. Le frontend ne les code pas en dur, il les lit via `GET /api/rules`. Si un chiffre change dans le PDF, on le change là, et c'est tout.
 - **Un personnage peut être incomplet.** La sauvegarde n'est jamais bloquée par les règles. La validation renvoie une liste de problèmes, que l'éditeur affiche en direct, et on peut donc créer un personnage étape par étape.
 - **PJ, PNJ et monstres sont dans la même table** (`characters`), car ils ont la même fiche :

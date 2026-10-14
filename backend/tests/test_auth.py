@@ -1,8 +1,11 @@
 from datetime import UTC, datetime, timedelta
 
+import httpx
 import pytest
 from starlette.websockets import WebSocketDisconnect
 
+from app.core import captcha
+from app.core.config import settings
 from app.core.security import SESSION_COOKIE, hash_password, verify_password
 from app.db import get_session
 from app.main import app
@@ -49,6 +52,31 @@ def test_register_login_logout(make_client):
     assert bad.status_code == 401
     assert anon.post("/api/auth/login", json={"username": "ALICE", "password": "motdepasse"}).status_code == 200
     assert anon.get("/api/auth/me").json()["username"] == "alice"
+
+
+def test_captcha_disabled_without_secret(make_client):
+    assert make_client().get("/api/auth/captcha").json() == {"site_key": None}
+
+
+def test_register_checks_captcha(make_client, monkeypatch):
+    monkeypatch.setattr(settings, "turnstile_site_key", "cle-publique")
+    monkeypatch.setattr(settings, "turnstile_secret", "cle-secrete")
+    sent = []
+
+    def fake_post(url, data, timeout):
+        sent.append(data)
+        return httpx.Response(200, json={"success": data["response"] == "bon-jeton"})
+
+    monkeypatch.setattr(captcha.httpx, "post", fake_post)
+    anon = make_client()
+    assert anon.get("/api/auth/captcha").json() == {"site_key": "cle-publique"}
+    body = {"username": "alice", "password": "motdepasse"}
+    assert anon.post("/api/auth/register", json=body).status_code == 400
+    assert anon.post("/api/auth/register", json=body | {"captcha_token": "faux"}).status_code == 400
+    assert anon.post("/api/auth/register", json=body | {"captcha_token": "bon-jeton"}).status_code == 201
+    assert sent[-1] == {"secret": "cle-secrete", "response": "bon-jeton"}
+    # La connexion n'en demande pas.
+    assert make_client().post("/api/auth/login", json=body).status_code == 200
 
 
 def test_username_is_unique_ignoring_case(make_client):

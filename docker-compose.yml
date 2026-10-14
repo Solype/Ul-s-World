@@ -19,6 +19,9 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg://newmannheim:${POSTGRES_PASSWORD:-newmannheim}@db:5432/newmannheim
+      # Captcha Turnstile à l'inscription ; vide = désactivé.
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_SECRET: ${TURNSTILE_SECRET:-}
     depends_on:
       db:
         condition: service_healthy

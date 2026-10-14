@@ -5,11 +5,12 @@ from sqlalchemy import exists, select, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import admin_user, current_user
+from app.core.captcha import captcha_enabled, check_captcha
 from app.core.config import settings
 from app.core.security import SESSION_COOKIE, hash_password, new_session_token, token_hash, verify_password
 from app.db import get_session
 from app.models import Character, User, UserSession
-from app.schemas import Credentials, UserPublic, UserRead
+from app.schemas import CaptchaConfig, Credentials, Registration, UserPublic, UserRead
 
 router = APIRouter(tags=["auth"])
 
@@ -26,11 +27,17 @@ def _open_session(session: Session, response: Response, user: User) -> None:
                         samesite="lax", secure=settings.cookie_secure, path="/")
 
 
+@router.get("/auth/captcha", response_model=CaptchaConfig, summary="Configuration du captcha d'inscription")
+def captcha_config() -> CaptchaConfig:
+    return CaptchaConfig(site_key=settings.turnstile_site_key if captcha_enabled() else None)
+
+
 @router.post("/auth/register", response_model=UserRead, status_code=status.HTTP_201_CREATED,
              summary="Créer un compte (et se connecter)")
-def register(payload: Credentials, response: Response, session: Session = Depends(get_session)) -> User:
+def register(payload: Registration, response: Response, session: Session = Depends(get_session)) -> User:
     """Le tout premier compte devient administrateur, et récupère les personnages qui n'ont
     pas encore de propriétaire (créés avant les comptes)."""
+    check_captcha(payload.captcha_token)
     username = payload.username.lower()
     if session.scalar(select(exists().where(User.username == username))):
         raise HTTPException(status.HTTP_409_CONFLICT, "Cet identifiant est déjà pris")
