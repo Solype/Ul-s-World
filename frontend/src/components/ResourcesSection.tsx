@@ -15,8 +15,6 @@ type Props = {
   rules: Rules;
   character: CharacterInput;
   rulesMode: boolean;
-  /** Minimums donnés par les rôles, par stat. */
-  floors: Record<string, number>;
   /** Éléments de catalogue imposés par les rôles, par ressource (la langue runique de l'Exorciste). */
   imposed: Record<string, string[]>;
   /** Ressources inaccessibles (monstre qui n'est pas doué magiquement) : cachées sauf s'il en a encore. */
@@ -30,11 +28,11 @@ type Props = {
  * - `min_total` : codes dont la valeur totale doit atteindre ou dépasser la limite. Les codes se cochent
  *   parmi ceux des dieux choisis (CodesPicker) et leur valeur vient du catalogue ;
  * - `score` : piété, plafonnée.
- * En mode règles, le nombre de choix vient des rôles (lecture seule). Les ressources qui ont un
+ * En mode règles, le nombre de choix et la piété viennent des rôles (lecture seule). Les ressources qui ont un
  * catalogue (langues, animaux totems, sorts, dieux) se choisissent dans une liste qui montre l'effet de chaque
  * élément ; les autres sont des intitulés libres en attendant leur catalogue (bottes...).
  */
-export default function ResourcesSection({ rules, character, rulesMode, floors, imposed, forbidden = [], onChange }: Props) {
+export default function ResourcesSection({ rules, character, rulesMode, imposed, forbidden = [], onChange }: Props) {
   const resources = character.resources ?? {};
   const selections = (character.selections ?? {}) as Record<string, Selection[]>;
   const allowance = (key: string) => (key === "bottes" ? character.bottes ?? 0 : resources[key] ?? 0);
@@ -70,10 +68,10 @@ export default function ResourcesSection({ rules, character, rulesMode, floors, 
             const n = allowance(key);
             const items = selections[key] ?? [];
             const allowanceControl =
-              rulesMode && def.kind !== "score" ? (
+              rulesMode ? (
                 <NumberStepper value={n} readOnly title="Donné par les rôles" />
               ) : (
-                <NumberStepper value={n} min={rulesMode ? floors[key] ?? 0 : 0} max={def.max ?? undefined}
+                <NumberStepper value={n} min={0} max={def.max ?? undefined}
                   onChange={(v) => setAllowance(key, v)} />
               );
 

@@ -25,7 +25,7 @@ Décisions de conception qui ne figurent pas (ou pas clairement) dans les PDF de
 - **Combat à mains nues** = la compétence *Main nue*.
 - **Princesse** (rôle exceptionnel) : ses effets ne sont qu'une description, sans calcul automatique.
 - **« +N en compétences de X (au choix) »** : N points à répartir librement entre les compétences du groupe X, éventuellement tous dans la même. « +N dans 1 catégorie … au choix » : N points dans une seule compétence.
-- **« P »** (rôles religieux, « 3 en P ») : la **Piété**.
+- **« P »** (rôles religieux, « 3 en P ») : la **Piété**. Contrairement aux autres effets des rôles, ce n'est pas un minimum : à la création, la piété vaut **exactement** celle des rôles (0 sans rôle religieux), le joueur ne peut pas en ajouter.
 - **Connaissance « guerre » = connaissance « guerrière »** (coquille du document).
 
 ## Sorts

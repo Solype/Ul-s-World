@@ -157,10 +157,26 @@ def test_role_effects_are_minimums(real_catalog, valid_character):
     assert {"knowledges.Culturelle", "knowledges.Biologique"} <= fields
 
 
+def test_piety_is_exactly_the_roles(real_catalog, valid_character):
+    """La piété de départ est celle des rôles : ni plus, ni moins ; sans rôle religieux, 0."""
+    def piety_issue():
+        report = validate_character(CharacterBase(**valid_character))
+        return next((i.message for i in report.issues if i.field == "resources.piete"), None)
+    valid_character["roles"] = {"primary": ["adepte"], "secondary": ["marin", "marchand", "cuisinier"]}
+    valid_character["resources"] = {"piete": 4}
+    assert "exactement 3" in piety_issue()
+    valid_character["resources"] = {"piete": 3}
+    assert piety_issue() is None
+    valid_character["roles"] = {"primary": ["cuirasse"], "secondary": ["marin", "marchand", "cuisinier"]}
+    valid_character["resources"] = {"piete": 1}
+    assert "exactement 0" in piety_issue()
+
+
 def test_saving_applies_role_effects(real_catalog, client, valid_character):
     valid_character["roles"] = {"primary": ["adepte"], "secondary": ["marin", "marchand", "cuisinier"]}
     valid_character["knowledges"] = {"Mystique": 10}   # au-dessus du minimum : conservé
     valid_character["magic"] = 0
+    valid_character["resources"] = {"piete": 8}       # la piété est exactement celle des rôles : ramenée à 3
     saved = client.post("/api/characters", json=valid_character).json()
     assert saved["knowledges"]["Mystique"] == 10
     assert saved["knowledges"]["Culturelle"] == 1

@@ -449,7 +449,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
 
           <Section id="ressources" action={<RulesLink page="langues" />} title="Ressources" icon={Gem} issues={issueCount("ressources")}
             description="Sorts, langues, bottes, dieux, compagnons… : chaque ressource donne accès à des choix.">
-            <ResourcesSection rules={rules} character={c} rulesMode={rulesMode} floors={floors.stats} imposed={floors.imposed}
+            <ResourcesSection rules={rules} character={c} rulesMode={rulesMode} imposed={floors.imposed}
               forbidden={access?.forbidden_resources ?? []}
               onChange={(patch) => {
                 // Les animaux totems (bonus comptés en PCR, mana du Cerf...) et la Piété (Absorption

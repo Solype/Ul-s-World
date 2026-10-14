@@ -243,7 +243,12 @@ def validate_character(c: CharacterBase) -> ValidationReport:
                     issue(f"selections.{key}", f"{RESOURCE_DEFS[key].label} : « {item} » est imposé par les rôles.")
         for stat in RESOURCE_STATS:
             floor = role_stats.get(stat, 0)
-            if c.resources.get(stat, 0) < floor:
+            if stat == "piete":
+                # La piété de départ est exactement celle des rôles : on ne peut pas en ajouter.
+                if c.resources.get(stat, 0) != floor:
+                    issue(f"resources.{stat}", f"{STATS[stat]} : exactement {floor} (donnée par les rôles), "
+                                               f"pas {c.resources.get(stat, 0)}.")
+            elif c.resources.get(stat, 0) < floor:
                 issue(f"resources.{stat}", f"{STATS[stat]} : au moins {floor} (donné par les rôles).")
         stored = (
             {n: s.pcr for n, s in c.skills.items() if s.pcr},
