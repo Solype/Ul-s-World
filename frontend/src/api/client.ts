@@ -41,3 +41,4 @@ export type MonitorDef = components["schemas"]["MonitorDef"];
 export type MonsterProfile = components["schemas"]["Monster"];
 export type MonsterAccess = components["schemas"]["MonsterAccess"];
 export type InstanceVisibility = components["schemas"]["InstanceVisibility"];
+export type GodCode = components["schemas"]["GodCode"];

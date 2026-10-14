@@ -1,5 +1,5 @@
 import { Gem, Lock, Plus, X } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,11 +30,14 @@ type Props = {
   subtitle?: (entry: Entry) => string | null;
   /** Catalogue incomplet (sorts) : on peut aussi ajouter un élément qui n'y est pas encore. */
   open?: boolean;
+  /** Détail propre au catalogue, sous l'effet (codes d'un dieu). */
+  details?: (entry: Entry) => ReactNode;
   onChange: (names: string[]) => void;
 };
 
-function EntryDetails({ entry, description, required, bonus, subtitle }: {
+function EntryDetails({ entry, description, required, bonus, subtitle, details }: {
   entry: Entry; description?: string | null; required: boolean; bonus?: string | null; subtitle?: string | null;
+  details?: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -54,6 +57,7 @@ function EntryDetails({ entry, description, required, bonus, subtitle }: {
           <p className="text-xs text-muted-foreground">Effet descriptif : rien n'est ajouté automatiquement à la fiche.</p>
         )
       )}
+      {details}
       {description && <p className="border-t pt-3 text-xs text-muted-foreground">{description}</p>}
     </div>
   );
@@ -65,7 +69,7 @@ function EntryDetails({ entry, description, required, bonus, subtitle }: {
  * une étiquette ; un clic dessus réaffiche son détail.
  */
 export default function CatalogPicker({
-  label, description, catalog, selected, max, required, bonus, subtitle, open: openCatalog = false, onChange,
+  label, description, catalog, selected, max, required, bonus, subtitle, open: openCatalog = false, details, onChange,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState("");
@@ -111,7 +115,7 @@ export default function CatalogPicker({
               <PopoverContent className="w-[min(28rem,calc(100vw-2rem))]" align="start">
                 {entry ? (
                   <EntryDetails entry={entry} description={description} required={required.includes(name)} bonus={bonus?.(entry)}
-                    subtitle={subtitle?.(entry)} />
+                    subtitle={subtitle?.(entry)} details={details?.(entry)} />
                 ) : openCatalog ? (
                   <p className="text-sm text-muted-foreground">« {name} » n'est pas (encore) dans le catalogue.</p>
                 ) : (
@@ -159,7 +163,7 @@ export default function CatalogPicker({
                 <div className="min-w-0 flex-1 overflow-y-auto border-t p-4 sm:border-t-0">
                   {shown ? (
                     <EntryDetails entry={shown} description={description} required={required.includes(shown.label)} bonus={bonus?.(shown)}
-                      subtitle={subtitle?.(shown)} />
+                      subtitle={subtitle?.(shown)} details={details?.(shown)} />
                   ) : (
                     <p className="text-sm text-muted-foreground">Survole un élément pour voir son effet.</p>
                   )}

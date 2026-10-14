@@ -611,6 +611,11 @@ export interface components {
              * @default 0
              */
             free_knowledge?: number;
+            /**
+             * Codes
+             * @default []
+             */
+            codes?: components["schemas"]["GodCode"][];
         };
         /** CharacterBase */
         CharacterBase: {
@@ -1247,6 +1252,18 @@ export interface components {
              * @default 0
              */
             bottes?: number;
+        };
+        /**
+         * GodCode
+         * @description Un code d'un dieu : ce qu'il prescrit, sa valeur de code et son zèle.
+         */
+        GodCode: {
+            /** Content */
+            content: string;
+            /** Value */
+            value: number;
+            /** Zeal */
+            zeal: number;
         };
         /** Grant */
         Grant: {

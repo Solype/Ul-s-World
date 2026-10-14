@@ -9,6 +9,13 @@ bonus conditionnel, compétence absente de la fiche) : ceux-là restent descript
 from pydantic import BaseModel
 
 
+class GodCode(BaseModel):
+    """Un code d'un dieu : ce qu'il prescrit, sa valeur de code et son zèle."""
+    content: str
+    value: int
+    zeal: int
+
+
 class CatalogEntry(BaseModel):
     label: str
     effect: str
@@ -20,6 +27,8 @@ class CatalogEntry(BaseModel):
     points: int = 0
     mana: int = 0
     free_knowledge: int = 0
+    # Dieux : leurs codes.
+    codes: list[GodCode] = []
 
 
 def _entries(*items: tuple) -> list[CatalogEntry]:
@@ -31,8 +40,16 @@ def _sk(skill: str, points: int = 1) -> dict:
     return {"skill": skill, "points": points}
 
 
+def _code(content: str, value: int, zeal: int) -> GodCode:
+    return GodCode(content=content, value=value, zeal=zeal)
+
+
+# Codes des dieux, par libellé de dieu. Exemple :
+#   "Dieu 1": [_code("Ne jamais mentir à un prêtre.", value=6, zeal=2)]
+_GOD_CODES: dict[str, list[GodCode]] = {}
+
 # Les 12 dieux. Noms et effets provisoires, en attendant leur description.
-GODS = [CatalogEntry(label=f"Dieu {i}", effect="") for i in range(1, 13)]
+GODS = [CatalogEntry(label=f"Dieu {i}", effect="", codes=_GOD_CODES.get(f"Dieu {i}", [])) for i in range(1, 13)]
 
 # Lancer un sort se fait dans une langue, choisie avant de lancer les dés.
 LANGUAGES = _entries(

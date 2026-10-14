@@ -63,6 +63,12 @@ def test_god_catalog_is_closed(monster):
     assert "selections.dieux" not in issues(monster)
 
 
+def test_god_codes_target_known_gods():
+    """Les codes sont rangés par nom de dieu : une coquille dans le nom les perdrait sans bruit."""
+    from app.rules.catalogs import _GOD_CODES, GODS
+    assert set(_GOD_CODES) <= {g.label for g in GODS}
+
+
 def test_catalog_resources_only_accept_catalog_entries(monster):
     monster["resources"] = {"langues": 2, "animaux_totems": 1}
     monster["selections"] = {"langues": [{"name": "Latin"}, {"name": "Klingon"}], "animaux_totems": [{"name": "Loup"}]}

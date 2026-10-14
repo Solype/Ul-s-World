@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import CatalogPicker from "./CatalogPicker";
+import GodCodes from "./GodCodes";
 import NumberStepper from "./NumberStepper";
 
 type Selection = { name: string; value?: number | null };
@@ -46,6 +47,8 @@ export default function ResourcesSection({ rules, character, rulesMode, floors, 
       : e.mana ? `+${e.mana} mana max`
       : e.free_knowledge ? `+${e.free_knowledge} points de connaissance libres`
       : null;
+  // Codes de chaque dieu, montrés dans sa fiche.
+  const godCodes = new Map((rules.catalogs.dieux ?? []).map((g) => [g.label, g.codes ?? []]));
 
   const defs = Object.entries(rules.resource_defs);
   const used = (key: string) => allowance(key) > 0 || (selections[key]?.length ?? 0) > 0;
@@ -133,6 +136,7 @@ export default function ResourcesSection({ rules, character, rulesMode, floors, 
                     bonus={key === "animaux_totems" ? totemBonus : undefined}
                     subtitle={(e) => [e.school ? skillLabels[e.school] ?? e.school : null, e.group].filter(Boolean).join(" · ") || null}
                     open={rules.open_catalogs.includes(key)}
+                    details={key === "dieux" ? (e) => <GodCodes codes={godCodes.get(e.label) ?? []} /> : undefined}
                     onChange={(names) => setItems(key, names.map((name) => ({ name })))} />
                 )}
                 {!catalog && Array.from({ length: slots }, (_, i) => (

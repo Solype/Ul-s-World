@@ -46,6 +46,7 @@ Décisions de conception qui ne figurent pas (ou pas clairement) dans les PDF de
 ## Dieux
 
 - Il y a **12 dieux**, choisis dans un catalogue fermé (`GODS` dans `catalogs.py`). En attendant leur description, ils s'appellent « Dieu 1 » à « Dieu 12 » et n'ont pas d'effet. Renommer un dieu rend invalides les fiches qui portent l'ancien nom.
+- Chaque dieu a des **codes**. Un code a un **contenu** (ce qu'il prescrit), une **valeur de code** et un **zèle**. Ils se saisissent dans `_GOD_CODES` (`catalogs.py`), par nom de dieu, et s'affichent dans la fiche du dieu et la page de règles « Dieux ». Les codes choisis sur la fiche du personnage (`selections.codes`) restent pour l'instant des intitulés libres, sans lien avec ceux des dieux.
 
 ## Traits de personnage (Traits de personnage.pdf)
 

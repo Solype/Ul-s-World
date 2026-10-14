@@ -1914,6 +1914,14 @@
             "type": "integer",
             "title": "Free Knowledge",
             "default": 0
+          },
+          "codes": {
+            "items": {
+              "$ref": "#/components/schemas/GodCode"
+            },
+            "type": "array",
+            "title": "Codes",
+            "default": []
           }
         },
         "type": "object",
@@ -3060,6 +3068,30 @@
         "type": "object",
         "title": "ExtraPC",
         "description": "PC restants après les priorités, dépensés en relations, Magie ou bottes."
+      },
+      "GodCode": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "value": {
+            "type": "integer",
+            "title": "Value"
+          },
+          "zeal": {
+            "type": "integer",
+            "title": "Zeal"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content",
+          "value",
+          "zeal"
+        ],
+        "title": "GodCode",
+        "description": "Un code d'un dieu : ce qu'il prescrit, sa valeur de code et son zèle."
       },
       "Grant": {
         "properties": {

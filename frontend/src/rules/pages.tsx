@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Attribute, Rules } from "@/api/client";
+import GodCodes from "@/components/GodCodes";
 import { Badge } from "@/components/ui/badge";
 import { ATTRIBUTE_LABELS } from "@/lib/labels";
 import { cumulate, describeGrant, type GrantLine } from "@/lib/roleGrants";
@@ -281,11 +282,17 @@ function spellsPage(rules: Rules): RulePage {
   return { id: "sorts", title: "Sorts", sections };
 }
 
-/** Dieux : une section par dieu (noms et effets provisoires). */
+/** Dieux : une section par dieu (noms et effets provisoires), avec ses codes. */
 function godsPage(rules: Rules): RulePage {
   const sections: RuleSection[] = (rules.catalogs.dieux ?? []).map((e) => ({
-    id: `dieu-${slugify(e.label)}`, title: e.label, text: e.effect,
-    content: e.effect ? <p className="text-sm">{e.effect}</p> : <p className="text-sm text-muted-foreground italic">Description à venir.</p>,
+    id: `dieu-${slugify(e.label)}`, title: e.label,
+    text: `${e.effect} ${(e.codes ?? []).map((c) => c.content).join(" ")}`,
+    content: (
+      <div className="flex flex-col gap-2">
+        {e.effect ? <p className="text-sm">{e.effect}</p> : <p className="text-sm text-muted-foreground italic">Description à venir.</p>}
+        <GodCodes codes={e.codes ?? []} />
+      </div>
+    ),
   }));
   return { id: "dieux", title: "Dieux", sections };
 }
