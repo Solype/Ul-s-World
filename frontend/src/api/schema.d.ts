@@ -1891,7 +1891,7 @@ export interface components {
             name: string;
             /**
              * Value
-             * @description Valeur de l'élément, pour les ressources `min_total` (codes).
+             * @description Valeur de l'élément : valeur d'un code, piété d'un dieu.
              */
             value?: number | null;
             /**

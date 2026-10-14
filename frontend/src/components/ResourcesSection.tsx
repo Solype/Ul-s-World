@@ -126,7 +126,23 @@ export default function ResourcesSection({ rules, character, rulesMode, imposed,
                     subtitle={(e) => [e.school ? skillLabels[e.school] ?? e.school : null, e.group].filter(Boolean).join(" · ") || null}
                     open={rules.open_catalogs.includes(key)}
                     details={key === "dieux" ? (e) => <GodCodes codes={godCodes.get(e.label) ?? []} /> : undefined}
-                    onChange={(names) => setItems(key, names.map((name) => ({ name })))} />
+                    onChange={(names) => setItems(key, names.map((name) =>
+                      // Un élément gardé conserve ses champs ; un dieu ajouté part de la piété de départ.
+                      items.find((x) => x.name === name) ?? (key === "dieux" ? { name, value: resources.piete ?? 0 } : { name })))} />
+                )}
+                {key === "dieux" && items.length > 0 && (
+                  // Une échelle de piété par dieu : fixée par les rôles en mode règles.
+                  <div className="flex flex-col gap-1 pl-3">
+                    {items.map((god, i) => (
+                      <div key={god.name} className="flex items-center gap-2">
+                        <span className="flex-1 text-sm">Piété envers {god.name}</span>
+                        <NumberStepper value={god.value ?? 0} min={0} max={rules.resource_defs.piete?.max ?? 10}
+                          readOnly={rulesMode} title={rulesMode ? "Piété de départ, donnée par les rôles" : undefined}
+                          onChange={(v) => setItems(key, items.map((x, j) => (j === i ? { ...x, value: v } : x)))} />
+                        <span className="text-sm text-muted-foreground">/ {rules.resource_defs.piete?.max ?? 10}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
                 {!catalog && Array.from({ length: slots }, (_, i) => (
                   <div key={i} className="flex items-center gap-2 pl-3">

@@ -21,7 +21,8 @@ export function roleFloors(report: ValidationReport | null) {
 /**
  * Même logique que `_sync_role_points` côté backend, pour un aperçu immédiat dans l'éditeur :
  * Magie et bottes = rôles + achats en PC ; mana max = rôles + réserve Mana ;
- * connaissances et ressources remontées au minimum, sauf la piété : exactement celle des rôles.
+ * connaissances et ressources remontées au minimum, sauf la piété : exactement celle des rôles,
+ * pour la piété de départ comme pour celle de chaque dieu choisi.
  * Renvoie `null` si rien ne change (évite de boucler avec la validation).
  */
 export function applyRoleEffects(rules: Rules, c: CharacterInput, report: ValidationReport | null): Partial<CharacterInput> | null {
@@ -36,15 +37,19 @@ export function applyRoleEffects(rules: Rules, c: CharacterInput, report: Valida
   const resourceFloors = Object.fromEntries(
     Object.entries(stats).filter(([k]) => !["magic", "mana", "bottes"].includes(k)),
   );
-  // La piété de départ est exactement celle des rôles.
+  // La piété de départ est exactement celle des rôles, et chaque dieu choisi part de cette piété.
   const resources = raise(c.resources, resourceFloors);
   if (stats.piete || "piete" in resources) resources.piete = stats.piete ?? 0;
+  const gods = c.selections?.dieux ?? [];
   const patch: Partial<CharacterInput> = {
     magic: (stats.magic ?? 0) + (extra.magic ?? 0),
     bottes: (stats.bottes ?? 0) + (extra.bottes ?? 0) * rules.bottes_per_pc,
     knowledges: raise(c.knowledges, knowledges),
     mana: { ...c.mana, max: manaMax(rules, stats.mana ?? 0, c.pools?.mana ?? 0, report.trait_effects) },
     resources,
+    ...(gods.length > 0 && {
+      selections: { ...c.selections, dieux: gods.map((g) => ({ ...g, value: stats.piete ?? 0 })) },
+    }),
   };
   const changed = (Object.keys(patch) as (keyof CharacterInput)[]).some(
     (k) => JSON.stringify(patch[k]) !== JSON.stringify(c[k] ?? (k === "magic" || k === "bottes" ? 0 : {})),

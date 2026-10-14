@@ -172,12 +172,27 @@ def test_piety_is_exactly_the_roles(real_catalog, valid_character):
     assert "exactement 0" in piety_issue()
 
 
+def test_each_god_starts_at_role_piety(real_catalog, valid_character):
+    """Une échelle de piété par dieu : chacune part de la piété des rôles."""
+    def god_issues():
+        report = validate_character(CharacterBase(**valid_character))
+        return " ".join(i.message for i in report.issues if i.field == "selections.dieux")
+    valid_character["roles"] = {"primary": ["adepte"], "secondary": ["marin", "marchand", "cuisinier"]}
+    valid_character["resources"] = {"piete": 3, "dieux": 1}
+    valid_character["selections"] = {"dieux": [{"name": "Dieu 1", "value": 5}]}
+    assert "Piété envers « Dieu 1 » : 3 au départ" in god_issues()
+    valid_character["selections"]["dieux"][0]["value"] = 3
+    assert god_issues() == ""
+
+
 def test_saving_applies_role_effects(real_catalog, client, valid_character):
     valid_character["roles"] = {"primary": ["adepte"], "secondary": ["marin", "marchand", "cuisinier"]}
     valid_character["knowledges"] = {"Mystique": 10}   # au-dessus du minimum : conservé
     valid_character["magic"] = 0
     valid_character["resources"] = {"piete": 8}       # la piété est exactement celle des rôles : ramenée à 3
+    valid_character["selections"] = {"dieux": [{"name": "Dieu 1", "value": 9}]}   # le dieu aussi
     saved = client.post("/api/characters", json=valid_character).json()
+    assert saved["selections"]["dieux"][0]["value"] == 3
     assert saved["knowledges"]["Mystique"] == 10
     assert saved["knowledges"]["Culturelle"] == 1
     assert saved["mana"]["max"] == 30 + 30             # tronc religieux + Adepte

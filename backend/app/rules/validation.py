@@ -141,6 +141,12 @@ def validate_character(c: CharacterBase) -> ValidationReport:
                     issue(f"selections.{key}", f"{res.label} : « {name} » n'est pas dans le catalogue.")
             for name in sorted({n for n in names if names.count(n) > 1}):
                 issue(f"selections.{key}", f"{res.label} : « {name} » choisi plusieurs fois.")
+        if key == "dieux":
+            # Chaque dieu a sa propre échelle de piété (`value`), plafonnée comme la piété de départ.
+            cap = RESOURCE_DEFS["piete"].max
+            for i in items:
+                if (i.value or 0) > cap:
+                    issue("selections.dieux", f"Piété envers « {i.name} » : {i.value}, maximum {cap}.")
         if res.kind == "count":
             if len(items) > allowance:
                 issue(f"selections.{key}", f"{res.label} : {len(items)} choisis pour {allowance} autorisés.")
@@ -248,6 +254,11 @@ def validate_character(c: CharacterBase) -> ValidationReport:
                 if c.resources.get(stat, 0) != floor:
                     issue(f"resources.{stat}", f"{STATS[stat]} : exactement {floor} (donnée par les rôles), "
                                                f"pas {c.resources.get(stat, 0)}.")
+                # Chaque dieu part de cette piété.
+                for god in c.selections.get("dieux", []):
+                    if (god.value or 0) != floor:
+                        issue("selections.dieux", f"Piété envers « {god.name} » : {floor} au départ "
+                                                  f"(donnée par les rôles), pas {god.value or 0}.")
             elif c.resources.get(stat, 0) < floor:
                 issue(f"resources.{stat}", f"{STATS[stat]} : au moins {floor} (donné par les rôles).")
         stored = (

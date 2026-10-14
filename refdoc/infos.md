@@ -26,6 +26,7 @@ Décisions de conception qui ne figurent pas (ou pas clairement) dans les PDF de
 - **Princesse** (rôle exceptionnel) : ses effets ne sont qu'une description, sans calcul automatique.
 - **« +N en compétences de X (au choix) »** : N points à répartir librement entre les compétences du groupe X, éventuellement tous dans la même. « +N dans 1 catégorie … au choix » : N points dans une seule compétence.
 - **« P »** (rôles religieux, « 3 en P ») : la **Piété**. Contrairement aux autres effets des rôles, ce n'est pas un minimum : à la création, la piété vaut **exactement** celle des rôles (0 sans rôle religieux), le joueur ne peut pas en ajouter.
+- **Une échelle de piété par dieu** : avec 2 dieux, 2 échelles (0 à 10), stockées sur le choix du dieu (`selections.dieux[i].value`). `resources.piete` est la **piété de départ** donnée par les rôles : en mode règles, chaque dieu part exactement de cette valeur. Les traits qui regardent si le personnage a de la piété (Incompétent ! en Compétence magique) lisent la piété de départ.
 - **Connaissance « guerre » = connaissance « guerrière »** (coquille du document).
 
 ## Sorts

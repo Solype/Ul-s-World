@@ -69,6 +69,12 @@ def test_piety_is_capped(monster):
     assert "maximum 10" in issues(monster)["resources.piete"]
 
 
+def test_god_piety_is_capped(monster):
+    monster["resources"] = {"dieux": 2}
+    monster["selections"] = {"dieux": [{"name": "Dieu 1", "value": 10}, {"name": "Dieu 2", "value": 11}]}
+    assert issues(monster)["selections.dieux"] == "Piété envers « Dieu 2 » : 11, maximum 10."
+
+
 def test_score_resource_has_no_choices(monster):
     monster["selections"] = {"piete": [{"name": "?"}]}
     assert "selections.piete" in issues(monster)

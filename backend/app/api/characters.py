@@ -59,7 +59,8 @@ def _sync_role_points(character: Character) -> None:
     - Magie, bottes : exactement rôles + achats en PC ;
     - mana max : exactement rôles + 15 × PCP mis dans la réserve Mana (voir `expected_mana_max`) ;
     - connaissances, ressources : remontées au minimum donné par les rôles
-      (ce que le joueur a ajouté au-dessus est conservé), sauf la piété : exactement celle des rôles.
+      (ce que le joueur a ajouté au-dessus est conservé), sauf la piété : exactement celle des rôles,
+      pour la piété de départ comme pour celle de chaque dieu choisi.
     """
     roles = character.roles or {}
     creation = character.creation or {}
@@ -81,10 +82,13 @@ def _sync_role_points(character: Character) -> None:
     character.resources = raise_to_floor(
         character.resources or {}, {k: v for k, v in points.stats.items() if k in RESOURCE_STATS}
     )
-    # La piété de départ est exactement celle des rôles.
+    # La piété de départ est exactement celle des rôles, et chaque dieu choisi part de cette piété.
     piete = points.stats.get("piete", 0)
     if piete or "piete" in character.resources:
         character.resources = {**character.resources, "piete": piete}
+    selections = character.selections or {}
+    if selections.get("dieux"):
+        character.selections = {**selections, "dieux": [{**g, "value": piete} for g in selections["dieux"]]}
 
 
 @router.get("", response_model=list[CharacterRead], summary="Lister les personnages")

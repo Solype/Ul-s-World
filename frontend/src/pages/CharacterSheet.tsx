@@ -191,8 +191,7 @@ export default function CharacterSheet({ id, onClose, embedded = false }: {
           {showBlock(names("animaux_totems").length > 0) && <Block title="Animaux totems"><p>{list(names("animaux_totems"))}</p></Block>}
 
           {showBlock(names("dieux").length + (selections.codes ?? []).length + (c.resources?.piete ?? 0) > 0) && <Block title="Religion">
-            <p><span className="text-muted-foreground">Dieux :</span> {list(names("dieux"))}</p>
-            <p><span className="text-muted-foreground">Piété :</span> {c.resources?.piete ?? 0}/10</p>
+            <p><span className="text-muted-foreground">Dieux :</span> {list((selections.dieux ?? []).map((g) => `${g.name} (piété ${g.value ?? 0}/10)`))}</p>
             {(selections.codes ?? []).length > 0 && (
               <p><span className="text-muted-foreground">Codes :</span> {(selections.codes ?? []).map((i) => `${i.name}${i.god ? ` [${i.god}]` : ""} (${i.value ?? 0})`).join(", ")}</p>
             )}

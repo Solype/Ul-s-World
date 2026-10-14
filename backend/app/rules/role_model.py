@@ -57,7 +57,8 @@ RESOURCE_DEFS: dict[str, ResourceDef] = {
         "Chaque langue modifie les conditions de lancer des sorts.")),
     "dieux": ResourceDef(label="Dieux", kind="count", group="Religion"),
     "codes": ResourceDef(label="Codes", kind="min_total", group="Religion"),
-    "piete": ResourceDef(label="Piété", kind="score", max=10, group="Religion"),
+    "piete": ResourceDef(label="Piété de départ", kind="score", max=10, group="Religion", description=(
+        "Chaque dieu a sa propre échelle de piété, qui part de cette valeur à la création.")),
     "animaux_totems": ResourceDef(label="Animaux totems", kind="count", group="Compagnons"),
     "montures": ResourceDef(label="Montures", kind="count", group="Compagnons"),
     "oiseaux": ResourceDef(label="Oiseaux", kind="count", group="Compagnons"),
