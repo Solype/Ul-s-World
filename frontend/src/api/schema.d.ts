@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/auth/captcha": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Configuration du captcha d'inscription */
+        get: operations["captcha_config_api_auth_captcha_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/register": {
         parameters: {
             query?: never;
@@ -584,6 +601,14 @@ export interface components {
             /** Superhuman */
             superhuman: number;
         };
+        /**
+         * CaptchaConfig
+         * @description Clé publique du widget Turnstile ; `null` quand le captcha est désactivé.
+         */
+        CaptchaConfig: {
+            /** Site Key */
+            site_key: string | null;
+        };
         /** CatalogEntry */
         CatalogEntry: {
             /** Label */
@@ -594,6 +619,15 @@ export interface components {
             school?: string | null;
             /** Group */
             group?: string | null;
+            /** Target */
+            target?: string | null;
+            /** Scaling */
+            scaling?: ("puissance" | "nombre") | null;
+            /**
+             * Effects
+             * @default []
+             */
+            effects?: components["schemas"]["SpellEffect"][];
             /** Skill */
             skill?: string | null;
             /**
@@ -1527,6 +1561,21 @@ export interface components {
             /** Money */
             money: number;
         };
+        /** Registration */
+        Registration: {
+            /**
+             * Username
+             * @description Lettres, chiffres, `_`, `.` et `-`. Sans distinction de casse.
+             */
+            username: string;
+            /** Password */
+            password: string;
+            /**
+             * Captcha Token
+             * @description Jeton du widget Turnstile, si le captcha est activé.
+             */
+            captcha_token?: string | null;
+        };
         /**
          * ResourceDef
          * @description Comment une ressource s'utilise.
@@ -1872,6 +1921,46 @@ export interface components {
          */
         Species: "elfe" | "humain" | "kobold" | "nain" | "orc";
         /**
+         * SpellEffect
+         * @description Effet d'un sort selon sa puissance P (ou, pour un enchantement, le nombre N d'enchantements posés).
+         *
+         *     - multiplicateur : la valeur vaut `base + per × P` (« Dégâts : 2 × P PV ») ;
+         *     - effet propre à une puissance : `at` (P = 3) ;
+         *     - effet à partir d'un seuil : `at_least` (P ≥ 5).
+         *     Un multiplicateur peut être conditionné (`at_least` + `per`). Sans `at` ni `at_least`, l'effet vaut à toute puissance.
+         */
+        SpellEffect: {
+            /** Text */
+            text: string;
+            /**
+             * Per
+             * @description Multiplicateur de P (ou N).
+             */
+            per?: number | null;
+            /**
+             * Base
+             * @description Valeur fixe ajoutée au multiplicateur.
+             * @default 0
+             */
+            base?: number;
+            /**
+             * Unit
+             * @description Unité de la valeur : « PV », « m », « tours »...
+             * @default
+             */
+            unit?: string;
+            /**
+             * At
+             * @description L'effet ne vaut qu'à cette puissance exacte.
+             */
+            at?: number | null;
+            /**
+             * At Least
+             * @description L'effet vaut à partir de cette puissance.
+             */
+            at_least?: number | null;
+        };
+        /**
          * StatusColor
          * @description Palette fixe : le frontend associe à chaque nom une teinte lisible en thème clair et sombre.
          * @enum {string}
@@ -2201,6 +2290,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    captcha_config_api_auth_captcha_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaptchaConfig"];
+                };
+            };
+        };
+    };
     register_api_auth_register_post: {
         parameters: {
             query?: never;
@@ -2210,7 +2319,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Credentials"];
+                "application/json": components["schemas"]["Registration"];
             };
         };
         responses: {

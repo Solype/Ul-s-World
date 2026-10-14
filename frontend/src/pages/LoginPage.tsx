@@ -1,5 +1,7 @@
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { LogIn, Swords, UserPlus } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useTheme } from "next-themes";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -27,6 +29,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { resolvedTheme } = useTheme();
+  // Captcha Turnstile, seulement à l'inscription et si le serveur en a un (site_key non nul).
+  const [siteKey, setSiteKey] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captcha = useRef<TurnstileInstance>(undefined);
+  const needsCaptcha = mode === "register" && siteKey !== null;
+
+  useEffect(() => {
+    api.GET("/api/auth/captcha").then(({ data }) => setSiteKey(data?.site_key ?? null));
+  }, []);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -35,10 +47,14 @@ export default function LoginPage() {
     const body = { username: username.trim(), password };
     const { data, error } = mode === "login"
       ? await api.POST("/api/auth/login", { body })
-      : await api.POST("/api/auth/register", { body });
+      : await api.POST("/api/auth/register", { body: { ...body, captcha_token: captchaToken } });
     setBusy(false);
     if (data) signedIn(data);
-    else setError(errorMessage((error as { detail?: unknown } | undefined)?.detail, mode));
+    else {
+      setError(errorMessage((error as { detail?: unknown } | undefined)?.detail, mode));
+      // Un jeton ne sert qu'une fois : on en redemande un.
+      if (needsCaptcha) { setCaptchaToken(null); captcha.current?.reset(); }
+    }
   };
 
   return (
@@ -75,8 +91,13 @@ export default function LoginPage() {
                 minLength={mode === "register" ? 8 : undefined}
                 onChange={(e) => setPassword(e.target.value)} />
             </div>
+            {needsCaptcha && (
+              <Turnstile ref={captcha} siteKey={siteKey} onSuccess={setCaptchaToken}
+                onExpire={() => setCaptchaToken(null)} onError={() => setCaptchaToken(null)}
+                options={{ language: "fr", size: "flexible", theme: resolvedTheme === "dark" ? "dark" : "light" }} />
+            )}
             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" disabled={busy || (needsCaptcha && !captchaToken)}>
               {mode === "login" ? <><LogIn data-icon="inline-start" />Se connecter</> : <><UserPlus data-icon="inline-start" />Créer le compte</>}
             </Button>
           </form>

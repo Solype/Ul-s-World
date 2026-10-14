@@ -6,6 +6,27 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/auth/captcha": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Configuration du captcha d'inscription",
+        "operationId": "captcha_config_api_auth_captcha_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaptchaConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/register": {
       "post": {
         "tags": [
@@ -18,7 +39,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Credentials"
+                "$ref": "#/components/schemas/Registration"
               }
             }
           },
@@ -1857,6 +1878,27 @@
         ],
         "title": "AttributeLimit"
       },
+      "CaptchaConfig": {
+        "properties": {
+          "site_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "site_key"
+        ],
+        "title": "CaptchaConfig",
+        "description": "Clé publique du widget Turnstile ; `null` quand le captcha est désactivé."
+      },
       "CatalogEntry": {
         "properties": {
           "label": {
@@ -1888,6 +1930,40 @@
               }
             ],
             "title": "Group"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "scaling": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "puissance",
+                  "nombre"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scaling"
+          },
+          "effects": {
+            "items": {
+              "$ref": "#/components/schemas/SpellEffect"
+            },
+            "type": "array",
+            "title": "Effects",
+            "default": []
           },
           "skill": {
             "anyOf": [
@@ -3675,6 +3751,43 @@
         ],
         "title": "PriorityRow"
       },
+      "Registration": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "title": "Username",
+            "description": "Lettres, chiffres, `_`, `.` et `-`. Sans distinction de casse."
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password"
+          },
+          "captcha_token": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captcha Token",
+            "description": "Jeton du widget Turnstile, si le captcha est activé."
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "Registration"
+      },
       "ResourceDef": {
         "properties": {
           "label": {
@@ -4397,6 +4510,68 @@
           "orc"
         ],
         "title": "Species"
+      },
+      "SpellEffect": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "per": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per",
+            "description": "Multiplicateur de P (ou N)."
+          },
+          "base": {
+            "type": "number",
+            "title": "Base",
+            "description": "Valeur fixe ajoutée au multiplicateur.",
+            "default": 0
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "description": "Unité de la valeur : « PV », « m », « tours »...",
+            "default": ""
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At",
+            "description": "L'effet ne vaut qu'à cette puissance exacte."
+          },
+          "at_least": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At Least",
+            "description": "L'effet vaut à partir de cette puissance."
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "SpellEffect",
+        "description": "Effet d'un sort selon sa puissance P (ou, pour un enchantement, le nombre N d'enchantements posés).\n\n- multiplicateur : la valeur vaut `base + per × P` (« Dégâts : 2 × P PV ») ;\n- effet propre à une puissance : `at` (P = 3) ;\n- effet à partir d'un seuil : `at_least` (P ≥ 5).\nUn multiplicateur peut être conditionné (`at_least` + `per`). Sans `at` ni `at_least`, l'effet vaut à toute puissance."
       },
       "StatusColor": {
         "type": "string",
