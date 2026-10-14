@@ -65,7 +65,7 @@ backend/app/
 ├── rules/
 │   ├── data.py          # ★ données des règles : espèces, priorités, compétences
 │   ├── roles_catalog.py # ★ catalogue des rôles (refdoc/Roles.pdf)
-│   ├── catalogs.py      # ★ langues et animaux totems (refdoc/Langues.pdf), sorts (catalogue ouvert)
+│   ├── catalogs.py      # ★ langues et animaux totems (refdoc/Langues.pdf), sorts (catalogue ouvert), dieux
 │   ├── traits.py        # ★ traits de personnage et calcul de leurs effets (refdoc/Traits de personnage.pdf)
 │   ├── monsters.py      # ★ caractéristiques des monstres et ce qu'elles ouvrent (refdoc/Caractéristique monstres.pdf)
 │   ├── monitors.py      # ★ moniteurs de condition (physique, mental, pathologique, endurance, mana)
@@ -192,7 +192,7 @@ Les choix du joueur sont stockés dans `creation.role_choices["<rôle>/<id>"]`.
 - les codes sont une limite que la valeur totale des codes choisis doit atteindre ou dépasser ;
 - la piété est un score plafonné à 10.
 
-Les choix sont des intitulés libres en attendant les catalogues de sorts, langues, dieux, codes… Le moment venu, il suffira de remplacer les champs texte par des listes.
+Les choix sont des intitulés libres en attendant les catalogues de bottes, codes… (langues, animaux totems, sorts et dieux ont le leur, dans `catalogs.py`). Le moment venu, il suffira de remplacer les champs texte par des listes.
 
 Sans `sync_roles`, un `PATCH` conserve les PCR enregistrés. `role_points_outdated` signale alors qu'ils ne correspondent plus au calcul.
 

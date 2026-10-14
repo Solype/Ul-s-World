@@ -281,6 +281,15 @@ function spellsPage(rules: Rules): RulePage {
   return { id: "sorts", title: "Sorts", sections };
 }
 
+/** Dieux : une section par dieu (noms et effets provisoires). */
+function godsPage(rules: Rules): RulePage {
+  const sections: RuleSection[] = (rules.catalogs.dieux ?? []).map((e) => ({
+    id: `dieu-${slugify(e.label)}`, title: e.label, text: e.effect,
+    content: e.effect ? <p className="text-sm">{e.effect}</p> : <p className="text-sm text-muted-foreground italic">Description à venir.</p>,
+  }));
+  return { id: "dieux", title: "Dieux", sections };
+}
+
 export function buildRulePages(rules: Rules): RulePage[] {
-  return [...textPages(rules), skillsPage(rules), rolesPage(rules), traitsPage(rules), languagesPage(rules), spellsPage(rules)];
+  return [...textPages(rules), skillsPage(rules), rolesPage(rules), traitsPage(rules), languagesPage(rules), spellsPage(rules), godsPage(rules)];
 }

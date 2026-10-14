@@ -1,4 +1,4 @@
-"""Catalogues des ressources à choix fermé (refdoc/Langues.pdf) : langues et animaux totems.
+"""Catalogues des ressources à choix fermé (refdoc/Langues.pdf) : langues et animaux totems, dieux.
 
 Un élément choisi est stocké dans `character.selections[<ressource>]` sous son libellé (`name`).
 Les effets des langues sont descriptifs. Ceux des animaux totems comptent comme des PCR
@@ -30,6 +30,9 @@ def _entries(*items: tuple) -> list[CatalogEntry]:
 def _sk(skill: str, points: int = 1) -> dict:
     return {"skill": skill, "points": points}
 
+
+# Les 12 dieux. Noms et effets provisoires, en attendant leur description.
+GODS = [CatalogEntry(label=f"Dieu {i}", effect="") for i in range(1, 13)]
 
 # Lancer un sort se fait dans une langue, choisie avant de lancer les dés.
 LANGUAGES = _entries(
@@ -110,6 +113,7 @@ CATALOGS: dict[str, list[CatalogEntry]] = {
     "langues": LANGUAGES,
     "animaux_totems": TOTEMS,
     "sorts": SPELLS,
+    "dieux": GODS,
 }
 # Catalogues incomplets : on y choisit, mais un élément hors catalogue reste accepté.
 OPEN_CATALOGS = {"sorts"}

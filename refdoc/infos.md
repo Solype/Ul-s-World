@@ -43,6 +43,10 @@ Décisions de conception qui ne figurent pas (ou pas clairement) dans les PDF de
 - Restent descriptifs : la **Chouette** (vision nocturne), le **Loup** et le **Ratel** (bonus en combat sous condition), le **Crocodile** (effet en cours de discussion).
 - Les « x » à côté de certains animaux dans le document concernent l'amélioration ; ils ne sont pas repris.
 
+## Dieux
+
+- Il y a **12 dieux**, choisis dans un catalogue fermé (`GODS` dans `catalogs.py`). En attendant leur description, ils s'appellent « Dieu 1 » à « Dieu 12 » et n'ont pas d'effet. Renommer un dieu rend invalides les fiches qui portent l'ancien nom.
+
 ## Traits de personnage (Traits de personnage.pdf)
 
 - Un trait **bonus coûte des PC**, un **malus en rapporte** : les PC de base (25) sont ajustés en conséquence. Le nombre de traits et de PC gagnés par les malus n'est **pas limité** (les traits sont validés avec le MJ).

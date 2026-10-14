@@ -52,6 +52,17 @@ def test_spell_catalog_is_open(monster):
     assert "choisi plusieurs fois" in issues(monster)["selections.sorts"]
 
 
+def test_god_catalog_is_closed(monster):
+    """Les 12 dieux (noms provisoires) : un dieu hors catalogue est signalé."""
+    from app.rules.catalogs import GODS
+    assert len(GODS) == 12
+    monster["resources"] = {"dieux": 2}
+    monster["selections"] = {"dieux": [{"name": "Dieu 1"}, {"name": "Zeus"}]}
+    assert "« Zeus » n'est pas dans le catalogue" in issues(monster)["selections.dieux"]
+    monster["selections"]["dieux"][1]["name"] = "Dieu 12"
+    assert "selections.dieux" not in issues(monster)
+
+
 def test_catalog_resources_only_accept_catalog_entries(monster):
     monster["resources"] = {"langues": 2, "animaux_totems": 1}
     monster["selections"] = {"langues": [{"name": "Latin"}, {"name": "Klingon"}], "animaux_totems": [{"name": "Loup"}]}

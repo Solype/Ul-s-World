@@ -28,8 +28,8 @@ type Props = {
  * - `min_total` : codes dont la valeur totale doit atteindre ou dépasser la limite ;
  * - `score` : piété, plafonnée.
  * En mode règles, le nombre de choix vient des rôles (lecture seule). Les ressources qui ont un
- * catalogue (langues, animaux totems) se choisissent dans une liste qui montre l'effet de chaque
- * élément ; les autres sont des intitulés libres en attendant leur catalogue (sorts, dieux, codes...).
+ * catalogue (langues, animaux totems, sorts, dieux) se choisissent dans une liste qui montre l'effet de chaque
+ * élément ; les autres sont des intitulés libres en attendant leur catalogue (bottes, codes...).
  */
 export default function ResourcesSection({ rules, character, rulesMode, floors, imposed, forbidden = [], onChange }: Props) {
   const resources = character.resources ?? {};
