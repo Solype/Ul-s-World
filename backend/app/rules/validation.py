@@ -15,7 +15,7 @@ Points de compétence de rôle (PCR) :
 
 from pydantic import BaseModel
 
-from app.rules.catalogs import CATALOGS, OPEN_CATALOGS
+from app.rules.catalogs import CATALOGS, OPEN_CATALOGS, god_code
 from app.rules.data import (
     ALL_SKILLS,
     BOTTES_PER_PC,
@@ -146,6 +146,22 @@ def validate_character(c: CharacterBase) -> ValidationReport:
                 issue(f"selections.{key}", f"{res.label} : {len(items)} choisis pour {allowance} autorisés.")
             elif len(items) < allowance:
                 issue(f"selections.{key}", f"{res.label} : encore {allowance - len(items)} à choisir.")
+        elif key == "codes":
+            # Codes : pris chez les dieux choisis, leur valeur vient du catalogue.
+            gods = {i.name for i in c.selections.get("dieux", [])}
+            total, seen = 0, set()
+            for i in items:
+                code = god_code(i.god, i.name) if i.god in gods else None
+                if code is None:
+                    where = f"de « {i.god} »" if i.god in gods else "d'un dieu choisi"
+                    issue(f"selections.{key}", f"{res.label} : « {i.name} » n'est pas un code {where}.")
+                elif (i.god, i.name) in seen:
+                    issue(f"selections.{key}", f"{res.label} : « {i.name} » choisi plusieurs fois.")
+                else:
+                    total += code.value
+                seen.add((i.god, i.name))
+            if total < allowance:
+                issue(f"selections.{key}", f"{res.label} : valeur totale {total}, doit atteindre au moins {allowance}.")
         elif res.kind == "min_total" and allowance > 0:
             total = sum(i.value or 0 for i in items)
             if total < allowance:

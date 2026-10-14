@@ -63,8 +63,9 @@ class Mana(BaseModel):
 class SelectionItem(BaseModel):
     """Un élément choisi grâce à une ressource (un sort, une langue, un code...)."""
 
-    name: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=500)
     value: int | None = Field(None, ge=0, description="Valeur de l'élément, pour les ressources `min_total` (codes).")
+    god: str | None = Field(None, max_length=100, description="Codes : le dieu dont vient le code (son contenu est `name`).")
 
 
 class TraitPick(BaseModel):

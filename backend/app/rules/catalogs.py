@@ -51,6 +51,12 @@ _GOD_CODES: dict[str, list[GodCode]] = {}
 # Les 12 dieux. Noms et effets provisoires, en attendant leur description.
 GODS = [CatalogEntry(label=f"Dieu {i}", effect="", codes=_GOD_CODES.get(f"Dieu {i}", [])) for i in range(1, 13)]
 
+
+def god_code(god: str, content: str) -> GodCode | None:
+    """Le code `content` du dieu `god`, ou None s'il n'existe pas."""
+    entry = next((g for g in GODS if g.label == god), None)
+    return next((c for c in entry.codes if c.content == content), None) if entry else None
+
 # Lancer un sort se fait dans une langue, choisie avant de lancer les dés.
 LANGUAGES = _entries(
     ("Elfique", "Les sorts lancés à P > 7 bénéficient d'un bonus de 2."),

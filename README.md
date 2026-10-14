@@ -189,10 +189,10 @@ Les choix du joueur sont stockés dans `creation.role_choices["<rôle>/<id>"]`.
 
 **Ressources** (`RESOURCE_DEFS` dans `role_model.py`) :
 - la plupart donnent accès à des choix, stockés dans `selections` : N sorts, langues, bottes, dieux, animaux… ;
-- les codes sont une limite que la valeur totale des codes choisis doit atteindre ou dépasser ;
+- les codes sont une limite que la valeur totale des codes choisis doit atteindre ou dépasser ; ils se choisissent parmi les codes des dieux choisis, et leur valeur vient du catalogue ;
 - la piété est un score plafonné à 10.
 
-Les choix sont des intitulés libres en attendant les catalogues de bottes, codes… (langues, animaux totems, sorts et dieux ont le leur, dans `catalogs.py`). Le moment venu, il suffira de remplacer les champs texte par des listes.
+Les choix sont des intitulés libres en attendant les catalogues de bottes… (langues, animaux totems, sorts, dieux et leurs codes ont le leur, dans `catalogs.py`). Le moment venu, il suffira de remplacer les champs texte par des listes.
 
 Sans `sync_roles`, un `PATCH` conserve les PCR enregistrés. `role_points_outdated` signale alors qu'ils ne correspondent plus au calcul.
 

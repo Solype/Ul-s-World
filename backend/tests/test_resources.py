@@ -1,5 +1,7 @@
 """Ressources donnant accès à des choix (sorts, langues...), codes et piété."""
 
+import pytest
+
 from app.rules.validation import validate_character
 from app.schemas import CharacterBase
 
@@ -25,12 +27,41 @@ def test_bottes_allowance_comes_from_bottes(monster):
     assert "selections.bottes" not in issues(monster)
 
 
-def test_codes_total_must_reach_the_limit(monster):
-    monster["resources"] = {"codes": 11}
-    monster["selections"] = {"codes": [{"name": "Code A", "value": 6}, {"name": "Code B", "value": 4}]}
+@pytest.fixture
+def god_codes(monkeypatch):
+    """Codes de test pour Dieu 1 et Dieu 2 (le catalogue réel est encore vide)."""
+    from app.rules.catalogs import GODS, GodCode
+    monkeypatch.setattr(GODS[0], "codes", [GodCode(content="A", value=6, zeal=1), GodCode(content="B", value=4, zeal=2)])
+    monkeypatch.setattr(GODS[1], "codes", [GodCode(content="C", value=7, zeal=3)])
+
+
+def test_codes_total_must_reach_the_limit(monster, god_codes):
+    """La valeur de codes des rôles est un minimum ; la valeur des codes vient du catalogue, pas de la fiche."""
+    monster["resources"] = {"dieux": 2, "codes": 11}
+    monster["selections"] = {"dieux": [{"name": "Dieu 1"}, {"name": "Dieu 2"}],
+                             "codes": [{"name": "A", "god": "Dieu 1", "value": 99}, {"name": "B", "god": "Dieu 1"}]}
     assert "valeur totale 10" in issues(monster)["selections.codes"]
-    monster["selections"]["codes"][1]["value"] = 7   # 13 : on est forcé de dépasser
+    monster["selections"]["codes"][1] = {"name": "C", "god": "Dieu 2"}   # 13 : on est forcé de dépasser
     assert "selections.codes" not in issues(monster)
+
+
+def code_issues(character: dict) -> str:
+    """Tous les messages sur les codes (`issues` ne garde que le dernier)."""
+    return " ".join(i.message for i in validate_character(CharacterBase(**character)).issues if i.field == "selections.codes")
+
+
+def test_codes_come_from_chosen_gods(monster, god_codes):
+    monster["resources"] = {"dieux": 1, "codes": 6}
+    monster["selections"] = {"dieux": [{"name": "Dieu 1"}], "codes": [{"name": "C", "god": "Dieu 2"}]}
+    assert "« C » n'est pas un code d'un dieu choisi" in code_issues(monster)
+    monster["selections"]["codes"] = [{"name": "Code libre"}]
+    assert "« Code libre » n'est pas un code d'un dieu choisi" in code_issues(monster)
+    monster["selections"]["codes"] = [{"name": "C", "god": "Dieu 1"}]
+    assert "« C » n'est pas un code de « Dieu 1 »" in code_issues(monster)
+    monster["selections"]["codes"] = [{"name": "A", "god": "Dieu 1"}, {"name": "A", "god": "Dieu 1"}]
+    assert "« A » choisi plusieurs fois" in code_issues(monster)
+    monster["selections"]["codes"] = [{"name": "A", "god": "Dieu 1"}]
+    assert "pas un code" not in code_issues(monster)
 
 
 def test_piety_is_capped(monster):

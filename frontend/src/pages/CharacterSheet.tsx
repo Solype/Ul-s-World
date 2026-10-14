@@ -194,7 +194,7 @@ export default function CharacterSheet({ id, onClose, embedded = false }: {
             <p><span className="text-muted-foreground">Dieux :</span> {list(names("dieux"))}</p>
             <p><span className="text-muted-foreground">Piété :</span> {c.resources?.piete ?? 0}/10</p>
             {(selections.codes ?? []).length > 0 && (
-              <p><span className="text-muted-foreground">Codes :</span> {(selections.codes ?? []).map((i) => `${i.name} (${i.value ?? 0})`).join(", ")}</p>
+              <p><span className="text-muted-foreground">Codes :</span> {(selections.codes ?? []).map((i) => `${i.name}${i.god ? ` [${i.god}]` : ""} (${i.value ?? 0})`).join(", ")}</p>
             )}
           </Block>}
 

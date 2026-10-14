@@ -4330,7 +4330,7 @@
         "properties": {
           "name": {
             "type": "string",
-            "maxLength": 100,
+            "maxLength": 500,
             "minLength": 1,
             "title": "Name"
           },
@@ -4346,6 +4346,19 @@
             ],
             "title": "Value",
             "description": "Valeur de l'élément, pour les ressources `min_total` (codes)."
+          },
+          "god": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "God",
+            "description": "Codes : le dieu dont vient le code (son contenu est `name`)."
           }
         },
         "type": "object",

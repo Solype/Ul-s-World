@@ -1,14 +1,15 @@
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import type { CharacterInput, Rules } from "@/api/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import CatalogPicker from "./CatalogPicker";
+import CodesPicker from "./CodesPicker";
 import GodCodes from "./GodCodes";
 import NumberStepper from "./NumberStepper";
 
-type Selection = { name: string; value?: number | null };
+type Selection = { name: string; value?: number | null; god?: string | null };
 
 type Props = {
   rules: Rules;
@@ -26,11 +27,12 @@ type Props = {
 /**
  * Ressources de la fiche (voir RESOURCE_DEFS côté backend) :
  * - `count` : donne accès à N choix (sorts, langues, bottes, dieux, animaux...) ;
- * - `min_total` : codes dont la valeur totale doit atteindre ou dépasser la limite ;
+ * - `min_total` : codes dont la valeur totale doit atteindre ou dépasser la limite. Les codes se cochent
+ *   parmi ceux des dieux choisis (CodesPicker) et leur valeur vient du catalogue ;
  * - `score` : piété, plafonnée.
  * En mode règles, le nombre de choix vient des rôles (lecture seule). Les ressources qui ont un
  * catalogue (langues, animaux totems, sorts, dieux) se choisissent dans une liste qui montre l'effet de chaque
- * élément ; les autres sont des intitulés libres en attendant leur catalogue (bottes, codes...).
+ * élément ; les autres sont des intitulés libres en attendant leur catalogue (bottes...).
  */
 export default function ResourcesSection({ rules, character, rulesMode, floors, imposed, forbidden = [], onChange }: Props) {
   const resources = character.resources ?? {};
@@ -85,8 +87,12 @@ export default function ResourcesSection({ rules, character, rulesMode, floors, 
               );
             }
 
-            if (def.kind === "min_total") {
-              const total = items.reduce((sum, i) => sum + (i.value ?? 0), 0);
+            if (key === "codes") {
+              // Codes : pris chez les dieux choisis ; leur valeur vient du catalogue et la somme doit atteindre la limite.
+              const gods = (selections.dieux ?? []).map((g) => g.name);
+              const valueOf = (i: Selection) =>
+                gods.includes(i.god ?? "") ? (godCodes.get(i.god ?? "") ?? []).find((c) => c.content === i.name)?.value ?? 0 : 0;
+              const total = items.reduce((sum, i) => sum + valueOf(i), 0);
               return (
                 <div key={key} className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
@@ -97,22 +103,7 @@ export default function ResourcesSection({ rules, character, rulesMode, floors, 
                       total {total} / {n}
                     </Badge>
                   </div>
-                  {items.map((item, i) => (
-                    <div key={i} className="flex items-center gap-2 pl-3">
-                      <Input value={item.name}
-                        onChange={(e) => setItems(key, items.map((x, j) => (j === i ? { ...x, name: e.target.value || "?" } : x)))} />
-                      <NumberStepper value={item.value ?? 0}
-                        onChange={(v) => setItems(key, items.map((x, j) => (j === i ? { ...x, value: v } : x)))} />
-                      <Button type="button" variant="ghost" size="icon-sm" aria-label="Supprimer"
-                        onClick={() => setItems(key, items.filter((_, j) => j !== i))}><Trash2 /></Button>
-                    </div>
-                  ))}
-                  <div className="pl-3">
-                    <Button type="button" variant="outline" size="sm"
-                      onClick={() => setItems(key, [...items, { name: `Code ${items.length + 1}`, value: 1 }])}>
-                      <Plus data-icon="inline-start" />Code
-                    </Button>
-                  </div>
+                  <CodesPicker gods={gods} godCodes={godCodes} selected={items} onChange={(codes) => setItems(key, codes)} />
                 </div>
               );
             }

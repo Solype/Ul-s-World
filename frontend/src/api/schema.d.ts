@@ -1845,6 +1845,11 @@ export interface components {
              * @description Valeur de l'élément, pour les ressources `min_total` (codes).
              */
             value?: number | null;
+            /**
+             * God
+             * @description Codes : le dieu dont vient le code (son contenu est `name`).
+             */
+            god?: string | null;
         };
         /** SkillGroup */
         SkillGroup: {

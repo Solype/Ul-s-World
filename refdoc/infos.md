@@ -46,7 +46,8 @@ Décisions de conception qui ne figurent pas (ou pas clairement) dans les PDF de
 ## Dieux
 
 - Il y a **12 dieux**, choisis dans un catalogue fermé (`GODS` dans `catalogs.py`). En attendant leur description, ils s'appellent « Dieu 1 » à « Dieu 12 » et n'ont pas d'effet. Renommer un dieu rend invalides les fiches qui portent l'ancien nom.
-- Chaque dieu a des **codes**. Un code a un **contenu** (ce qu'il prescrit), une **valeur de code** et un **zèle**. Ils se saisissent dans `_GOD_CODES` (`catalogs.py`), par nom de dieu, et s'affichent dans la fiche du dieu et la page de règles « Dieux ». Les codes choisis sur la fiche du personnage (`selections.codes`) restent pour l'instant des intitulés libres, sans lien avec ceux des dieux.
+- Chaque dieu a des **codes**. Un code a un **contenu** (ce qu'il prescrit), une **valeur de code** et un **zèle**. Ils se saisissent dans `_GOD_CODES` (`catalogs.py`), par nom de dieu, et s'affichent dans la fiche du dieu et la page de règles « Dieux ». 
+- Les codes ne servent qu'à la **création de personnage**. L'adepte coche ses codes parmi ceux de **ses dieux choisis** (`selections.codes` : `name` = contenu, `god` = le dieu). La **valeur de codes donnée par les rôles** (`resources.codes`) est un minimum : la somme des valeurs des codes choisis doit l'**atteindre ou la dépasser**. La valeur d'un code est lue dans le catalogue, pas dans la fiche. Un code d'un dieu non choisi, inconnu ou en double est signalé. Le zèle est affiché mais n'entre dans aucune règle.
 
 ## Traits de personnage (Traits de personnage.pdf)
 
