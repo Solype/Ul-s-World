@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Attribute, Rules } from "@/api/client";
 import GodCodes from "@/components/GodCodes";
+import GodPowers from "@/components/GodPowers";
 import SpellEffects from "@/components/SpellEffects";
 import { Badge } from "@/components/ui/badge";
 import { ATTRIBUTE_LABELS } from "@/lib/labels";
@@ -290,15 +291,17 @@ function spellsPage(rules: Rules): RulePage {
   return { id: "sorts", title: "Sorts", sections };
 }
 
-/** Dieux : une section par dieu (noms et effets provisoires), avec ses codes. */
+/** Dieux : une section par dieu (noms et effets provisoires), avec ses codes et ses pouvoirs par palier. */
 function godsPage(rules: Rules): RulePage {
   const sections: RuleSection[] = (rules.catalogs.dieux ?? []).map((e) => ({
     id: `dieu-${slugify(e.label)}`, title: e.label,
-    text: `${e.effect} ${(e.codes ?? []).map((c) => c.content).join(" ")}`,
+    text: `${e.effect} ${(e.codes ?? []).map((c) => c.content).join(" ")} `
+      + (e.powers ?? []).map((p) => `${p.name} ${p.effect}`).join(" "),
     content: (
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         {e.effect ? <p className="text-sm">{e.effect}</p> : <p className="text-sm text-muted-foreground italic">Description à venir.</p>}
         <GodCodes codes={e.codes ?? []} />
+        <GodPowers powers={e.powers ?? []} tiers={rules.power_tiers} />
       </div>
     ),
   }));

@@ -650,6 +650,11 @@ export interface components {
              * @default []
              */
             codes?: components["schemas"]["GodCode"][];
+            /**
+             * Powers
+             * @default []
+             */
+            powers?: components["schemas"]["GodPower"][];
         };
         /** CharacterBase */
         CharacterBase: {
@@ -1299,6 +1304,21 @@ export interface components {
             /** Zeal */
             zeal: number;
         };
+        /**
+         * GodPower
+         * @description Un pouvoir d'un dieu, débloqué quand la piété envers ce dieu atteint le seuil de son palier.
+         */
+        GodPower: {
+            /** Name */
+            name: string;
+            /** Effect */
+            effect: string;
+            /**
+             * Tier
+             * @enum {string}
+             */
+            tier: "passif" | "palier_1" | "palier_2" | "palier_3" | "ultime";
+        };
         /** Grant */
         Grant: {
             /**
@@ -1552,6 +1572,16 @@ export interface components {
         OwnerUpdate: {
             /** Owner Id */
             owner_id: number;
+        };
+        /** PowerTierDef */
+        PowerTierDef: {
+            /** Label */
+            label: string;
+            /**
+             * Piety
+             * @description Piété envers le dieu à partir de laquelle les pouvoirs du palier sont débloqués.
+             */
+            piety: number;
         };
         /** Priorities */
         Priorities: {
@@ -1865,6 +1895,10 @@ export interface components {
             };
             /** Open Catalogs */
             open_catalogs: string[];
+            /** Power Tiers */
+            power_tiers: {
+                [key: string]: components["schemas"]["PowerTierDef"];
+            };
             /** Traits */
             traits: {
                 [key: string]: components["schemas"]["TraitDef"];

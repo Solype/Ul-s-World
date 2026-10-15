@@ -43,3 +43,5 @@ export type MonsterProfile = components["schemas"]["Monster"];
 export type MonsterAccess = components["schemas"]["MonsterAccess"];
 export type InstanceVisibility = components["schemas"]["InstanceVisibility"];
 export type GodCode = components["schemas"]["GodCode"];
+export type GodPower = components["schemas"]["GodPower"];
+export type PowerTierDef = components["schemas"]["PowerTierDef"];

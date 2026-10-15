@@ -135,8 +135,16 @@ def test_god_catalog_is_closed(monster):
 
 def test_god_codes_target_known_gods():
     """Les codes sont rangés par nom de dieu : une coquille dans le nom les perdrait sans bruit."""
-    from app.rules.catalogs import _GOD_CODES, _GOD_DESCRIPTIONS, GODS
-    assert set(_GOD_CODES) | set(_GOD_DESCRIPTIONS) <= {g.label for g in GODS}
+    from app.rules.catalogs import _GOD_CODES, _GOD_DESCRIPTIONS, _GOD_POWERS, GODS
+    assert set(_GOD_CODES) | set(_GOD_DESCRIPTIONS) | set(_GOD_POWERS) <= {g.label for g in GODS}
+
+
+def test_power_tiers_unlock_at_piety():
+    """Passif, paliers 1 à 3 et ultime : débloqués à piété 0, 3, 6, 8 et 10."""
+    from app.rules.catalogs import GODS, POWER_TIERS
+    assert {k: t.piety for k, t in POWER_TIERS.items()} == {
+        "passif": 0, "palier_1": 3, "palier_2": 6, "palier_3": 8, "ultime": 10}
+    assert all(g.powers for g in GODS)
 
 
 def test_catalog_resources_only_accept_catalog_entries(monster):

@@ -1998,6 +1998,14 @@
             "type": "array",
             "title": "Codes",
             "default": []
+          },
+          "powers": {
+            "items": {
+              "$ref": "#/components/schemas/GodPower"
+            },
+            "type": "array",
+            "title": "Powers",
+            "default": []
           }
         },
         "type": "object",
@@ -3169,6 +3177,37 @@
         "title": "GodCode",
         "description": "Un code d'un dieu : ce qu'il prescrit, sa valeur de code et son zèle."
       },
+      "GodPower": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "effect": {
+            "type": "string",
+            "title": "Effect"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "passif",
+              "palier_1",
+              "palier_2",
+              "palier_3",
+              "ultime"
+            ],
+            "title": "Tier"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "effect",
+          "tier"
+        ],
+        "title": "GodPower",
+        "description": "Un pouvoir d'un dieu, débloqué quand la piété envers ce dieu atteint le seuil de son palier."
+      },
       "Grant": {
         "properties": {
           "id": {
@@ -3689,6 +3728,25 @@
           "owner_id"
         ],
         "title": "OwnerUpdate"
+      },
+      "PowerTierDef": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "piety": {
+            "type": "integer",
+            "title": "Piety",
+            "description": "Piété envers le dieu à partir de laquelle les pouvoirs du palier sont débloqués."
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "piety"
+        ],
+        "title": "PowerTierDef"
       },
       "Priorities": {
         "properties": {
@@ -4379,6 +4437,13 @@
             "type": "array",
             "title": "Open Catalogs"
           },
+          "power_tiers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PowerTierDef"
+            },
+            "type": "object",
+            "title": "Power Tiers"
+          },
           "traits": {
             "additionalProperties": {
               "$ref": "#/components/schemas/TraitDef"
@@ -4431,6 +4496,7 @@
           "resource_defs",
           "catalogs",
           "open_catalogs",
+          "power_tiers",
           "traits",
           "monster_base_attributes",
           "monster_traits",

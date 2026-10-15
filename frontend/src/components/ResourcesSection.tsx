@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import CatalogPicker from "./CatalogPicker";
 import CodesPicker from "./CodesPicker";
 import GodCodes from "./GodCodes";
+import GodPowers, { unlockedPowers } from "./GodPowers";
 import NumberStepper from "./NumberStepper";
 
 type Selection = { name: string; value?: number | null; god?: string | null };
@@ -49,6 +50,8 @@ export default function ResourcesSection({ rules, character, rulesMode, imposed,
       : null;
   // Codes de chaque dieu, montrés dans sa fiche.
   const godCodes = new Map((rules.catalogs.dieux ?? []).map((g) => [g.label, g.codes ?? []]));
+  // Pouvoirs de chaque dieu, débloqués selon la piété envers lui.
+  const godPowers = new Map((rules.catalogs.dieux ?? []).map((g) => [g.label, g.powers ?? []]));
 
   const defs = Object.entries(rules.resource_defs);
   const used = (key: string) => allowance(key) > 0 || (selections[key]?.length ?? 0) > 0;
@@ -125,23 +128,36 @@ export default function ResourcesSection({ rules, character, rulesMode, imposed,
                     bonus={key === "animaux_totems" ? totemBonus : undefined}
                     subtitle={(e) => [e.school ? skillLabels[e.school] ?? e.school : null, e.group].filter(Boolean).join(" · ") || null}
                     open={rules.open_catalogs.includes(key)}
-                    details={key === "dieux" ? (e) => <GodCodes codes={godCodes.get(e.label) ?? []} /> : undefined}
+                    details={key === "dieux" ? (e) => (
+                      <>
+                        <GodCodes codes={godCodes.get(e.label) ?? []} />
+                        <GodPowers powers={godPowers.get(e.label) ?? []} tiers={rules.power_tiers} />
+                      </>
+                    ) : undefined}
                     onChange={(names) => setItems(key, names.map((name) =>
                       // Un élément gardé conserve ses champs ; un dieu ajouté part de la piété de départ.
                       items.find((x) => x.name === name) ?? (key === "dieux" ? { name, value: resources.piete ?? 0 } : { name })))} />
                 )}
                 {key === "dieux" && items.length > 0 && (
-                  // Une échelle de piété par dieu : fixée par les rôles en mode règles.
-                  <div className="flex flex-col gap-1 pl-3">
-                    {items.map((god, i) => (
-                      <div key={god.name} className="flex items-center gap-2">
-                        <span className="flex-1 text-sm">Piété envers {god.name}</span>
-                        <NumberStepper value={god.value ?? 0} min={0} max={rules.resource_defs.piete?.max ?? 10}
-                          readOnly={rulesMode} title={rulesMode ? "Piété de départ, donnée par les rôles" : undefined}
-                          onChange={(v) => setItems(key, items.map((x, j) => (j === i ? { ...x, value: v } : x)))} />
-                        <span className="text-sm text-muted-foreground">/ {rules.resource_defs.piete?.max ?? 10}</span>
-                      </div>
-                    ))}
+                  // Une échelle de piété par dieu (fixée par les rôles en mode règles) et les pouvoirs qu'elle débloque.
+                  <div className="flex flex-col gap-2 pl-3">
+                    {items.map((god, i) => {
+                      const unlocked = unlockedPowers(godPowers.get(god.name) ?? [], rules.power_tiers, god.value ?? 0);
+                      return (
+                        <div key={god.name} className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="flex-1 text-sm">Piété envers {god.name}</span>
+                            <NumberStepper value={god.value ?? 0} min={0} max={rules.resource_defs.piete?.max ?? 10}
+                              readOnly={rulesMode} title={rulesMode ? "Piété de départ, donnée par les rôles" : undefined}
+                              onChange={(v) => setItems(key, items.map((x, j) => (j === i ? { ...x, value: v } : x)))} />
+                            <span className="text-sm text-muted-foreground">/ {rules.resource_defs.piete?.max ?? 10}</span>
+                          </div>
+                          {unlocked.length > 0 && (
+                            <p className="text-xs text-muted-foreground">Pouvoirs : {unlocked.map((p) => p.name).join(", ")}</p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 {!catalog && Array.from({ length: slots }, (_, i) => (

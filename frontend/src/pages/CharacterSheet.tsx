@@ -1,6 +1,7 @@
 import { ArrowLeft, FileJson, Printer } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, type Attribute, type Character, type ValidationReport } from "@/api/client";
+import { unlockedPowers } from "@/components/GodPowers";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRules } from "@/hooks/useRules";
@@ -192,6 +193,13 @@ export default function CharacterSheet({ id, onClose, embedded = false }: {
 
           {showBlock(names("dieux").length + (selections.codes ?? []).length + (c.resources?.piete ?? 0) > 0) && <Block title="Religion">
             <p><span className="text-muted-foreground">Dieux :</span> {list((selections.dieux ?? []).map((g) => `${g.name} (piété ${g.value ?? 0}/10)`))}</p>
+            {(selections.dieux ?? []).map((g) => {
+              const powers = rules.catalogs.dieux?.find((d) => d.label === g.name)?.powers ?? [];
+              const unlocked = unlockedPowers(powers, rules.power_tiers, g.value ?? 0);
+              return unlocked.length > 0 && (
+                <p key={g.name}><span className="text-muted-foreground">Pouvoirs de {g.name} :</span> {unlocked.map((p) => p.name).join(", ")}</p>
+              );
+            })}
             {(selections.codes ?? []).length > 0 && (
               <p><span className="text-muted-foreground">Codes :</span> {(selections.codes ?? []).map((i) => `${i.name}${i.god ? ` [${i.god}]` : ""} (${i.value ?? 0})`).join(", ")}</p>
             )}

@@ -55,6 +55,31 @@ class GodCode(BaseModel):
     zeal: int
 
 
+PowerTier = Literal["passif", "palier_1", "palier_2", "palier_3", "ultime"]
+
+
+class PowerTierDef(BaseModel):
+    label: str
+    piety: int = Field(description="Piété envers le dieu à partir de laquelle les pouvoirs du palier sont débloqués.")
+
+
+# Paliers des pouvoirs des dieux, dans l'ordre.
+POWER_TIERS: dict[str, PowerTierDef] = {
+    "passif": PowerTierDef(label="Passif", piety=0),
+    "palier_1": PowerTierDef(label="Palier 1", piety=3),
+    "palier_2": PowerTierDef(label="Palier 2", piety=6),
+    "palier_3": PowerTierDef(label="Palier 3", piety=8),
+    "ultime": PowerTierDef(label="Ultime", piety=10),
+}
+
+
+class GodPower(BaseModel):
+    """Un pouvoir d'un dieu, débloqué quand la piété envers ce dieu atteint le seuil de son palier."""
+    name: str
+    effect: str
+    tier: PowerTier
+
+
 class CatalogEntry(BaseModel):
     label: str
     effect: str
@@ -71,8 +96,9 @@ class CatalogEntry(BaseModel):
     points: int = 0
     mana: int = 0
     free_knowledge: int = 0
-    # Dieux : leurs codes.
+    # Dieux : leurs codes et leurs pouvoirs.
     codes: list[GodCode] = []
+    powers: list[GodPower] = []
 
 
 def _entries(*items: tuple) -> list[CatalogEntry]:
@@ -157,8 +183,23 @@ _GOD_CODES: dict[str, list[GodCode]] = {
                 _code("Garder le silence une journée entière par lune.", value=8, zeal=5)],
 }
 
+# Pouvoirs des dieux, par libellé de dieu. Exemple :
+#   "Dieu 1": [GodPower(name="Pain béni", effect="Une croûte rassise soigne 1 PV.", tier="passif")]
+_GOD_POWERS: dict[str, list[GodPower]] = {}
+# Données de test : un pouvoir par palier pour chaque dieu qui n'en a pas encore.
+_TEST_POWER_NAMES = {"passif": "Bénédiction", "palier_1": "Faveur", "palier_2": "Grâce", "palier_3": "Miracle",
+                     "ultime": "Avatar"}
+
+
+def _test_powers(god: str) -> list[GodPower]:
+    return [GodPower(name=f"{word} de {god}", tier=tier,
+                     effect=f"Pouvoir de test, débloqué à piété {POWER_TIERS[tier].piety}.")
+            for tier, word in _TEST_POWER_NAMES.items()]
+
+
 # Les 12 dieux. Noms provisoires.
-GODS = [CatalogEntry(label=name, effect=_GOD_DESCRIPTIONS.get(name, ""), codes=_GOD_CODES.get(name, []))
+GODS = [CatalogEntry(label=name, effect=_GOD_DESCRIPTIONS.get(name, ""), codes=_GOD_CODES.get(name, []),
+                     powers=_GOD_POWERS.get(name) or _test_powers(name))
         for name in (f"Dieu {i}" for i in range(1, 13))]
 
 
