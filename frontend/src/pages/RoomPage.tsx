@@ -36,6 +36,8 @@ type Props = {
 
 const HISTORY_PAGE = 50;
 const path = (room_id: number) => ({ params: { path: { room_id } } });
+/** Personnages en jeu dans l'ordre choisi par le MJ. */
+const byPosition = (list: Instance[]) => [...list].sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.id - b.id);
 
 /**
  * Une room. Au centre, les personnages en jeu et leurs moniteurs ; à droite, les membres (présence)
@@ -82,9 +84,10 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
 
   const addMessage = (m: ChatMessage) =>
     setMessages((prev) => (prev.some((p) => p.id === m.id) ? prev : [...prev, m]));
-  // Ajout ou mise à jour : un monstre ajouté, ou qui devient visible pour un joueur, arrive comme une nouvelle instance.
-  const putInstance = (i: Instance) => setInstances((prev) =>
-    prev.some((p) => p.id === i.id) ? prev.map((p) => (p.id === i.id ? i : p)) : [...prev, i]);
+  // Ajout ou mise à jour : un monstre ajouté, ou qui devient visible pour un joueur, arrive comme une nouvelle instance,
+  // à sa place dans l'ordre choisi par le MJ.
+  const putInstance = (i: Instance) => setInstances((prev) => byPosition(
+    prev.some((p) => p.id === i.id) ? prev.map((p) => (p.id === i.id ? i : p)) : [...prev, i]));
   const dropInstance = (instanceId: number) => setInstances((prev) => prev.filter((p) => p.id !== instanceId));
 
   // Monstres (MJ) : mise en jeu d'un exemplaire, visibilité, retrait.
@@ -111,6 +114,17 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
       { params: { path: { room_id: id, instance_id: instanceId } }, body });
     if (data) putInstance(data);
     else toast.error("Modification impossible");
+  };
+  // MJ : déplacer un personnage en jeu d'un cran (avant : -1, après : +1). L'ordre est le même pour tous.
+  const moveInstance = async (instanceId: number, step: -1 | 1) => {
+    const ids = instances.map((i) => i.id);
+    const from = ids.indexOf(instanceId);
+    const to = from + step;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+    const { data } = await api.PUT("/api/rooms/{room_id}/instances/order", { ...path(id), body: { ids } });
+    if (data) setInstances(data);
+    else { toast.error("Déplacement impossible"); loadInstances(); }
   };
   const changeGodResource = async (instanceId: number, body: { god: string; name: string; delta: number }) => {
     const { data } = await api.PATCH("/api/rooms/{room_id}/instances/{instance_id}/god-resources",
@@ -186,6 +200,7 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
     if (event.type === "room.characters") { refreshCharacters(); loadInstances(); }
     if (event.type === "room.instance") putInstance(event.instance);
     if (event.type === "room.instance.removed") dropInstance(event.id);
+    if (event.type === "room.instances.order") loadInstances();
   }, (code) => {
     if (code === WS_FORBIDDEN) { toast.info("Tu n'as plus accès à cette room"); onGone(); }
   });
@@ -301,8 +316,10 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
             </Card>
           ) : (
             <div className="flex flex-wrap gap-x-12 gap-y-8 pb-4">
-              {instances.map((i) => (
+              {instances.map((i, index) => (
                 <InstanceCard key={i.id} instance={i} defs={rules.monitors} canEdit={isGM || i.character.kind === "pj"}
+                  onMoveBefore={isGM && index > 0 ? () => moveInstance(i.id, -1) : undefined}
+                  onMoveAfter={isGM && index < instances.length - 1 ? () => moveInstance(i.id, 1) : undefined}
                   isGM={isGM} statusSuggestions={statusSuggestions} statusActions={statusActions(i.id)}
                   onDelta={(m, d) => changeMonitors(i.id, { delta: { [m]: d } })}
                   onSet={(m, v) => changeMonitors(i.id, { set: { [m]: v } })}

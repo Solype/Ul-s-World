@@ -101,3 +101,27 @@ def test_pc_cannot_be_hidden_or_removed_this_way(wolf):
     assert pc["visibility"] == "revele"
     assert gm.put(f"{wolf['base']}/{pc['id']}/visibility", json={"visibility": "cache"}).status_code == 422
     assert gm.delete(f"{wolf['base']}/{pc['id']}").status_code == 422
+
+
+def test_gm_reorders_characters_in_play(wolf):
+    """Le MJ choisit l'ordre (le même pour tous) ; une nouvelle carte arrive à la fin."""
+    gm, alice, bob, room, base = wolf["gm"], wolf["alice"], wolf["bob"], wolf["room"], wolf["base"]
+    alice.post(f"/api/rooms/{room}/characters", json={"character_id": wolf["pj"]})
+    gm.post(f"/api/rooms/{room}/characters/{wolf['pj']}/accept")
+    [pc] = gm.get(base).json()
+    w1 = gm.post(base, json={"character_id": wolf["wolf"], "visibility": "visible"}).json()
+    w2 = gm.post(base, json={"character_id": wolf["wolf"]}).json()   # caché aux joueurs
+    assert [i["id"] for i in gm.get(base).json()] == [pc["id"], w1["id"], w2["id"]]
+
+    order = [w2["id"], pc["id"], w1["id"]]
+    assert bob.put(f"{base}/order", json={"ids": order}).status_code == 403
+    assert gm.put(f"{base}/order", json={"ids": order[:2]}).status_code == 422          # il en manque un
+    assert gm.put(f"{base}/order", json={"ids": [*order, pc["id"]]}).status_code == 422  # doublon
+    with bob.websocket_connect(f"/ws/room:{room}") as ws:
+        ws.receive_json()  # présence
+        assert [i["id"] for i in gm.put(f"{base}/order", json={"ids": order}).json()] == order
+        assert ws.receive_json() == {"type": "room.instances.order"}
+    assert [i["id"] for i in gm.get(base).json()] == order
+    assert [i["id"] for i in bob.get(base).json()] == [pc["id"], w1["id"]]   # sans le loup caché
+    w3 = gm.post(base, json={"character_id": wolf["wolf"]}).json()
+    assert [i["id"] for i in gm.get(base).json()] == [*order, w3["id"]]

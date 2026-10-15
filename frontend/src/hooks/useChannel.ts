@@ -11,7 +11,9 @@ export type ServerEvent =
   /** Les moniteurs d'un personnage en jeu ont changé. */
   | { type: "room.instance"; instance: Instance }
   // Personnage sorti du jeu, ou monstre que le MJ vient de cacher.
-  | { type: "room.instance.removed"; id: number };
+  | { type: "room.instance.removed"; id: number }
+  /** Le MJ a changé l'ordre des personnages en jeu : relire la liste. */
+  | { type: "room.instances.order" };
 
 /** Le serveur a refusé ou coupé l'accès au canal (pas connecté, exclu de la room...). */
 export const WS_FORBIDDEN = 4403;

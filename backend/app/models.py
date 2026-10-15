@@ -153,6 +153,8 @@ class CharacterInstance(Base):
     statuses: Mapped[list] = mapped_column(JSON, default=list)
     # Ressources propres aux dieux, propres à la room : {dieu: {ressource: valeur}} (0 si jamais modifiée).
     god_resources: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    # Place dans la room (ordre d'affichage choisi par le MJ) ; une nouvelle instance arrive à la fin.
+    position: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # Ce que voient les joueurs : cache | visible | revele (schemas.InstanceVisibility).
     visibility: Mapped[str] = mapped_column(String(10), default="revele", server_default="revele")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

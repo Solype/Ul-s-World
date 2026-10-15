@@ -462,6 +462,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/rooms/{room_id}/instances/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Changer l'ordre des personnages en jeu (MJ)
+         * @description `ids` : toutes les instances de la room, chacune une fois, dans le nouvel ordre. Le même pour tous ;
+         *     les membres sont prévenus (`room.instances.order`) et relisent la liste avec leurs droits.
+         */
+        put: operations["reorder_instances_api_rooms__room_id__instances_order_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/rooms/{room_id}/instances/{instance_id}/visibility": {
         parameters: {
             query?: never;
@@ -1426,6 +1447,14 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * InstanceOrder
+         * @description Nouvel ordre des personnages en jeu : les ids de toutes les instances de la room, chacune une fois.
+         */
+        InstanceOrder: {
+            /** Ids */
+            ids: number[];
+        };
+        /**
          * InstanceRead
          * @description Un personnage en jeu dans une room, avec ses moniteurs.
          *
@@ -1464,6 +1493,11 @@ export interface components {
              * @default []
              */
             god_resources?: components["schemas"]["GodResourceValue"][];
+            /**
+             * Position
+             * @default 0
+             */
+            position?: number;
             /**
              * Updated At
              * Format: date-time
@@ -3413,6 +3447,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_instances_api_rooms__room_id__instances_order_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstanceOrder"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceRead"][];
                 };
             };
             /** @description Validation Error */

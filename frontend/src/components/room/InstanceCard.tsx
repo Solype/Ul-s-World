@@ -1,5 +1,5 @@
 import {
-  Eye, EyeOff, FileText, Minus, Pin, PinOff, Plus, RefreshCw, ScanEye, Shield, Skull, Trash2, type LucideIcon,
+  ChevronLeft, ChevronRight, Eye, EyeOff, FileText, Minus, Pin, PinOff, Plus, RefreshCw, ScanEye, Shield, Skull, Trash2, type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Instance, InstanceVisibility, MonitorDef } from "@/api/client";
@@ -51,6 +51,9 @@ type Props = {
   onVisibility?: (visibility: InstanceVisibility) => void;
   /** MJ : retirer cet exemplaire du jeu (monstre), ou le personnage de la room (PJ). */
   onRemove?: () => void;
+  /** MJ : déplacer la carte d'un cran dans l'ordre de la room (absent au bout de la liste). */
+  onMoveBefore?: () => void;
+  onMoveAfter?: () => void;
 };
 
 /** Ce que voient les joueurs (le MJ voit toujours tout). */
@@ -231,7 +234,7 @@ function Nameplate({ name, outdated, monster, hidden }: { name: string; outdated
  */
 export default function InstanceCard({
   instance, defs, canEdit, isGM, statusSuggestions, statusActions, onDelta, onSet, onGodResource, onResync, onSheet,
-  onVisibility, onRemove,
+  onVisibility, onRemove, onMoveBefore, onMoveAfter,
 }: Props) {
   const c = instance.character;
   const isMonster = c.kind === "monstre";
@@ -299,6 +302,14 @@ export default function InstanceCard({
       {expanded && (
         <div className="arcane-card absolute -top-2 left-1/2 z-30 flex w-80 -translate-x-1/2 flex-col gap-2 rounded-xl bg-card p-3 text-card-foreground ring-1 shadow-xl animate-in fade-in zoom-in-95 duration-150">
           <div className="flex items-center gap-1">
+            {(onMoveBefore || onMoveAfter) && (
+              <>
+                <Button variant="ghost" size="icon-sm" aria-label="Déplacer avant" title="Déplacer avant"
+                  disabled={!onMoveBefore} onClick={onMoveBefore}><ChevronLeft /></Button>
+                <Button variant="ghost" size="icon-sm" aria-label="Déplacer après" title="Déplacer après"
+                  disabled={!onMoveAfter} onClick={onMoveAfter}><ChevronRight /></Button>
+              </>
+            )}
             <div className="min-w-0 flex-1">
               <Nameplate name={name} outdated={instance.outdated} monster={isMonster} hidden={hiddenFromPlayers} />
             </div>

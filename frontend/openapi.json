@@ -1392,6 +1392,63 @@
         }
       }
     },
+    "/api/rooms/{room_id}/instances/order": {
+      "put": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Changer l'ordre des personnages en jeu (MJ)",
+        "description": "`ids` : toutes les instances de la room, chacune une fois, dans le nouvel ordre. Le même pour tous ;\nles membres sont prévenus (`room.instances.order`) et relisent la liste avec leurs droits.",
+        "operationId": "reorder_instances_api_rooms__room_id__instances_order_put",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstanceOrder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstanceRead"
+                  },
+                  "title": "Response Reorder Instances Api Rooms  Room Id  Instances Order Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/rooms/{room_id}/instances/{instance_id}/visibility": {
       "put": {
         "tags": [
@@ -3493,6 +3550,23 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "InstanceOrder": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "InstanceOrder",
+        "description": "Nouvel ordre des personnages en jeu : les ids de toutes les instances de la room, chacune une fois."
+      },
       "InstanceRead": {
         "properties": {
           "id": {
@@ -3565,6 +3639,11 @@
             "type": "array",
             "title": "God Resources",
             "default": []
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position",
+            "default": 0
           },
           "updated_at": {
             "type": "string",

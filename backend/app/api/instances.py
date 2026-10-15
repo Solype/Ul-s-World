@@ -31,6 +31,7 @@ from app.schemas import (
     CharacterSummary,
     GodResourceChange,
     GodResourceValue,
+    InstanceOrder,
     InstanceRead,
     InstanceVisibility,
     Monitor,
@@ -56,7 +57,13 @@ def ensure_instance(link: RoomCharacter) -> None:
             or link.character.kind != CharacterKind.PJ):
         return
     link.instances.append(CharacterInstance(
-        monitors={k: {"current": m, "max": m} for k, m in _sheet_max(link).items()}))
+        monitors={k: {"current": m, "max": m} for k, m in _sheet_max(link).items()},
+        position=_next_position(link.room)))
+
+
+def _next_position(room: Room) -> int:
+    """Une nouvelle instance arrive après toutes celles de la room."""
+    return max((i.position for rc in room.characters for i in rc.instances), default=-1) + 1
 
 
 def visible_to_players(instance: CharacterInstance) -> bool:
@@ -83,6 +90,7 @@ def read_instance(instance: CharacterInstance, gm_view: bool) -> InstanceRead:
         number=siblings.index(instance) + 1 if len(siblings) > 1 and instance in siblings else None,
         natural_armor=armor if full else None,
         god_resources=_god_resources(instance) if full else [],
+        position=instance.position,
         updated_at=instance.updated_at,
     )
 
@@ -158,8 +166,30 @@ def list_instances(room_id: int, user: User = Depends(current_user),
         if session.new:
             session.commit()
     gm_view = room.gm_id == user.id
-    return [read_instance(i, gm_view=gm_view) for rc in room.characters for i in rc.instances
-            if gm_view or visible_to_players(i)]
+    return [read_instance(i, gm_view=gm_view) for i in _ordered(room) if gm_view or visible_to_players(i)]
+
+
+def _ordered(room: Room) -> list[CharacterInstance]:
+    """Les instances de la room dans l'ordre choisi par le MJ."""
+    return sorted((i for rc in room.characters for i in rc.instances), key=lambda i: (i.position, i.id))
+
+
+@router.put("/{room_id}/instances/order", response_model=list[InstanceRead],
+            summary="Changer l'ordre des personnages en jeu (MJ)")
+def reorder_instances(room_id: int, payload: InstanceOrder, background: BackgroundTasks,
+                      user: User = Depends(current_user), session: Session = Depends(get_session)) -> list[InstanceRead]:
+    """`ids` : toutes les instances de la room, chacune une fois, dans le nouvel ordre. Le même pour tous ;
+    les membres sont prévenus (`room.instances.order`) et relisent la liste avec leurs droits."""
+    room = room_or_404(session, room_id, user, gm_only=True)
+    instances = {i.id: i for i in _ordered(room)}
+    if sorted(payload.ids) != sorted(instances):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            "L'ordre doit donner chaque personnage en jeu de la room, une seule fois")
+    for position, instance_id in enumerate(payload.ids):
+        instances[instance_id].position = position
+    session.commit()
+    background.add_task(manager.broadcast, room_channel(room_id), {"type": "room.instances.order"})
+    return [read_instance(instances[i], gm_view=True) for i in payload.ids]
 
 
 @router.post("/{room_id}/instances", response_model=InstanceRead, status_code=status.HTTP_201_CREATED,
@@ -179,7 +209,7 @@ def add_monster(room_id: int, payload: MonsterAdd, background: BackgroundTasks,
     if link is None:
         link = RoomCharacter(character=character, status=RoomCharacterStatus.GM)
         room.characters.append(link)
-    instance = CharacterInstance(visibility=payload.visibility,
+    instance = CharacterInstance(visibility=payload.visibility, position=_next_position(room),
                                  monitors={k: {"current": m, "max": m} for k, m in _sheet_max(link).items()})
     link.instances.append(instance)
     session.flush()

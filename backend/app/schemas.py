@@ -344,6 +344,8 @@ class InstanceRead(BaseModel):
     # Ressources propres aux dieux de la fiche, avec leur valeur dans la room (absentes pour un joueur tant qu'il
     # n'est pas révélé).
     god_resources: list[GodResourceValue] = []
+    # Place dans la room (ordre choisi par le MJ) : trier par `position`, puis par `id`.
+    position: int = 0
     updated_at: datetime
 
 
@@ -365,6 +367,12 @@ class MonitorChange(BaseModel):
 
     delta: dict[str, int] = {}
     set: dict[str, Annotated[int, Field(ge=0)]] = {}
+
+
+class InstanceOrder(BaseModel):
+    """Nouvel ordre des personnages en jeu : les ids de toutes les instances de la room, chacune une fois."""
+
+    ids: list[int]
 
 
 class GodResourceChange(BaseModel):
