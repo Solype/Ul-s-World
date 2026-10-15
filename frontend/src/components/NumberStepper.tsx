@@ -42,8 +42,9 @@ export default function NumberStepper({ value, onChange, min = 0, max, readOnly,
       </InputGroupAddon>
       <InputGroupInput type="number" inputMode="numeric" min={min} max={max} value={value} aria-invalid={invalid || undefined}
         className="text-center tabular-nums"
-        // Pendant la saisie on ne bloque que le dépassement du max ; le min est appliqué en quittant le champ.
-        onChange={(e) => onChange(Math.min(max ?? Infinity, e.target.value === "" ? 0 : Number(e.target.value)))}
+        // Pendant la saisie on ne bloque que le dépassement du max et le négatif (si le min l'interdit) ;
+        // le min est appliqué en quittant le champ.
+        onChange={(e) => onChange(Math.max(Math.min(min, 0), Math.min(max ?? Infinity, e.target.value === "" ? 0 : Number(e.target.value))))}
         onBlur={() => value !== clamp(value) && onChange(clamp(value))} />
       <InputGroupAddon align="inline-end">
         <InputGroupButton size="icon-xs" aria-label="Ajouter 1" aria-disabled={!canAdd} tabIndex={-1}

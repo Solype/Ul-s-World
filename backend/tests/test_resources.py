@@ -64,15 +64,18 @@ def test_codes_come_from_chosen_gods(monster, god_codes):
     assert "pas un code" not in code_issues(monster)
 
 
-def test_piety_is_capped(monster):
-    monster["resources"] = {"piete": 11}
-    assert "maximum 10" in issues(monster)["resources.piete"]
-
-
-def test_god_piety_is_capped(monster):
-    monster["resources"] = {"dieux": 2}
-    monster["selections"] = {"dieux": [{"name": "Dieu 1", "value": 10}, {"name": "Dieu 2", "value": 11}]}
-    assert issues(monster)["selections.dieux"] == "Piété envers « Dieu 2 » : 11, maximum 10."
+def test_piety_scale_stays_between_0_and_10(monster):
+    """Piété de départ et piété de chaque dieu : au-delà de 10, elles restent à 10 ; en dessous de 0, refusé."""
+    from pydantic import ValidationError
+    monster["resources"] = {"piete": 11, "dieux": 2}
+    monster["selections"] = {"dieux": [{"name": "Dieu 1", "value": 10}, {"name": "Dieu 2", "value": 15}]}
+    c = CharacterBase(**monster)
+    assert c.resources["piete"] == 10
+    assert [g.value for g in c.selections["dieux"]] == [10, 10]
+    assert "resources.piete" not in issues(monster)
+    monster["selections"]["dieux"][0]["value"] = -1
+    with pytest.raises(ValidationError):
+        CharacterBase(**monster)
 
 
 def test_score_resource_has_no_choices(monster):

@@ -4,9 +4,10 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.rules.data import Attribute, Priority
+from app.rules.role_model import RESOURCE_DEFS
 
 
 class CharacterKind(StrEnum):
@@ -123,6 +124,17 @@ class CharacterBase(BaseModel):
     notes: str = ""
     creation: Creation | None = None
     monster: Monster | None = None
+
+    @model_validator(mode="after")
+    def _clamp_piety(self) -> "CharacterBase":
+        """L'échelle de piété va de 0 à 10 : au-delà, elle reste à 10 (piété de départ et piété de chaque dieu)."""
+        cap = RESOURCE_DEFS["piete"].max
+        if self.resources.get("piete", 0) > cap:
+            self.resources["piete"] = cap
+        for god in self.selections.get("dieux", []):
+            if (god.value or 0) > cap:
+                god.value = cap
+        return self
 
 
 class CharacterCreate(CharacterBase):
