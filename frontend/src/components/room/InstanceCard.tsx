@@ -42,6 +42,8 @@ type Props = {
   statusActions: StatusActions;
   onDelta: (monitor: string, delta: number) => void;
   onSet: (monitor: string, value: number) => void;
+  /** Ajouter `delta` à une ressource d'un dieu (valeur propre à la room). */
+  onGodResource: (god: string, name: string, delta: number) => void;
   onResync: () => void;
   /** Absent : fiche illisible pour ce compte (monstre du MJ hors de la room, vu par un joueur). */
   onSheet?: () => void;
@@ -183,6 +185,29 @@ function MonitorRow({ label, dot, monitor: { current, max }, canEdit, onDelta, o
   );
 }
 
+/** Ressource propre à un dieu : valeur de la room, entre 0 et son max s'il y en a un. */
+function GodResourceRow({ god, name, value, max, canEdit, onDelta }: {
+  god: string; name: string; value: number; max?: number | null; canEdit: boolean; onDelta: (d: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-sm" title={god}>
+      <span className="min-w-0 flex-1 truncate">{name} <span className="text-xs text-muted-foreground">· {god}</span></span>
+      {canEdit && (
+        <Button variant="ghost" size="icon-xs" aria-label={`${name} -1`} disabled={value <= 0}
+          onClick={() => onDelta(-1)}><Minus /></Button>
+      )}
+      <span className="tabular-nums">
+        <span className="font-semibold">{value}</span>
+        {max != null && <span className="text-muted-foreground">/{max}</span>}
+      </span>
+      {canEdit && (
+        <Button variant="ghost" size="icon-xs" aria-label={`${name} +1`} disabled={max != null && value >= max}
+          onClick={() => onDelta(1)}><Plus /></Button>
+      )}
+    </div>
+  );
+}
+
 /** Cartouche du nom. */
 function Nameplate({ name, outdated, monster, hidden }: { name: string; outdated?: boolean; monster?: boolean; hidden?: boolean }) {
   return (
@@ -205,7 +230,8 @@ function Nameplate({ name, outdated, monster, hidden }: { name: string; outdated
  * par-dessus ses voisines avec les valeurs, la modification et la gestion des statuts.
  */
 export default function InstanceCard({
-  instance, defs, canEdit, isGM, statusSuggestions, statusActions, onDelta, onSet, onResync, onSheet, onVisibility, onRemove,
+  instance, defs, canEdit, isGM, statusSuggestions, statusActions, onDelta, onSet, onGodResource, onResync, onSheet,
+  onVisibility, onRemove,
 }: Props) {
   const c = instance.character;
   const isMonster = c.kind === "monstre";
@@ -324,15 +350,13 @@ export default function InstanceCard({
                 onDelta={(d) => onDelta(k, d)} onSet={(v) => onSet(k, v)} />
             ))}
           </div>
-          {/* Ressources propres aux dieux du personnage, lues sur sa fiche (on les modifie dans la fiche). */}
+          {/* Ressources propres aux dieux du personnage : la liste vient de la fiche, la valeur est celle de la room. */}
           {(instance.god_resources ?? []).length > 0 && (
             <div className="flex flex-col gap-0.5">
               <span className="text-xs text-muted-foreground">Ressources divines</span>
               {(instance.god_resources ?? []).map((r) => (
-                <div key={`${r.god}/${r.name}`} className="flex items-center gap-2 text-sm" title={r.god}>
-                  <span className="min-w-0 flex-1 truncate">{r.name} <span className="text-xs text-muted-foreground">· {r.god}</span></span>
-                  <span className="tabular-nums">{r.value}{r.max != null && <span className="text-muted-foreground"> / {r.max}</span>}</span>
-                </div>
+                <GodResourceRow key={`${r.god}/${r.name}`} {...r} canEdit={canEdit}
+                  onDelta={(d) => onGodResource(r.god, r.name, d)} />
               ))}
             </div>
           )}

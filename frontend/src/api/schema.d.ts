@@ -501,6 +501,26 @@ export interface paths {
         patch: operations["change_monitors_api_rooms__room_id__instances__instance_id__patch"];
         trace?: never;
     };
+    "/api/rooms/{room_id}/instances/{instance_id}/god-resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Modifier une ressource d'un dieu
+         * @description La valeur est propre à la room. Elle reste entre 0 et le max de la ressource, s'il y en a un.
+         */
+        patch: operations["change_god_resource_api_rooms__room_id__instances__instance_id__god_resources_patch"];
+        trace?: never;
+    };
     "/api/rooms/{room_id}/instances/{instance_id}/resync": {
         parameters: {
             query?: never;
@@ -1325,8 +1345,25 @@ export interface components {
             tier: "passif" | "palier_1" | "palier_2" | "palier_3" | "ultime";
         };
         /**
+         * GodResourceChange
+         * @description Modifier une ressource propre à un dieu, dans la room. `delta` ajoute (après `set`, s'il est donné).
+         */
+        GodResourceChange: {
+            /** God */
+            god: string;
+            /** Name */
+            name: string;
+            /**
+             * Delta
+             * @default 0
+             */
+            delta?: number;
+            /** Set */
+            set?: number | null;
+        };
+        /**
          * GodResourceDef
-         * @description Une ressource propre à un dieu. Sa valeur est libre : saisie par le joueur ou le MJ, jusqu'à `max` s'il y en a un.
+         * @description Une ressource propre à un dieu. Sa valeur vit dans la room (instance), libre entre 0 et `max` s'il y en a un.
          */
         GodResourceDef: {
             /** Name */
@@ -1341,7 +1378,7 @@ export interface components {
         };
         /**
          * GodResourceValue
-         * @description Une ressource propre à un dieu du personnage, avec sa valeur sur la fiche.
+         * @description Une ressource propre à un dieu du personnage, avec sa valeur dans la room.
          */
         GodResourceValue: {
             /** God */
@@ -1972,14 +2009,6 @@ export interface components {
              * @description Codes : le dieu dont vient le code (son contenu est `name`).
              */
             god?: string | null;
-            /**
-             * Amounts
-             * @description Dieux : valeur de chaque ressource propre au dieu, par nom (saisie libre).
-             * @default {}
-             */
-            amounts?: {
-                [key: string]: number;
-            };
         };
         /** SkillGroup */
         SkillGroup: {
@@ -3476,6 +3505,42 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["MonitorChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_god_resource_api_rooms__room_id__instances__instance_id__god_resources_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                instance_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GodResourceChange"];
             };
         };
         responses: {

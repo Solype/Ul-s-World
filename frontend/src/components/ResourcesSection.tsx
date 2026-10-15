@@ -11,7 +11,7 @@ import GodPowers, { unlockedPowers } from "./GodPowers";
 import GodResources from "./GodResources";
 import NumberStepper from "./NumberStepper";
 
-type Selection = { name: string; value?: number | null; god?: string | null; amounts?: Record<string, number> };
+type Selection = { name: string; value?: number | null; god?: string | null };
 
 type Props = {
   rules: Rules;
@@ -53,7 +53,7 @@ export default function ResourcesSection({ rules, character, rulesMode, imposed,
   const godCodes = new Map((rules.catalogs.dieux ?? []).map((g) => [g.label, g.codes ?? []]));
   // Pouvoirs de chaque dieu, débloqués selon la piété envers lui.
   const godPowers = new Map((rules.catalogs.dieux ?? []).map((g) => [g.label, g.powers ?? []]));
-  // Ressources propres à certains dieux, à valeur libre.
+  // Ressources propres à certains dieux (leur valeur se suit dans la room).
   const godResources = new Map((rules.catalogs.dieux ?? []).map((g) => [g.label, g.resources ?? []]));
 
   const defs = Object.entries(rules.resource_defs);
@@ -159,15 +159,13 @@ export default function ResourcesSection({ rules, character, rulesMode, imposed,
                           {unlocked.length > 0 && (
                             <p className="text-xs text-muted-foreground">Pouvoirs : {unlocked.map((p) => p.name).join(", ")}</p>
                           )}
-                          {/* Ressources propres au dieu : valeur libre, même en mode règles. */}
-                          {(godResources.get(god.name) ?? []).map((r) => (
-                            <div key={r.name} className="flex items-center gap-2 pl-3" title={r.description || undefined}>
-                              <span className="flex-1 text-sm">{r.name}</span>
-                              <NumberStepper value={god.amounts?.[r.name] ?? 0} min={0} max={r.max ?? undefined}
-                                onChange={(v) => setItems(key, items.map((x, j) =>
-                                  (j === i ? { ...x, amounts: { ...x.amounts, [r.name]: v } } : x)))} />
-                            </div>
-                          ))}
+                          {/* Ressources propres au dieu : leur valeur se suit dans chaque room, pas sur la fiche. */}
+                          {(godResources.get(god.name) ?? []).length > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              Ressources (suivies dans la room) : {(godResources.get(god.name) ?? [])
+                                .map((r) => (r.max != null ? `${r.name} (max ${r.max})` : r.name)).join(", ")}
+                            </p>
+                          )}
                         </div>
                       );
                     })}

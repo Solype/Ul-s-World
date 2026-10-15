@@ -136,7 +136,8 @@ class RoomCharacter(Base):
 
 class CharacterInstance(Base):
     """Un personnage en jeu dans une room : la fiche sert de modèle, l'instance porte l'état
-    (moniteurs de condition). Elle vit et meurt avec la présence du personnage dans la room."""
+    (moniteurs de condition, statuts, ressources des dieux). Elle vit et meurt avec la présence du personnage
+    dans la room."""
 
     __tablename__ = "character_instances"
     __table_args__ = (ForeignKeyConstraint(
@@ -150,6 +151,8 @@ class CharacterInstance(Base):
     monitors: Mapped[dict] = mapped_column(JSON, default=dict)
     # Statuts (tags libres : enflammé, empoisonné...) : [{"id", "label", "hidden"}]. `hidden` : vu du MJ seul.
     statuses: Mapped[list] = mapped_column(JSON, default=list)
+    # Ressources propres aux dieux, propres à la room : {dieu: {ressource: valeur}} (0 si jamais modifiée).
+    god_resources: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     # Ce que voient les joueurs : cache | visible | revele (schemas.InstanceVisibility).
     visibility: Mapped[str] = mapped_column(String(10), default="revele", server_default="revele")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

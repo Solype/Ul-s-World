@@ -196,13 +196,15 @@ export default function CharacterSheet({ id, onClose, embedded = false }: {
             {(selections.dieux ?? []).map((g) => {
               const god = rules.catalogs.dieux?.find((d) => d.label === g.name);
               const unlocked = unlockedPowers(god?.powers ?? [], rules.power_tiers, g.value ?? 0);
-              const own = (god?.resources ?? []).map((r) => `${r.name} ${g.amounts?.[r.name] ?? 0}${r.max != null ? `/${r.max}` : ""}`);
+              const own = (god?.resources ?? []).map((r) => (r.max != null ? `${r.name} (max ${r.max})` : r.name));
               return (
                 <div key={g.name}>
                   {unlocked.length > 0 && (
                     <p><span className="text-muted-foreground">Pouvoirs de {g.name} :</span> {unlocked.map((p) => p.name).join(", ")}</p>
                   )}
-                  {own.length > 0 && <p><span className="text-muted-foreground">Ressources de {g.name} :</span> {own.join(", ")}</p>}
+                  {own.length > 0 && (
+                    <p><span className="text-muted-foreground">Ressources de {g.name} (suivies dans la room) :</span> {own.join(", ")}</p>
+                  )}
                 </div>
               );
             })}

@@ -139,23 +139,10 @@ def test_god_codes_target_known_gods():
     assert set(_GOD_CODES) | set(_GOD_DESCRIPTIONS) | set(_GOD_POWERS) <= {g.label for g in GODS}
 
 
-def test_god_resources_are_free_but_own(monster):
-    """Ressources propres à un dieu : valeur libre, mais seulement celles du dieu."""
+def test_god_resources_target_known_gods():
+    """Leurs valeurs vivent dans la room (voir test_instances) ; ici, seulement le catalogue."""
     from app.rules.catalogs import _GOD_RESOURCES
     assert set(_GOD_RESOURCES) <= {f"Dieu {i}" for i in range(1, 13)}
-    monster["resources"] = {"dieux": 1}
-    monster["selections"] = {"dieux": [{"name": "Dieu 9", "amounts": {"Rumeurs": 42, "Secrets": 0}}]}
-    assert "selections.dieux" not in issues(monster)
-    monster["selections"]["dieux"][0]["amounts"]["Clés bénies"] = 1
-    assert issues(monster)["selections.dieux"] == "« Clés bénies » n'est pas une ressource de « Dieu 9 »."
-
-
-def test_god_resource_max(monster):
-    monster["resources"] = {"dieux": 1}
-    monster["selections"] = {"dieux": [{"name": "Dieu 2", "amounts": {"Clés bénies": 3}}]}
-    assert "selections.dieux" not in issues(monster)
-    monster["selections"]["dieux"][0]["amounts"]["Clés bénies"] = 4
-    assert issues(monster)["selections.dieux"] == "Clés bénies (Dieu 2) : 4, maximum 3."
 
 
 def test_power_tiers_unlock_at_piety():

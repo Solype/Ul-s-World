@@ -1557,6 +1557,68 @@
         }
       }
     },
+    "/api/rooms/{room_id}/instances/{instance_id}/god-resources": {
+      "patch": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Modifier une ressource d'un dieu",
+        "description": "La valeur est propre à la room. Elle reste entre 0 et le max de la ressource, s'il y en a un.",
+        "operationId": "change_god_resource_api_rooms__room_id__instances__instance_id__god_resources_patch",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Instance Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GodResourceChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/rooms/{room_id}/instances/{instance_id}/resync": {
       "post": {
         "tags": [
@@ -3216,6 +3278,42 @@
         "title": "GodPower",
         "description": "Un pouvoir d'un dieu, débloqué quand la piété envers ce dieu atteint le seuil de son palier."
       },
+      "GodResourceChange": {
+        "properties": {
+          "god": {
+            "type": "string",
+            "title": "God"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "delta": {
+            "type": "integer",
+            "title": "Delta",
+            "default": 0
+          },
+          "set": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set"
+          }
+        },
+        "type": "object",
+        "required": [
+          "god",
+          "name"
+        ],
+        "title": "GodResourceChange",
+        "description": "Modifier une ressource propre à un dieu, dans la room. `delta` ajoute (après `set`, s'il est donné)."
+      },
       "GodResourceDef": {
         "properties": {
           "name": {
@@ -3244,7 +3342,7 @@
           "name"
         ],
         "title": "GodResourceDef",
-        "description": "Une ressource propre à un dieu. Sa valeur est libre : saisie par le joueur ou le MJ, jusqu'à `max` s'il y en a un."
+        "description": "Une ressource propre à un dieu. Sa valeur vit dans la room (instance), libre entre 0 et `max` s'il y en a un."
       },
       "GodResourceValue": {
         "properties": {
@@ -3279,7 +3377,7 @@
           "value"
         ],
         "title": "GodResourceValue",
-        "description": "Une ressource propre à un dieu du personnage, avec sa valeur sur la fiche."
+        "description": "Une ressource propre à un dieu du personnage, avec sa valeur dans la room."
       },
       "Grant": {
         "properties": {
@@ -4619,19 +4717,6 @@
             ],
             "title": "God",
             "description": "Codes : le dieu dont vient le code (son contenu est `name`)."
-          },
-          "amounts": {
-            "additionalProperties": {
-              "type": "integer",
-              "minimum": 0.0
-            },
-            "propertyNames": {
-              "maxLength": 100
-            },
-            "type": "object",
-            "title": "Amounts",
-            "description": "Dieux : valeur de chaque ressource propre au dieu, par nom (saisie libre).",
-            "default": {}
           }
         },
         "type": "object",

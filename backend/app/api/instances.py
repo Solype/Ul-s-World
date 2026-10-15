@@ -23,12 +23,13 @@ from app.api.deps import current_user, room_or_404
 from app.db import get_session
 from app.models import Character, CharacterInstance, Room, RoomCharacter, User
 from app.realtime.manager import manager, room_channel
-from app.rules.catalogs import CATALOGS
+from app.rules.catalogs import CATALOGS, GodResourceDef
 from app.rules.monitors import monitor_maxima
 from app.schemas import (
     CharacterKind,
     CharacterRead,
     CharacterSummary,
+    GodResourceChange,
     GodResourceValue,
     InstanceRead,
     InstanceVisibility,
@@ -81,17 +82,24 @@ def read_instance(instance: CharacterInstance, gm_view: bool) -> InstanceRead:
         visibility=instance.visibility,
         number=siblings.index(instance) + 1 if len(siblings) > 1 and instance in siblings else None,
         natural_armor=armor if full else None,
-        god_resources=_god_resources(character) if full else [],
+        god_resources=_god_resources(instance) if full else [],
         updated_at=instance.updated_at,
     )
 
 
-def _god_resources(character: Character) -> list[GodResourceValue]:
-    """Ressources propres aux dieux choisis, avec leur valeur sur la fiche (0 si jamais saisie)."""
+def _god_resource_defs(character: Character) -> dict[tuple[str, str], GodResourceDef]:
+    """Ressources propres aux dieux choisis sur la fiche, par (dieu, ressource), dans l'ordre de la fiche."""
     catalog = {g.label: g for g in CATALOGS["dieux"]}
-    return [GodResourceValue(god=pick["name"], name=r.name, value=pick.get("amounts", {}).get(r.name, 0), max=r.max)
+    return {(pick["name"], r.name): r
             for pick in (character.selections or {}).get("dieux", [])
-            for r in (catalog[pick["name"]].resources if pick["name"] in catalog else [])]
+            for r in (catalog[pick["name"]].resources if pick["name"] in catalog else [])}
+
+
+def _god_resources(instance: CharacterInstance) -> list[GodResourceValue]:
+    """Les ressources viennent des dieux de la fiche ; leurs valeurs sont celles de la room (0 si jamais modifiée)."""
+    values = instance.god_resources or {}
+    return [GodResourceValue(god=god, name=name, value=values.get(god, {}).get(name, 0), max=r.max)
+            for (god, name), r in _god_resource_defs(instance.link.character).items()]
 
 
 def push_instance(background: BackgroundTasks, instance: CharacterInstance) -> None:
@@ -232,6 +240,24 @@ def change_monitors(room_id: int, instance_id: int, payload: MonitorChange, back
     for m in monitors.values():
         m["current"] = max(0, min(m["max"], m["current"]))
     instance.monitors = monitors
+    return _save_and_push(session, background, instance, user)
+
+
+@router.patch("/{room_id}/instances/{instance_id}/god-resources", response_model=InstanceRead,
+               summary="Modifier une ressource d'un dieu")
+def change_god_resource(room_id: int, instance_id: int, payload: GodResourceChange, background: BackgroundTasks,
+                        user: User = Depends(current_user), session: Session = Depends(get_session)) -> InstanceRead:
+    """La valeur est propre à la room. Elle reste entre 0 et le max de la ressource, s'il y en a un."""
+    instance = _instance_or_404(session, room_id, instance_id, user)
+    r = _god_resource_defs(instance.link.character).get((payload.god, payload.name))
+    if r is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            f"« {payload.name} » n'est pas une ressource d'un dieu de ce personnage")
+    values = {g: dict(v) for g, v in (instance.god_resources or {}).items()}
+    current = payload.set if payload.set is not None else values.get(payload.god, {}).get(payload.name, 0)
+    value = max(0, current + payload.delta)
+    values.setdefault(payload.god, {})[payload.name] = value if r.max is None else min(r.max, value)
+    instance.god_resources = values
     return _save_and_push(session, background, instance, user)
 
 

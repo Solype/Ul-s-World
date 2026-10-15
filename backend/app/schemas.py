@@ -67,9 +67,6 @@ class SelectionItem(BaseModel):
     name: str = Field(min_length=1, max_length=500)
     value: int | None = Field(None, ge=0, description="Valeur de l'élément : valeur d'un code, piété d'un dieu.")
     god: str | None = Field(None, max_length=100, description="Codes : le dieu dont vient le code (son contenu est `name`).")
-    amounts: dict[Annotated[str, Field(max_length=100)], Annotated[int, Field(ge=0)]] = Field(
-        {}, description="Dieux : valeur de chaque ressource propre au dieu, par nom (saisie libre).")
-
 
 class TraitPick(BaseModel):
     """Un trait de personnage choisi (catalogue : rules/traits.py)."""
@@ -318,7 +315,7 @@ class Monitor(BaseModel):
 
 
 class GodResourceValue(BaseModel):
-    """Une ressource propre à un dieu du personnage, avec sa valeur sur la fiche."""
+    """Une ressource propre à un dieu du personnage, avec sa valeur dans la room."""
     god: str
     name: str
     value: int
@@ -344,7 +341,8 @@ class InstanceRead(BaseModel):
     number: int | None = None
     # Monstres : armure naturelle (absente pour un joueur tant que le monstre n'est pas révélé).
     natural_armor: int | None = None
-    # Ressources propres aux dieux du personnage, lues sur la fiche (absentes pour un joueur tant qu'il n'est pas révélé).
+    # Ressources propres aux dieux de la fiche, avec leur valeur dans la room (absentes pour un joueur tant qu'il
+    # n'est pas révélé).
     god_resources: list[GodResourceValue] = []
     updated_at: datetime
 
@@ -367,6 +365,15 @@ class MonitorChange(BaseModel):
 
     delta: dict[str, int] = {}
     set: dict[str, Annotated[int, Field(ge=0)]] = {}
+
+
+class GodResourceChange(BaseModel):
+    """Modifier une ressource propre à un dieu, dans la room. `delta` ajoute (après `set`, s'il est donné)."""
+
+    god: str
+    name: str
+    delta: int = 0
+    set: int | None = Field(None, ge=0)
 
 
 class StatusColor(StrEnum):

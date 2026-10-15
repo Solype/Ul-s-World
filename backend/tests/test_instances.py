@@ -95,19 +95,27 @@ def test_instance_leaves_with_the_character(in_play):
     assert gm.get(f"/api/rooms/{room}/instances").json() == []
 
 
-def test_god_resources_are_shown_and_pushed_on_sheet_change(in_play):
-    """Les ressources propres aux dieux du personnage apparaissent sur sa carte, et suivent la fiche en direct."""
-    alice, room, pj = in_play["alice"], in_play["room"], in_play["pj"]
+def test_god_resources_live_in_the_room(in_play):
+    """Les ressources viennent des dieux de la fiche (poussées en direct quand elle change) ; leur valeur est
+    propre à la room, entre 0 et le max."""
+    alice, bob, room, pj, url = in_play["alice"], in_play["bob"], in_play["room"], in_play["pj"], in_play["url"]
     assert in_play["instance"]["god_resources"] == []
     with in_play["gm"].websocket_connect(f"/ws/room:{room}") as ws:
         ws.receive_json()  # présence
-        alice.patch(f"/api/characters/{pj}", json={"selections": {"dieux": [
-            {"name": "Dieu 2", "value": 3, "amounts": {"Clés bénies": 2}}, {"name": "Dieu 1", "value": 3}]}})
+        alice.patch(f"/api/characters/{pj}", json={"selections": {"dieux": [{"name": "Dieu 2", "value": 3}]}})
         event = ws.receive_json()
         assert event["type"] == "room.instance"
-        assert event["instance"]["god_resources"] == [{"god": "Dieu 2", "name": "Clés bénies", "value": 2, "max": 3}]
-    [instance] = in_play["bob"].get(f"/api/rooms/{room}/instances").json()
-    assert instance["god_resources"] == [{"god": "Dieu 2", "name": "Clés bénies", "value": 2, "max": 3}]
+        assert event["instance"]["god_resources"] == [{"god": "Dieu 2", "name": "Clés bénies", "value": 0, "max": 3}]
+
+    keys = {"god": "Dieu 2", "name": "Clés bénies"}
+    value = lambda res: res.json()["god_resources"][0]["value"]  # noqa: E731
+    assert value(bob.patch(f"{url}/god-resources", json={**keys, "delta": 2})) == 2
+    assert value(bob.patch(f"{url}/god-resources", json={**keys, "delta": 5})) == 3      # max 3
+    assert value(bob.patch(f"{url}/god-resources", json={**keys, "delta": -9})) == 0     # jamais sous 0
+    assert value(bob.patch(f"{url}/god-resources", json={**keys, "set": 1})) == 1
+    assert bob.patch(f"{url}/god-resources", json={"god": "Dieu 9", "name": "Rumeurs", "delta": 1}).status_code == 422
+    # La fiche ne porte pas la valeur : elle est propre à la room.
+    assert "amounts" not in alice.get(f"/api/characters/{pj}").json()["selections"]["dieux"][0]
 
 
 def test_monitor_changes_are_pushed(in_play):

@@ -81,7 +81,7 @@ class GodPower(BaseModel):
 
 
 class GodResourceDef(BaseModel):
-    """Une ressource propre à un dieu. Sa valeur est libre : saisie par le joueur ou le MJ, jusqu'à `max` s'il y en a un."""
+    """Une ressource propre à un dieu. Sa valeur vit dans la room (instance), libre entre 0 et `max` s'il y en a un."""
     name: str
     description: str = ""
     max: int | None = None
