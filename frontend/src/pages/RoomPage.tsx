@@ -56,6 +56,8 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
   const [mine, setMine] = useState<Character[]>([]);
   const [instances, setInstances] = useState<Instance[]>([]);
   const [confirm, setConfirm] = useState<"leave" | "delete" | null>(null);
+  // PJ que le MJ s'apprête à retirer de la room depuis sa carte.
+  const [removingPc, setRemovingPc] = useState<Instance["character"] | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [charactersOpen, setCharactersOpen] = useState(false);
   const [monstersOpen, setMonstersOpen] = useState(false);
@@ -205,6 +207,13 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
   if (missing) return <p className="text-muted-foreground">Room introuvable.</p>;
   if (!room) return <div className="grid gap-4"><Skeleton className="h-10 w-64" /><Skeleton className="h-96" /></div>;
 
+  // Refuser ou retirer un personnage de la room ; un PJ sort du jeu avec (son état en jeu est effacé).
+  const removeCharacter = (character_id: number) => {
+    withdrawn.current.add(character_id);
+    act(api.DELETE("/api/rooms/{room_id}/characters/{character_id}",
+      { params: { path: { room_id: id, character_id } } }), "Action impossible");
+  };
+
   const removeMember = async (memberId: number) => {
     const { error } = await api.DELETE("/api/rooms/{room_id}/members/{user_id}",
       { params: { path: { room_id: id, user_id: memberId } } });
@@ -293,7 +302,8 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
                   onSet={(m, v) => changeMonitors(i.id, { set: { [m]: v } })}
                   onResync={() => resync(i.id)} onSheet={canReadSheet(i) ? () => setSheetId(i.character.id) : undefined}
                   onVisibility={isGM && i.character.kind !== "pj" ? (v) => setVisibility(i.id, v) : undefined}
-                  onRemove={isGM && i.character.kind !== "pj" ? () => removeInstance(i.id) : undefined} />
+                  onRemove={!isGM ? undefined
+                    : i.character.kind === "pj" ? () => setRemovingPc(i.character) : () => removeInstance(i.id)} />
               ))}
             </div>
           )}
@@ -321,11 +331,7 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
               "Proposition impossible")}
             onAccept={(character_id) => act(api.POST("/api/rooms/{room_id}/characters/{character_id}/accept",
               { params: { path: { room_id: id, character_id } } }), "Action impossible")}
-            onRemove={(character_id) => {
-              withdrawn.current.add(character_id);
-              act(api.DELETE("/api/rooms/{room_id}/characters/{character_id}",
-                { params: { path: { room_id: id, character_id } } }), "Action impossible");
-            }} />
+            onRemove={removeCharacter} />
         </DialogContent>
       </Dialog>
 
@@ -380,6 +386,24 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
             <DialogClose asChild><Button variant="outline">Annuler</Button></DialogClose>
             <Button variant="destructive" onClick={() => (confirm === "delete" ? deleteRoom() : removeMember(user.id))}>
               {confirm === "delete" ? "Supprimer" : "Quitter"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={removingPc !== null} onOpenChange={(open) => !open && setRemovingPc(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Retirer {removingPc?.name} de la room ?</DialogTitle>
+            <DialogDescription>
+              Il sort du jeu : son état en jeu (dégâts, statuts) est effacé. Sa fiche est conservée,
+              et {removingPc?.owner?.username ?? "son joueur"} pourra le proposer de nouveau.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Annuler</Button></DialogClose>
+            <Button variant="destructive" onClick={() => { if (removingPc) removeCharacter(removingPc.id); setRemovingPc(null); }}>
+              Retirer
             </Button>
           </DialogFooter>
         </DialogContent>

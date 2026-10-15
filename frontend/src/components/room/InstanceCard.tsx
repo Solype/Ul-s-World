@@ -45,8 +45,9 @@ type Props = {
   onResync: () => void;
   /** Absent : fiche illisible pour ce compte (monstre du MJ hors de la room, vu par un joueur). */
   onSheet?: () => void;
-  /** MJ, pour un monstre : cacher, montrer ou révéler aux joueurs, et retirer cet exemplaire du jeu. */
+  /** MJ, pour un monstre : cacher, montrer ou révéler aux joueurs. */
   onVisibility?: (visibility: InstanceVisibility) => void;
+  /** MJ : retirer cet exemplaire du jeu (monstre), ou le personnage de la room (PJ). */
   onRemove?: () => void;
 };
 
@@ -208,6 +209,7 @@ export default function InstanceCard({
 }: Props) {
   const c = instance.character;
   const isMonster = c.kind === "monstre";
+  const isPC = c.kind === "pj";
   const visibility = instance.visibility ?? "revele";
   // Plusieurs exemplaires du même monstre : « Loup 2 ».
   const name = instance.number ? `${c.name} ${instance.number}` : c.name;
@@ -280,7 +282,8 @@ export default function InstanceCard({
             )}
             {onSheet && <Button variant="ghost" size="icon-sm" aria-label="Fiche" title="Fiche" onClick={onSheet}><FileText /></Button>}
             {onRemove && (
-              <Button variant="ghost" size="icon-sm" aria-label="Retirer du jeu" title="Retirer cet exemplaire du jeu"
+              <Button variant="ghost" size="icon-sm" aria-label={isPC ? "Retirer de la room" : "Retirer du jeu"}
+                title={isPC ? "Retirer ce personnage de la room" : "Retirer cet exemplaire du jeu"}
                 onClick={onRemove}><Trash2 /></Button>
             )}
             <Button variant="ghost" size="icon-sm" aria-label={pinned ? "Replier" : "Garder ouvert"} title={pinned ? "Replier" : "Garder ouvert"}
