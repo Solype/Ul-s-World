@@ -80,6 +80,12 @@ class GodPower(BaseModel):
     tier: PowerTier
 
 
+class GodResourceDef(BaseModel):
+    """Une ressource propre à un dieu. Sa valeur est libre : saisie par le joueur ou le MJ."""
+    name: str
+    description: str = ""
+
+
 class CatalogEntry(BaseModel):
     label: str
     effect: str
@@ -99,6 +105,8 @@ class CatalogEntry(BaseModel):
     # Dieux : leurs codes et leurs pouvoirs.
     codes: list[GodCode] = []
     powers: list[GodPower] = []
+    # Dieux : leurs ressources propres (certains dieux seulement).
+    resources: list[GodResourceDef] = []
 
 
 def _entries(*items: tuple) -> list[CatalogEntry]:
@@ -197,9 +205,19 @@ def _test_powers(god: str) -> list[GodPower]:
             for tier, word in _TEST_POWER_NAMES.items()]
 
 
+# Ressources propres à certains dieux, par libellé de dieu (données de test).
+_GOD_RESOURCES: dict[str, list[GodResourceDef]] = {
+    "Dieu 2": [GodResourceDef(name="Clés bénies", description="Chaque clé bénie ouvre une porte, une seule fois.")],
+    "Dieu 5": [GodResourceDef(name="Chaussettes orphelines",
+                              description="Offrandes recueillies ; la déesse en réclame une par service rendu.")],
+    "Dieu 9": [GodResourceDef(name="Rumeurs", description="Rumeurs en circulation, à faire courir ou à étouffer."),
+               GodResourceDef(name="Secrets", description="Secrets gardés pour la déesse.")],
+    "Dieu 10": [GodResourceDef(name="Marmites sacrées", description="Repas bénis qu'on peut partager.")],
+}
+
 # Les 12 dieux. Noms provisoires.
 GODS = [CatalogEntry(label=name, effect=_GOD_DESCRIPTIONS.get(name, ""), codes=_GOD_CODES.get(name, []),
-                     powers=_GOD_POWERS.get(name) or _test_powers(name))
+                     powers=_GOD_POWERS.get(name) or _test_powers(name), resources=_GOD_RESOURCES.get(name, []))
         for name in (f"Dieu {i}" for i in range(1, 13))]
 
 

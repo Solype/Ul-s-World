@@ -194,10 +194,16 @@ export default function CharacterSheet({ id, onClose, embedded = false }: {
           {showBlock(names("dieux").length + (selections.codes ?? []).length + (c.resources?.piete ?? 0) > 0) && <Block title="Religion">
             <p><span className="text-muted-foreground">Dieux :</span> {list((selections.dieux ?? []).map((g) => `${g.name} (piété ${g.value ?? 0}/10)`))}</p>
             {(selections.dieux ?? []).map((g) => {
-              const powers = rules.catalogs.dieux?.find((d) => d.label === g.name)?.powers ?? [];
-              const unlocked = unlockedPowers(powers, rules.power_tiers, g.value ?? 0);
-              return unlocked.length > 0 && (
-                <p key={g.name}><span className="text-muted-foreground">Pouvoirs de {g.name} :</span> {unlocked.map((p) => p.name).join(", ")}</p>
+              const god = rules.catalogs.dieux?.find((d) => d.label === g.name);
+              const unlocked = unlockedPowers(god?.powers ?? [], rules.power_tiers, g.value ?? 0);
+              const own = (god?.resources ?? []).map((r) => `${r.name} ${g.amounts?.[r.name] ?? 0}`);
+              return (
+                <div key={g.name}>
+                  {unlocked.length > 0 && (
+                    <p><span className="text-muted-foreground">Pouvoirs de {g.name} :</span> {unlocked.map((p) => p.name).join(", ")}</p>
+                  )}
+                  {own.length > 0 && <p><span className="text-muted-foreground">Ressources de {g.name} :</span> {own.join(", ")}</p>}
+                </div>
               );
             })}
             {(selections.codes ?? []).length > 0 && (

@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import type { Attribute, Rules } from "@/api/client";
 import GodCodes from "@/components/GodCodes";
 import GodPowers from "@/components/GodPowers";
+import GodResources from "@/components/GodResources";
 import SpellEffects from "@/components/SpellEffects";
 import { Badge } from "@/components/ui/badge";
 import { ATTRIBUTE_LABELS } from "@/lib/labels";
@@ -296,12 +297,14 @@ function godsPage(rules: Rules): RulePage {
   const sections: RuleSection[] = (rules.catalogs.dieux ?? []).map((e) => ({
     id: `dieu-${slugify(e.label)}`, title: e.label,
     text: `${e.effect} ${(e.codes ?? []).map((c) => c.content).join(" ")} `
-      + (e.powers ?? []).map((p) => `${p.name} ${p.effect}`).join(" "),
+      + (e.powers ?? []).map((p) => `${p.name} ${p.effect}`).join(" ") + " "
+      + (e.resources ?? []).map((r) => `${r.name} ${r.description}`).join(" "),
     content: (
       <div className="flex flex-col gap-3">
         {e.effect ? <p className="text-sm">{e.effect}</p> : <p className="text-sm text-muted-foreground italic">Description à venir.</p>}
         <GodCodes codes={e.codes ?? []} />
         <GodPowers powers={e.powers ?? []} tiers={rules.power_tiers} />
+        <GodResources resources={e.resources ?? []} />
       </div>
     ),
   }));

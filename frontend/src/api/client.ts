@@ -45,3 +45,4 @@ export type InstanceVisibility = components["schemas"]["InstanceVisibility"];
 export type GodCode = components["schemas"]["GodCode"];
 export type GodPower = components["schemas"]["GodPower"];
 export type PowerTierDef = components["schemas"]["PowerTierDef"];
+export type GodResourceDef = components["schemas"]["GodResourceDef"];

@@ -8,9 +8,10 @@ import CatalogPicker from "./CatalogPicker";
 import CodesPicker from "./CodesPicker";
 import GodCodes from "./GodCodes";
 import GodPowers, { unlockedPowers } from "./GodPowers";
+import GodResources from "./GodResources";
 import NumberStepper from "./NumberStepper";
 
-type Selection = { name: string; value?: number | null; god?: string | null };
+type Selection = { name: string; value?: number | null; god?: string | null; amounts?: Record<string, number> };
 
 type Props = {
   rules: Rules;
@@ -52,6 +53,8 @@ export default function ResourcesSection({ rules, character, rulesMode, imposed,
   const godCodes = new Map((rules.catalogs.dieux ?? []).map((g) => [g.label, g.codes ?? []]));
   // Pouvoirs de chaque dieu, débloqués selon la piété envers lui.
   const godPowers = new Map((rules.catalogs.dieux ?? []).map((g) => [g.label, g.powers ?? []]));
+  // Ressources propres à certains dieux, à valeur libre.
+  const godResources = new Map((rules.catalogs.dieux ?? []).map((g) => [g.label, g.resources ?? []]));
 
   const defs = Object.entries(rules.resource_defs);
   const used = (key: string) => allowance(key) > 0 || (selections[key]?.length ?? 0) > 0;
@@ -132,6 +135,7 @@ export default function ResourcesSection({ rules, character, rulesMode, imposed,
                       <>
                         <GodCodes codes={godCodes.get(e.label) ?? []} />
                         <GodPowers powers={godPowers.get(e.label) ?? []} tiers={rules.power_tiers} />
+                        <GodResources resources={godResources.get(e.label) ?? []} />
                       </>
                     ) : undefined}
                     onChange={(names) => setItems(key, names.map((name) =>
@@ -155,6 +159,15 @@ export default function ResourcesSection({ rules, character, rulesMode, imposed,
                           {unlocked.length > 0 && (
                             <p className="text-xs text-muted-foreground">Pouvoirs : {unlocked.map((p) => p.name).join(", ")}</p>
                           )}
+                          {/* Ressources propres au dieu : valeur libre, même en mode règles. */}
+                          {(godResources.get(god.name) ?? []).map((r) => (
+                            <div key={r.name} className="flex items-center gap-2 pl-3" title={r.description || undefined}>
+                              <span className="flex-1 text-sm">{r.name}</span>
+                              <NumberStepper value={god.amounts?.[r.name] ?? 0} min={0}
+                                onChange={(v) => setItems(key, items.map((x, j) =>
+                                  (j === i ? { ...x, amounts: { ...x.amounts, [r.name]: v } } : x)))} />
+                            </div>
+                          ))}
                         </div>
                       );
                     })}

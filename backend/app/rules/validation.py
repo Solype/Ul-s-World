@@ -141,6 +141,12 @@ def validate_character(c: CharacterBase) -> ValidationReport:
                     issue(f"selections.{key}", f"{res.label} : « {name} » n'est pas dans le catalogue.")
             for name in sorted({n for n in names if names.count(n) > 1}):
                 issue(f"selections.{key}", f"{res.label} : « {name} » choisi plusieurs fois.")
+        if key == "dieux":
+            # Ressources propres : valeur libre, mais seulement celles que le dieu possède.
+            for i in items:
+                own = {r.name for g in CATALOGS["dieux"] if g.label == i.name for r in g.resources}
+                for name in sorted(set(i.amounts) - own):
+                    issue("selections.dieux", f"« {name} » n'est pas une ressource de « {i.name} ».")
         if res.kind == "count":
             if len(items) > allowance:
                 issue(f"selections.{key}", f"{res.label} : {len(items)} choisis pour {allowance} autorisés.")

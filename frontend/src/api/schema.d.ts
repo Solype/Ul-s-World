@@ -655,6 +655,11 @@ export interface components {
              * @default []
              */
             powers?: components["schemas"]["GodPower"][];
+            /**
+             * Resources
+             * @default []
+             */
+            resources?: components["schemas"]["GodResourceDef"][];
         };
         /** CharacterBase */
         CharacterBase: {
@@ -1319,6 +1324,19 @@ export interface components {
              */
             tier: "passif" | "palier_1" | "palier_2" | "palier_3" | "ultime";
         };
+        /**
+         * GodResourceDef
+         * @description Une ressource propre à un dieu. Sa valeur est libre : saisie par le joueur ou le MJ.
+         */
+        GodResourceDef: {
+            /** Name */
+            name: string;
+            /**
+             * Description
+             * @default
+             */
+            description?: string;
+        };
         /** Grant */
         Grant: {
             /**
@@ -1933,6 +1951,14 @@ export interface components {
              * @description Codes : le dieu dont vient le code (son contenu est `name`).
              */
             god?: string | null;
+            /**
+             * Amounts
+             * @description Dieux : valeur de chaque ressource propre au dieu, par nom (saisie libre).
+             * @default {}
+             */
+            amounts?: {
+                [key: string]: number;
+            };
         };
         /** SkillGroup */
         SkillGroup: {

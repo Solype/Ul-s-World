@@ -2006,6 +2006,14 @@
             "type": "array",
             "title": "Powers",
             "default": []
+          },
+          "resources": {
+            "items": {
+              "$ref": "#/components/schemas/GodResourceDef"
+            },
+            "type": "array",
+            "title": "Resources",
+            "default": []
           }
         },
         "type": "object",
@@ -3207,6 +3215,25 @@
         ],
         "title": "GodPower",
         "description": "Un pouvoir d'un dieu, débloqué quand la piété envers ce dieu atteint le seuil de son palier."
+      },
+      "GodResourceDef": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "GodResourceDef",
+        "description": "Une ressource propre à un dieu. Sa valeur est libre : saisie par le joueur ou le MJ."
       },
       "Grant": {
         "properties": {
@@ -4538,6 +4565,19 @@
             ],
             "title": "God",
             "description": "Codes : le dieu dont vient le code (son contenu est `name`)."
+          },
+          "amounts": {
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            "propertyNames": {
+              "maxLength": 100
+            },
+            "type": "object",
+            "title": "Amounts",
+            "description": "Dieux : valeur de chaque ressource propre au dieu, par nom (saisie libre).",
+            "default": {}
           }
         },
         "type": "object",

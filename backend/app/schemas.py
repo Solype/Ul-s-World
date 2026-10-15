@@ -67,6 +67,8 @@ class SelectionItem(BaseModel):
     name: str = Field(min_length=1, max_length=500)
     value: int | None = Field(None, ge=0, description="Valeur de l'élément : valeur d'un code, piété d'un dieu.")
     god: str | None = Field(None, max_length=100, description="Codes : le dieu dont vient le code (son contenu est `name`).")
+    amounts: dict[Annotated[str, Field(max_length=100)], Annotated[int, Field(ge=0)]] = Field(
+        {}, description="Dieux : valeur de chaque ressource propre au dieu, par nom (saisie libre).")
 
 
 class TraitPick(BaseModel):
