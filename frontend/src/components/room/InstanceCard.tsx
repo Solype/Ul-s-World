@@ -321,6 +321,18 @@ export default function InstanceCard({
                 onDelta={(d) => onDelta(k, d)} onSet={(v) => onSet(k, v)} />
             ))}
           </div>
+          {/* Ressources propres aux dieux du personnage, lues sur sa fiche (on les modifie dans la fiche). */}
+          {(instance.god_resources ?? []).length > 0 && (
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-muted-foreground">Ressources divines</span>
+              {(instance.god_resources ?? []).map((r) => (
+                <div key={`${r.god}/${r.name}`} className="flex items-center gap-2 text-sm" title={r.god}>
+                  <span className="min-w-0 flex-1 truncate">{r.name} <span className="text-xs text-muted-foreground">· {r.god}</span></span>
+                  <span className="tabular-nums">{r.value}{r.max != null && <span className="text-muted-foreground"> / {r.max}</span>}</span>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-2 text-primary/50" aria-hidden>
             <span className="h-px flex-1 bg-linear-to-r from-transparent to-primary/40" />
             <span className="text-[0.5rem]">◆</span>

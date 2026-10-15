@@ -1326,7 +1326,7 @@ export interface components {
         };
         /**
          * GodResourceDef
-         * @description Une ressource propre à un dieu. Sa valeur est libre : saisie par le joueur ou le MJ.
+         * @description Une ressource propre à un dieu. Sa valeur est libre : saisie par le joueur ou le MJ, jusqu'à `max` s'il y en a un.
          */
         GodResourceDef: {
             /** Name */
@@ -1336,6 +1336,22 @@ export interface components {
              * @default
              */
             description?: string;
+            /** Max */
+            max?: number | null;
+        };
+        /**
+         * GodResourceValue
+         * @description Une ressource propre à un dieu du personnage, avec sa valeur sur la fiche.
+         */
+        GodResourceValue: {
+            /** God */
+            god: string;
+            /** Name */
+            name: string;
+            /** Value */
+            value: number;
+            /** Max */
+            max?: number | null;
         };
         /** Grant */
         Grant: {
@@ -1406,6 +1422,11 @@ export interface components {
             number?: number | null;
             /** Natural Armor */
             natural_armor?: number | null;
+            /**
+             * God Resources
+             * @default []
+             */
+            god_resources?: components["schemas"]["GodResourceValue"][];
             /**
              * Updated At
              * Format: date-time

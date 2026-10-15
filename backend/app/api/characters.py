@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import admin_user, can_edit, can_view, current_user
+from app.api.instances import push_instance
 from app.db import get_session
 from app.models import Character, User
 from app.realtime.manager import notify_character
@@ -150,6 +151,10 @@ def update_character(
             )
     session.commit()
     background.add_task(notify_character, "character.updated", character.id, character.owner_id)
+    # Personnage en jeu : les rooms voient tout de suite la fiche à jour (ressources des dieux, « fiche modifiée »).
+    for link in character.room_links:
+        for instance in link.instances:
+            push_instance(background, instance)
     return character
 
 

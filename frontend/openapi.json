@@ -3226,6 +3226,17 @@
             "type": "string",
             "title": "Description",
             "default": ""
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
           }
         },
         "type": "object",
@@ -3233,7 +3244,42 @@
           "name"
         ],
         "title": "GodResourceDef",
-        "description": "Une ressource propre à un dieu. Sa valeur est libre : saisie par le joueur ou le MJ."
+        "description": "Une ressource propre à un dieu. Sa valeur est libre : saisie par le joueur ou le MJ, jusqu'à `max` s'il y en a un."
+      },
+      "GodResourceValue": {
+        "properties": {
+          "god": {
+            "type": "string",
+            "title": "God"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "value": {
+            "type": "integer",
+            "title": "Value"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          }
+        },
+        "type": "object",
+        "required": [
+          "god",
+          "name",
+          "value"
+        ],
+        "title": "GodResourceValue",
+        "description": "Une ressource propre à un dieu du personnage, avec sa valeur sur la fiche."
       },
       "Grant": {
         "properties": {
@@ -3413,6 +3459,14 @@
               }
             ],
             "title": "Natural Armor"
+          },
+          "god_resources": {
+            "items": {
+              "$ref": "#/components/schemas/GodResourceValue"
+            },
+            "type": "array",
+            "title": "God Resources",
+            "default": []
           },
           "updated_at": {
             "type": "string",

@@ -8,7 +8,9 @@ export default function GodResources({ resources }: { resources: GodResourceDef[
       <span className="text-xs text-muted-foreground">Ressources propres</span>
       {resources.map((r) => (
         <p key={r.name} className="text-sm">
-          <span className="font-medium">{r.name}</span>{r.description && <> : {r.description}</>}
+          <span className="font-medium">{r.name}</span>
+          {r.max != null && <span className="text-muted-foreground"> (max {r.max})</span>}
+          {r.description && <> : {r.description}</>}
         </p>
       ))}
     </div>

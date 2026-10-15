@@ -23,11 +23,13 @@ from app.api.deps import current_user, room_or_404
 from app.db import get_session
 from app.models import Character, CharacterInstance, Room, RoomCharacter, User
 from app.realtime.manager import manager, room_channel
+from app.rules.catalogs import CATALOGS
 from app.rules.monitors import monitor_maxima
 from app.schemas import (
     CharacterKind,
     CharacterRead,
     CharacterSummary,
+    GodResourceValue,
     InstanceRead,
     InstanceVisibility,
     Monitor,
@@ -79,8 +81,26 @@ def read_instance(instance: CharacterInstance, gm_view: bool) -> InstanceRead:
         visibility=instance.visibility,
         number=siblings.index(instance) + 1 if len(siblings) > 1 and instance in siblings else None,
         natural_armor=armor if full else None,
+        god_resources=_god_resources(character) if full else [],
         updated_at=instance.updated_at,
     )
+
+
+def _god_resources(character: Character) -> list[GodResourceValue]:
+    """Ressources propres aux dieux choisis, avec leur valeur sur la fiche (0 si jamais saisie)."""
+    catalog = {g.label: g for g in CATALOGS["dieux"]}
+    return [GodResourceValue(god=pick["name"], name=r.name, value=pick.get("amounts", {}).get(r.name, 0), max=r.max)
+            for pick in (character.selections or {}).get("dieux", [])
+            for r in (catalog[pick["name"]].resources if pick["name"] in catalog else [])]
+
+
+def push_instance(background: BackgroundTasks, instance: CharacterInstance) -> None:
+    """Pousse l'instance à sa room : vue complète au MJ, vue filtrée aux joueurs (ou sa disparition si cachée)."""
+    gm_id = instance.link.room.gm_id
+    gm_event = {"type": "room.instance", "instance": read_instance(instance, gm_view=True).model_dump(mode="json")}
+    player_event = _player_event(instance)
+    background.add_task(manager.broadcast_each, room_channel(instance.room_id),
+                        lambda uid: gm_event if uid == gm_id else player_event)
 
 
 def _player_event(instance: CharacterInstance) -> dict:
@@ -115,12 +135,8 @@ def _save_and_push(session: Session, background: BackgroundTasks, instance: Char
                    user: User) -> InstanceRead:
     """Enregistre et pousse l'instance à la room : vue complète au MJ, sans statuts cachés aux joueurs."""
     session.commit()
-    gm_id = instance.link.room.gm_id
-    gm_event = {"type": "room.instance", "instance": read_instance(instance, gm_view=True).model_dump(mode="json")}
-    player_event = _player_event(instance)
-    background.add_task(manager.broadcast_each, room_channel(instance.room_id),
-                        lambda uid: gm_event if uid == gm_id else player_event)
-    return read_instance(instance, gm_view=user.id == gm_id)
+    push_instance(background, instance)
+    return read_instance(instance, gm_view=user.id == instance.link.room.gm_id)
 
 
 @router.get("/{room_id}/instances", response_model=list[InstanceRead], summary="Personnages en jeu et moniteurs")
@@ -159,20 +175,15 @@ def add_monster(room_id: int, payload: MonsterAdd, background: BackgroundTasks,
                                  monitors={k: {"current": m, "max": m} for k, m in _sheet_max(link).items()})
     link.instances.append(instance)
     session.flush()
-    _renumber(background, room, link, instance)
+    _renumber(background, link, instance)
     return _save_and_push(session, background, instance, user)
 
 
-def _renumber(background: BackgroundTasks, room: Room, link: RoomCharacter, changed: CharacterInstance | None) -> None:
+def _renumber(background: BackgroundTasks, link: RoomCharacter, changed: CharacterInstance | None) -> None:
     """Les numéros des exemplaires (Loup 1, Loup 2...) bougent quand on en ajoute ou retire : on repousse les autres."""
-    gm_id = room.gm_id
     for other in link.instances:
-        if other is changed:
-            continue
-        gm_event = {"type": "room.instance", "instance": read_instance(other, gm_view=True).model_dump(mode="json")}
-        player_event = _player_event(other)
-        background.add_task(manager.broadcast_each, room_channel(room.id),
-                            lambda uid, g=gm_event, p=player_event: g if uid == gm_id else p)
+        if other is not changed:
+            push_instance(background, other)
 
 
 @router.put("/{room_id}/instances/{instance_id}/visibility", response_model=InstanceRead,
@@ -203,7 +214,7 @@ def remove_instance(room_id: int, instance_id: int, background: BackgroundTasks,
         room.characters.remove(link)
     session.commit()
     background.add_task(manager.broadcast, room_channel(room_id), {"type": "room.instance.removed", "id": instance_id})
-    _renumber(background, room, link, None)
+    _renumber(background, link, None)
 
 
 @router.patch("/{room_id}/instances/{instance_id}", response_model=InstanceRead, summary="Modifier des moniteurs")

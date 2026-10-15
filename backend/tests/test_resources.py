@@ -150,6 +150,14 @@ def test_god_resources_are_free_but_own(monster):
     assert issues(monster)["selections.dieux"] == "« Clés bénies » n'est pas une ressource de « Dieu 9 »."
 
 
+def test_god_resource_max(monster):
+    monster["resources"] = {"dieux": 1}
+    monster["selections"] = {"dieux": [{"name": "Dieu 2", "amounts": {"Clés bénies": 3}}]}
+    assert "selections.dieux" not in issues(monster)
+    monster["selections"]["dieux"][0]["amounts"]["Clés bénies"] = 4
+    assert issues(monster)["selections.dieux"] == "Clés bénies (Dieu 2) : 4, maximum 3."
+
+
 def test_power_tiers_unlock_at_piety():
     """Passif, paliers 1 à 3 et ultime : débloqués à piété 0, 3, 6, 8 et 10."""
     from app.rules.catalogs import GODS, POWER_TIERS

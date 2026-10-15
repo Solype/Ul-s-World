@@ -317,6 +317,14 @@ class Monitor(BaseModel):
     max: int = Field(ge=0)
 
 
+class GodResourceValue(BaseModel):
+    """Une ressource propre à un dieu du personnage, avec sa valeur sur la fiche."""
+    god: str
+    name: str
+    value: int
+    max: int | None = None
+
+
 class InstanceRead(BaseModel):
     """Un personnage en jeu dans une room, avec ses moniteurs.
 
@@ -336,6 +344,8 @@ class InstanceRead(BaseModel):
     number: int | None = None
     # Monstres : armure naturelle (absente pour un joueur tant que le monstre n'est pas révélé).
     natural_armor: int | None = None
+    # Ressources propres aux dieux du personnage, lues sur la fiche (absentes pour un joueur tant qu'il n'est pas révélé).
+    god_resources: list[GodResourceValue] = []
     updated_at: datetime
 
 

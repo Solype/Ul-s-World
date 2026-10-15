@@ -95,6 +95,21 @@ def test_instance_leaves_with_the_character(in_play):
     assert gm.get(f"/api/rooms/{room}/instances").json() == []
 
 
+def test_god_resources_are_shown_and_pushed_on_sheet_change(in_play):
+    """Les ressources propres aux dieux du personnage apparaissent sur sa carte, et suivent la fiche en direct."""
+    alice, room, pj = in_play["alice"], in_play["room"], in_play["pj"]
+    assert in_play["instance"]["god_resources"] == []
+    with in_play["gm"].websocket_connect(f"/ws/room:{room}") as ws:
+        ws.receive_json()  # présence
+        alice.patch(f"/api/characters/{pj}", json={"selections": {"dieux": [
+            {"name": "Dieu 2", "value": 3, "amounts": {"Clés bénies": 2}}, {"name": "Dieu 1", "value": 3}]}})
+        event = ws.receive_json()
+        assert event["type"] == "room.instance"
+        assert event["instance"]["god_resources"] == [{"god": "Dieu 2", "name": "Clés bénies", "value": 2, "max": 3}]
+    [instance] = in_play["bob"].get(f"/api/rooms/{room}/instances").json()
+    assert instance["god_resources"] == [{"god": "Dieu 2", "name": "Clés bénies", "value": 2, "max": 3}]
+
+
 def test_monitor_changes_are_pushed(in_play):
     bob, room, url = in_play["bob"], in_play["room"], in_play["url"]
     with in_play["gm"].websocket_connect(f"/ws/room:{room}") as ws:

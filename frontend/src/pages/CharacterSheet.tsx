@@ -196,7 +196,7 @@ export default function CharacterSheet({ id, onClose, embedded = false }: {
             {(selections.dieux ?? []).map((g) => {
               const god = rules.catalogs.dieux?.find((d) => d.label === g.name);
               const unlocked = unlockedPowers(god?.powers ?? [], rules.power_tiers, g.value ?? 0);
-              const own = (god?.resources ?? []).map((r) => `${r.name} ${g.amounts?.[r.name] ?? 0}`);
+              const own = (god?.resources ?? []).map((r) => `${r.name} ${g.amounts?.[r.name] ?? 0}${r.max != null ? `/${r.max}` : ""}`);
               return (
                 <div key={g.name}>
                   {unlocked.length > 0 && (

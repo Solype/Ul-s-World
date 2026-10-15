@@ -163,7 +163,7 @@ export default function ResourcesSection({ rules, character, rulesMode, imposed,
                           {(godResources.get(god.name) ?? []).map((r) => (
                             <div key={r.name} className="flex items-center gap-2 pl-3" title={r.description || undefined}>
                               <span className="flex-1 text-sm">{r.name}</span>
-                              <NumberStepper value={god.amounts?.[r.name] ?? 0} min={0}
+                              <NumberStepper value={god.amounts?.[r.name] ?? 0} min={0} max={r.max ?? undefined}
                                 onChange={(v) => setItems(key, items.map((x, j) =>
                                   (j === i ? { ...x, amounts: { ...x.amounts, [r.name]: v } } : x)))} />
                             </div>

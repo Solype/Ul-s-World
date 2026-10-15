@@ -81,9 +81,10 @@ class GodPower(BaseModel):
 
 
 class GodResourceDef(BaseModel):
-    """Une ressource propre à un dieu. Sa valeur est libre : saisie par le joueur ou le MJ."""
+    """Une ressource propre à un dieu. Sa valeur est libre : saisie par le joueur ou le MJ, jusqu'à `max` s'il y en a un."""
     name: str
     description: str = ""
+    max: int | None = None
 
 
 class CatalogEntry(BaseModel):
@@ -207,7 +208,8 @@ def _test_powers(god: str) -> list[GodPower]:
 
 # Ressources propres à certains dieux, par libellé de dieu (données de test).
 _GOD_RESOURCES: dict[str, list[GodResourceDef]] = {
-    "Dieu 2": [GodResourceDef(name="Clés bénies", description="Chaque clé bénie ouvre une porte, une seule fois.")],
+    "Dieu 2": [GodResourceDef(name="Clés bénies", description="Chaque clé bénie ouvre une porte, une seule fois.",
+                              max=3)],
     "Dieu 5": [GodResourceDef(name="Chaussettes orphelines",
                               description="Offrandes recueillies ; la déesse en réclame une par service rendu.")],
     "Dieu 9": [GodResourceDef(name="Rumeurs", description="Rumeurs en circulation, à faire courir ou à étouffer."),
