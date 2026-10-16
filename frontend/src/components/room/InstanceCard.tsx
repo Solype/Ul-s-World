@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import DamagePopover, { type DamageInput } from "./DamagePopover";
 import StatusTags, { COLORS, type StatusActions, type StatusSuggestion } from "./StatusTags";
 
 /** Couleur de chaque moniteur de condition (clés : rules/monitors.py MONITORS), de l'anneau extérieur vers le centre. */
@@ -49,6 +50,8 @@ type Props = {
   statusActions: StatusActions;
   onDelta: (monitor: string, delta: number) => void;
   onSet: (monitor: string, value: number) => void;
+  /** Infliger une attaque (armure et pénétration) ; vrai si elle est passée. */
+  onDamage: (input: DamageInput) => Promise<boolean>;
   /** Ajouter `delta` à une ressource d'un dieu (valeur propre à la room). */
   onGodResource: (god: string, name: string, delta: number) => void;
   onResync: () => void;
@@ -296,7 +299,7 @@ function ArrangeMenu({ arrange }: { arrange: Arrange }) {
  * referme d'un clic en dehors ou sur ✕ : pas d'épingle à retirer sur téléphone.
  */
 export default function InstanceCard({
-  instance, defs, canEdit, isGM, statusSuggestions, statusActions, onDelta, onSet, onGodResource, onResync, onSheet,
+  instance, defs, canEdit, isGM, statusSuggestions, statusActions, onDelta, onSet, onDamage, onGodResource, onResync, onSheet,
   onVisibility, onRemove, arrange,
 }: Props) {
   const c = instance.character;
@@ -478,6 +481,9 @@ export default function InstanceCard({
                 onDelta={(d) => onDelta(k, d)} onSet={(v) => onSet(k, v)} />
             ))}
           </div>
+          {canEdit && !unknown && rings.length > 0 && (
+            <DamagePopover monitors={rings.map(([k]) => k)} defs={defs} naturalArmor={instance.natural_armor} onDamage={onDamage} />
+          )}
           {/* Ressources propres aux dieux du personnage : la liste vient de la fiche, la valeur est celle de la room. */}
           {(instance.god_resources ?? []).length > 0 && (
             <div className="flex flex-col gap-0.5">

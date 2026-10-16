@@ -27,11 +27,14 @@ from app.db import get_session
 from app.models import Character, CharacterInstance, Room, RoomCharacter, RoomGroup, User
 from app.realtime.manager import manager, room_channel
 from app.rules.catalogs import CATALOGS, GodResourceDef
+from app.rules.damage import damage_after_armor
 from app.rules.monitors import bound_monitor, monitor_maxima
 from app.schemas import (
     CharacterKind,
     CharacterRead,
     CharacterSummary,
+    DamageApply,
+    DamageRead,
     GodResourceChange,
     GodResourceValue,
     GroupRead,
@@ -302,6 +305,22 @@ def change_monitors(room_id: int, instance_id: int, payload: MonitorChange, back
         m["current"] = bound_monitor(key, m["current"], m["max"])
     instance.monitors = monitors
     return _save_and_push(session, background, instance, user)
+
+
+@router.post("/{room_id}/instances/{instance_id}/damage", response_model=DamageRead,
+             summary="Infliger des dégâts (armure et pénétration)")
+def apply_damage(room_id: int, instance_id: int, payload: DamageApply, background: BackgroundTasks,
+                 user: User = Depends(current_user), session: Session = Depends(get_session)) -> DamageRead:
+    """Calcule les dégâts qui passent l'armure (`rules/damage.py`) et les retire du moniteur touché."""
+    instance = _instance_or_404(session, room_id, instance_id, user)
+    if payload.monitor == "mana" or payload.monitor not in instance.monitors:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Pas de moniteur de condition « {payload.monitor} »")
+    inflicted = damage_after_armor(payload.damage, payload.armor, payload.penetration)
+    monitors = {k: dict(v) for k, v in instance.monitors.items()}
+    m = monitors[payload.monitor]
+    m["current"] = bound_monitor(payload.monitor, m["current"] - inflicted, m["max"])
+    instance.monitors = monitors
+    return DamageRead(inflicted=inflicted, instance=_save_and_push(session, background, instance, user))
 
 
 @router.patch("/{room_id}/instances/{instance_id}/god-resources", response_model=InstanceRead,

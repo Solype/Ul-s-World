@@ -399,6 +399,20 @@ class MonitorChange(BaseModel):
     set: dict[str, int] = {}
 
 
+class DamageApply(BaseModel):
+    """Une attaque sur un moniteur de condition : les dégâts passent l'armure (rules/damage.py), puis sont retirés."""
+
+    monitor: str = Field(description="Moniteur touché : physique, mental, pathologique, endurance.")
+    damage: int = Field(ge=0, description="Dégâts avant armure.")
+    armor: int = Field(0, ge=0, description="Armure contre ce type de dégâts (0 : pas d'armure).")
+    penetration: int = Field(0, ge=0, description="Pénétration de l'arme : dégâts garantis contre une armure.")
+
+
+class DamageRead(BaseModel):
+    inflicted: int = Field(description="Dégâts retirés du moniteur, après armure.")
+    instance: "InstanceRead"
+
+
 class GroupRead(BaseModel):
     """Groupe de personnages en jeu dans une room. Ses membres sont les instances qui portent son `group_id`."""
 

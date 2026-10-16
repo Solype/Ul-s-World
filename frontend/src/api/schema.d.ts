@@ -565,6 +565,26 @@ export interface paths {
         patch: operations["change_monitors_api_rooms__room_id__instances__instance_id__patch"];
         trace?: never;
     };
+    "/api/rooms/{room_id}/instances/{instance_id}/damage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Infliger des dégâts (armure et pénétration)
+         * @description Calcule les dégâts qui passent l'armure (`rules/damage.py`) et les retire du moniteur touché.
+         */
+        post: operations["apply_damage_api_rooms__room_id__instances__instance_id__damage_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/rooms/{room_id}/instances/{instance_id}/god-resources": {
         parameters: {
             query?: never;
@@ -1378,6 +1398,43 @@ export interface components {
             username: string;
             /** Password */
             password: string;
+        };
+        /**
+         * DamageApply
+         * @description Une attaque sur un moniteur de condition : les dégâts passent l'armure (rules/damage.py), puis sont retirés.
+         */
+        DamageApply: {
+            /**
+             * Monitor
+             * @description Moniteur touché : physique, mental, pathologique, endurance.
+             */
+            monitor: string;
+            /**
+             * Damage
+             * @description Dégâts avant armure.
+             */
+            damage: number;
+            /**
+             * Armor
+             * @description Armure contre ce type de dégâts (0 : pas d'armure).
+             * @default 0
+             */
+            armor?: number;
+            /**
+             * Penetration
+             * @description Pénétration de l'arme : dégâts garantis contre une armure.
+             * @default 0
+             */
+            penetration?: number;
+        };
+        /** DamageRead */
+        DamageRead: {
+            /**
+             * Inflicted
+             * @description Dégâts retirés du moniteur, après armure.
+             */
+            inflicted: number;
+            instance: components["schemas"]["InstanceRead"];
         };
         /**
          * ExtraPC
@@ -3759,6 +3816,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_damage_api_rooms__room_id__instances__instance_id__damage_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                instance_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DamageApply"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DamageRead"];
                 };
             };
             /** @description Validation Error */

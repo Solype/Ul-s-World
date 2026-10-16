@@ -64,7 +64,7 @@ class RuleText(BaseModel):
 
 # Textes retranscrits depuis refdoc/ (un fichier par page, le titre est le premier « # »).
 TEXTS_DIR = Path(__file__).resolve().parent.parent / "rules" / "texts"
-TEXT_ORDER = ["creation"]
+TEXT_ORDER = ["creation", "combat"]
 
 
 def _load_texts() -> list[RuleText]:

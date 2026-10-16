@@ -1699,6 +1699,68 @@
         }
       }
     },
+    "/api/rooms/{room_id}/instances/{instance_id}/damage": {
+      "post": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Infliger des dégâts (armure et pénétration)",
+        "description": "Calcule les dégâts qui passent l'armure (`rules/damage.py`) et les retire du moniteur touché.",
+        "operationId": "apply_damage_api_rooms__room_id__instances__instance_id__damage_post",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Instance Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DamageApply"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DamageRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/rooms/{room_id}/instances/{instance_id}/god-resources": {
       "patch": {
         "tags": [
@@ -3378,6 +3440,60 @@
         ],
         "title": "Credentials",
         "description": "Identifiant et mot de passe, pour l'inscription et la connexion."
+      },
+      "DamageApply": {
+        "properties": {
+          "monitor": {
+            "type": "string",
+            "title": "Monitor",
+            "description": "Moniteur touché : physique, mental, pathologique, endurance."
+          },
+          "damage": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Damage",
+            "description": "Dégâts avant armure."
+          },
+          "armor": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Armor",
+            "description": "Armure contre ce type de dégâts (0 : pas d'armure).",
+            "default": 0
+          },
+          "penetration": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Penetration",
+            "description": "Pénétration de l'arme : dégâts garantis contre une armure.",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "monitor",
+          "damage"
+        ],
+        "title": "DamageApply",
+        "description": "Une attaque sur un moniteur de condition : les dégâts passent l'armure (rules/damage.py), puis sont retirés."
+      },
+      "DamageRead": {
+        "properties": {
+          "inflicted": {
+            "type": "integer",
+            "title": "Inflicted",
+            "description": "Dégâts retirés du moniteur, après armure."
+          },
+          "instance": {
+            "$ref": "#/components/schemas/InstanceRead"
+          }
+        },
+        "type": "object",
+        "required": [
+          "inflicted",
+          "instance"
+        ],
+        "title": "DamageRead"
       },
       "ExtraPC": {
         "properties": {

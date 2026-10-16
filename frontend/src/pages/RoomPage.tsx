@@ -8,6 +8,7 @@ import {
   type UserPublic,
 } from "@/api/client";
 import { useUser } from "@/auth/AuthContext";
+import type { DamageInput } from "@/components/room/DamagePopover";
 import RoomBoard, { newGroupLayout, type Layout } from "@/components/room/RoomBoard";
 import type { StatusActions, StatusColor } from "@/components/room/StatusTags";
 import { Badge } from "@/components/ui/badge";
@@ -120,6 +121,18 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
       { params: { path: { room_id: id, instance_id: instanceId } }, body });
     if (data) putInstance(data);
     else toast.error("Modification impossible");
+  };
+  const applyDamage = async (instanceId: number, body: DamageInput) => {
+    const { data } = await api.POST("/api/rooms/{room_id}/instances/{instance_id}/damage",
+      { params: { path: { room_id: id, instance_id: instanceId } }, body });
+    if (!data) {
+      toast.error("Dégâts impossibles");
+      return false;
+    }
+    putInstance(data.instance);
+    const label = rules?.monitors[body.monitor]?.label.toLowerCase() ?? body.monitor;
+    toast.success(`${data.instance.character.name} : ${data.inflicted} dégât${data.inflicted > 1 ? "s" : ""} (${label})`);
+    return true;
   };
   // MJ : placer et grouper les personnages en jeu. La disposition est la même pour tous.
   const applyLayout = async (body: Layout) => {
@@ -338,6 +351,7 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
                 isGM, statusSuggestions, statusActions: statusActions(i.id),
                 onDelta: (m, d) => changeMonitors(i.id, { delta: { [m]: d } }),
                 onSet: (m, v) => changeMonitors(i.id, { set: { [m]: v } }),
+                onDamage: (input) => applyDamage(i.id, input),
                 onGodResource: (god, name, delta) => changeGodResource(i.id, { god, name, delta }),
                 onResync: () => resync(i.id), onSheet: canReadSheet(i) ? () => setSheetId(i.character.id) : undefined,
                 onVisibility: isGM && i.character.kind !== "pj" ? (v) => setVisibility(i.id, v) : undefined,
