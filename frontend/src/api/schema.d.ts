@@ -462,7 +462,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/rooms/{room_id}/instances/order": {
+    "/api/rooms/{room_id}/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Groupes de personnages en jeu
+         * @description Tous pour le MJ. Un joueur ne voit que les groupes où il voit au moins un personnage : le nom d'un groupe
+         *     de monstres cachés ne doit pas lui parvenir.
+         */
+        get: operations["list_groups_api_rooms__room_id__groups_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/instances/layout": {
         parameters: {
             query?: never;
             header?: never;
@@ -471,11 +492,12 @@ export interface paths {
         };
         get?: never;
         /**
-         * Changer l'ordre des personnages en jeu (MJ)
-         * @description `ids` : toutes les instances de la room, chacune une fois, dans le nouvel ordre. Le même pour tous ;
-         *     les membres sont prévenus (`room.instances.order`) et relisent la liste avec leurs droits.
+         * Placer et grouper les personnages en jeu (MJ)
+         * @description Toute la disposition d'un coup : chaque instance de la room une fois, hors groupe (`loose`) ou dans un
+         *     groupe. Un groupe sans `id` est créé, un groupe existant absent est dissous, un nom changé est renommé.
+         *     La même pour tous ; les membres sont prévenus (`room.instances.layout`) et relisent avec leurs droits.
          */
-        put: operations["reorder_instances_api_rooms__room_id__instances_order_put"];
+        put: operations["set_layout_api_rooms__room_id__instances_layout_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1441,18 +1463,54 @@ export interface components {
              */
             imposed?: string[];
         };
+        /**
+         * GroupLayout
+         * @description Un groupe dans la disposition : `id` absent pour un nouveau groupe ; `ids` : ses personnages en jeu, dans l'ordre.
+         */
+        GroupLayout: {
+            /** Id */
+            id?: number | null;
+            /** Name */
+            name: string;
+            /**
+             * Ids
+             * @default []
+             */
+            ids?: number[];
+        };
+        /**
+         * GroupRead
+         * @description Groupe de personnages en jeu dans une room. Ses membres sont les instances qui portent son `group_id`.
+         */
+        GroupRead: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Position */
+            position: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
-         * InstanceOrder
-         * @description Nouvel ordre des personnages en jeu : les ids de toutes les instances de la room, chacune une fois.
+         * InstanceLayout
+         * @description Disposition des personnages en jeu : `loose` (hors groupe) puis les groupes, chacun dans l'ordre.
+         *     Chaque instance de la room y figure une fois. Un groupe existant qui n'y est plus est dissous.
          */
-        InstanceOrder: {
-            /** Ids */
-            ids: number[];
+        InstanceLayout: {
+            /**
+             * Loose
+             * @default []
+             */
+            loose?: number[];
+            /**
+             * Groups
+             * @default []
+             */
+            groups?: components["schemas"]["GroupLayout"][];
         };
         /**
          * InstanceRead
@@ -1498,6 +1556,8 @@ export interface components {
              * @default 0
              */
             position?: number;
+            /** Group Id */
+            group_id?: number | null;
             /**
              * Updated At
              * Format: date-time
@@ -1527,6 +1587,16 @@ export interface components {
              * @description Code d'invitation, avec ou sans tiret.
              */
             code: string;
+        };
+        /**
+         * LayoutRead
+         * @description Disposition vue du MJ : les groupes et les personnages en jeu, dans l'ordre.
+         */
+        LayoutRead: {
+            /** Groups */
+            groups: components["schemas"]["GroupRead"][];
+            /** Instances */
+            instances: components["schemas"]["InstanceRead"][];
         };
         /**
          * Mana
@@ -3460,7 +3530,38 @@ export interface operations {
             };
         };
     };
-    reorder_instances_api_rooms__room_id__instances_order_put: {
+    list_groups_api_rooms__room_id__groups_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_layout_api_rooms__room_id__instances_layout_put: {
         parameters: {
             query?: never;
             header?: never;
@@ -3471,7 +3572,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["InstanceOrder"];
+                "application/json": components["schemas"]["InstanceLayout"];
             };
         };
         responses: {
@@ -3481,7 +3582,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InstanceRead"][];
+                    "application/json": components["schemas"]["LayoutRead"];
                 };
             };
             /** @description Validation Error */

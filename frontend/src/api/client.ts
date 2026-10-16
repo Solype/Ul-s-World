@@ -38,6 +38,7 @@ export type Room = components["schemas"]["RoomRead"];
 export type RoomCharacter = components["schemas"]["RoomCharacterRead"];
 export type ChatMessage = components["schemas"]["ChatMessageRead"];
 export type Instance = components["schemas"]["InstanceRead"];
+export type RoomGroup = components["schemas"]["GroupRead"];
 export type MonitorDef = components["schemas"]["MonitorDef"];
 export type MonsterProfile = components["schemas"]["Monster"];
 export type MonsterAccess = components["schemas"]["MonsterAccess"];

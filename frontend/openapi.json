@@ -1392,14 +1392,61 @@
         }
       }
     },
-    "/api/rooms/{room_id}/instances/order": {
+    "/api/rooms/{room_id}/groups": {
+      "get": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Groupes de personnages en jeu",
+        "description": "Tous pour le MJ. Un joueur ne voit que les groupes où il voit au moins un personnage : le nom d'un groupe\nde monstres cachés ne doit pas lui parvenir.",
+        "operationId": "list_groups_api_rooms__room_id__groups_get",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupRead"
+                  },
+                  "title": "Response List Groups Api Rooms  Room Id  Groups Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}/instances/layout": {
       "put": {
         "tags": [
           "instances"
         ],
-        "summary": "Changer l'ordre des personnages en jeu (MJ)",
-        "description": "`ids` : toutes les instances de la room, chacune une fois, dans le nouvel ordre. Le même pour tous ;\nles membres sont prévenus (`room.instances.order`) et relisent la liste avec leurs droits.",
-        "operationId": "reorder_instances_api_rooms__room_id__instances_order_put",
+        "summary": "Placer et grouper les personnages en jeu (MJ)",
+        "description": "Toute la disposition d'un coup : chaque instance de la room une fois, hors groupe (`loose`) ou dans un\ngroupe. Un groupe sans `id` est créé, un groupe existant absent est dissous, un nom changé est renommé.\nLa même pour tous ; les membres sont prévenus (`room.instances.layout`) et relisent avec leurs droits.",
+        "operationId": "set_layout_api_rooms__room_id__instances_layout_put",
         "parameters": [
           {
             "name": "room_id",
@@ -1416,7 +1463,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/InstanceOrder"
+                "$ref": "#/components/schemas/InstanceLayout"
               }
             }
           }
@@ -1427,11 +1474,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InstanceRead"
-                  },
-                  "title": "Response Reorder Instances Api Rooms  Room Id  Instances Order Put"
+                  "$ref": "#/components/schemas/LayoutRead"
                 }
               }
             }
@@ -3537,6 +3580,65 @@
         ],
         "title": "Grant"
       },
+      "GroupLayout": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "GroupLayout",
+        "description": "Un groupe dans la disposition : `id` absent pour un nouveau groupe ; `ids` : ses personnages en jeu, dans l'ordre."
+      },
+      "GroupRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "position"
+        ],
+        "title": "GroupRead",
+        "description": "Groupe de personnages en jeu dans une room. Ses membres sont les instances qui portent son `group_id`."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -3550,22 +3652,28 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
-      "InstanceOrder": {
+      "InstanceLayout": {
         "properties": {
-          "ids": {
+          "loose": {
             "items": {
               "type": "integer"
             },
             "type": "array",
-            "title": "Ids"
+            "title": "Loose",
+            "default": []
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/GroupLayout"
+            },
+            "type": "array",
+            "title": "Groups",
+            "default": []
           }
         },
         "type": "object",
-        "required": [
-          "ids"
-        ],
-        "title": "InstanceOrder",
-        "description": "Nouvel ordre des personnages en jeu : les ids de toutes les instances de la room, chacune une fois."
+        "title": "InstanceLayout",
+        "description": "Disposition des personnages en jeu : `loose` (hors groupe) puis les groupes, chacun dans l'ordre.\nChaque instance de la room y figure une fois. Un groupe existant qui n'y est plus est dissous."
       },
       "InstanceRead": {
         "properties": {
@@ -3645,6 +3753,17 @@
             "title": "Position",
             "default": 0
           },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id"
+          },
           "updated_at": {
             "type": "string",
             "format": "date-time",
@@ -3707,6 +3826,31 @@
           "code"
         ],
         "title": "JoinRoom"
+      },
+      "LayoutRead": {
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/GroupRead"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "instances": {
+            "items": {
+              "$ref": "#/components/schemas/InstanceRead"
+            },
+            "type": "array",
+            "title": "Instances"
+          }
+        },
+        "type": "object",
+        "required": [
+          "groups",
+          "instances"
+        ],
+        "title": "LayoutRead",
+        "description": "Disposition vue du MJ : les groupes et les personnages en jeu, dans l'ordre."
       },
       "Mana": {
         "properties": {

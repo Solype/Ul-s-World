@@ -11,6 +11,9 @@ Monstres : le MJ les met en jeu lui-même (`POST .../instances`), un de ses mons
 accepté, autant d'exemplaires qu'il veut. Leur visibilité (`InstanceVisibility`) est filtrée ici, côté
 serveur : caché, un monstre n'est jamais envoyé aux joueurs (ils reçoivent `room.instance.removed` quand il
 disparaît de leur vue) ; visible, il leur arrive sans moniteurs ; révélé, entier.
+
+Disposition : le MJ place les cartes et les range en groupes (`PUT .../instances/layout`). Un nouveau personnage
+en jeu arrive hors groupe, à la fin.
 """
 
 import secrets
@@ -21,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import current_user, room_or_404
 from app.db import get_session
-from app.models import Character, CharacterInstance, Room, RoomCharacter, User
+from app.models import Character, CharacterInstance, Room, RoomCharacter, RoomGroup, User
 from app.realtime.manager import manager, room_channel
 from app.rules.catalogs import CATALOGS, GodResourceDef
 from app.rules.monitors import monitor_maxima
@@ -31,9 +34,11 @@ from app.schemas import (
     CharacterSummary,
     GodResourceChange,
     GodResourceValue,
-    InstanceOrder,
+    GroupRead,
+    InstanceLayout,
     InstanceRead,
     InstanceVisibility,
+    LayoutRead,
     Monitor,
     MonsterAdd,
     MonitorChange,
@@ -90,7 +95,7 @@ def read_instance(instance: CharacterInstance, gm_view: bool) -> InstanceRead:
         number=siblings.index(instance) + 1 if len(siblings) > 1 and instance in siblings else None,
         natural_armor=armor if full else None,
         god_resources=_god_resources(instance) if full else [],
-        position=instance.position,
+        position=instance.position, group_id=instance.group_id,
         updated_at=instance.updated_at,
     )
 
@@ -174,22 +179,48 @@ def _ordered(room: Room) -> list[CharacterInstance]:
     return sorted((i for rc in room.characters for i in rc.instances), key=lambda i: (i.position, i.id))
 
 
-@router.put("/{room_id}/instances/order", response_model=list[InstanceRead],
-            summary="Changer l'ordre des personnages en jeu (MJ)")
-def reorder_instances(room_id: int, payload: InstanceOrder, background: BackgroundTasks,
-                      user: User = Depends(current_user), session: Session = Depends(get_session)) -> list[InstanceRead]:
-    """`ids` : toutes les instances de la room, chacune une fois, dans le nouvel ordre. Le même pour tous ;
-    les membres sont prévenus (`room.instances.order`) et relisent la liste avec leurs droits."""
+@router.get("/{room_id}/groups", response_model=list[GroupRead], summary="Groupes de personnages en jeu")
+def list_groups(room_id: int, user: User = Depends(current_user),
+                session: Session = Depends(get_session)) -> list[GroupRead]:
+    """Tous pour le MJ. Un joueur ne voit que les groupes où il voit au moins un personnage : le nom d'un groupe
+    de monstres cachés ne doit pas lui parvenir."""
+    room = room_or_404(session, room_id, user)
+    if room.gm_id == user.id:
+        return [GroupRead.model_validate(g) for g in room.groups]
+    seen = {i.group_id for rc in room.characters for i in rc.instances if visible_to_players(i)}
+    return [GroupRead.model_validate(g) for g in room.groups if g.id in seen]
+
+
+@router.put("/{room_id}/instances/layout", response_model=LayoutRead,
+            summary="Placer et grouper les personnages en jeu (MJ)")
+def set_layout(room_id: int, payload: InstanceLayout, background: BackgroundTasks,
+               user: User = Depends(current_user), session: Session = Depends(get_session)) -> LayoutRead:
+    """Toute la disposition d'un coup : chaque instance de la room une fois, hors groupe (`loose`) ou dans un
+    groupe. Un groupe sans `id` est créé, un groupe existant absent est dissous, un nom changé est renommé.
+    La même pour tous ; les membres sont prévenus (`room.instances.layout`) et relisent avec leurs droits."""
     room = room_or_404(session, room_id, user, gm_only=True)
     instances = {i.id: i for i in _ordered(room)}
-    if sorted(payload.ids) != sorted(instances):
+    placed = payload.loose + [i for g in payload.groups for i in g.ids]
+    if sorted(placed) != sorted(instances):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            "L'ordre doit donner chaque personnage en jeu de la room, une seule fois")
-    for position, instance_id in enumerate(payload.ids):
-        instances[instance_id].position = position
+                            "La disposition doit donner chaque personnage en jeu de la room, une seule fois")
+    existing = {g.id: g for g in room.groups}
+    kept = [g.id for g in payload.groups if g.id is not None]
+    if len(set(kept)) != len(kept) or not set(kept) <= set(existing):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Groupe inconnu dans cette room, ou donné deux fois")
+    groups = []
+    for position, g in enumerate(payload.groups):
+        group = existing[g.id] if g.id is not None else RoomGroup(room_id=room.id)
+        group.name, group.position = g.name, position
+        groups.append((group, g.ids))
+    room.groups = [group for group, _ in groups]
+    order = [(None, i) for i in payload.loose] + [(group, i) for group, ids in groups for i in ids]
+    for position, (group, instance_id) in enumerate(order):
+        instances[instance_id].position, instances[instance_id].group = position, group
     session.commit()
-    background.add_task(manager.broadcast, room_channel(room_id), {"type": "room.instances.order"})
-    return [read_instance(instances[i], gm_view=True) for i in payload.ids]
+    background.add_task(manager.broadcast, room_channel(room_id), {"type": "room.instances.layout"})
+    return LayoutRead(groups=[GroupRead.model_validate(g) for g in room.groups],
+                      instances=[read_instance(instances[i], gm_view=True) for _, i in order])
 
 
 @router.post("/{room_id}/instances", response_model=InstanceRead, status_code=status.HTTP_201_CREATED,

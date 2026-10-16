@@ -1,13 +1,14 @@
 import {
-  ArrowLeft, Check, Copy, Crown, FileText, LogOut, Pencil, Plus, RefreshCw, Send, Skull, Trash2, UserPlus, Users, UserX, X,
+  ArrowLeft, Check, Copy, Crown, FileText, FolderPlus, LogOut, Pencil, Plus, RefreshCw, Send, Skull, Trash2, UserPlus, Users, UserX, X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import {
-  api, type Character, type ChatMessage, type Instance, type InstanceVisibility, type Room, type RoomCharacter, type UserPublic,
+  api, type Character, type ChatMessage, type Instance, type InstanceVisibility, type Room, type RoomCharacter, type RoomGroup,
+  type UserPublic,
 } from "@/api/client";
 import { useUser } from "@/auth/AuthContext";
-import InstanceCard from "@/components/room/InstanceCard";
+import RoomBoard, { newGroupLayout, type Layout } from "@/components/room/RoomBoard";
 import type { StatusActions, StatusColor } from "@/components/room/StatusTags";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
   const [hasOlder, setHasOlder] = useState(false);
   const [mine, setMine] = useState<Character[]>([]);
   const [instances, setInstances] = useState<Instance[]>([]);
+  const [groups, setGroups] = useState<RoomGroup[]>([]);
   const [confirm, setConfirm] = useState<"leave" | "delete" | null>(null);
   // PJ que le MJ s'apprête à retirer de la room depuis sa carte.
   const [removingPc, setRemovingPc] = useState<Instance["character"] | null>(null);
@@ -76,6 +78,10 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
     api.GET("/api/rooms/{room_id}/instances", path(id)).then(({ data }) => data && setInstances(data));
   }, [id]);
   useEffect(loadInstances, [loadInstances]);
+  const loadGroups = useCallback(() => {
+    api.GET("/api/rooms/{room_id}/groups", path(id)).then(({ data }) => data && setGroups(data));
+  }, [id]);
+  useEffect(loadGroups, [loadGroups]);
   useEffect(() => {
     api.GET("/api/rooms/{room_id}/messages", { params: { path: { room_id: id }, query: { limit: HISTORY_PAGE } } })
       .then(({ data }) => { setMessages(data ?? []); setHasOlder((data?.length ?? 0) === HISTORY_PAGE); });
@@ -115,17 +121,14 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
     if (data) putInstance(data);
     else toast.error("Modification impossible");
   };
-  // MJ : déplacer un personnage en jeu d'un cran (avant : -1, après : +1). L'ordre est le même pour tous.
-  const moveInstance = async (instanceId: number, step: -1 | 1) => {
-    const ids = instances.map((i) => i.id);
-    const from = ids.indexOf(instanceId);
-    const to = from + step;
-    if (from < 0 || to < 0 || to >= ids.length) return;
-    [ids[from], ids[to]] = [ids[to], ids[from]];
-    const { data } = await api.PUT("/api/rooms/{room_id}/instances/order", { ...path(id), body: { ids } });
-    if (data) setInstances(data);
-    else { toast.error("Déplacement impossible"); loadInstances(); }
+  // MJ : placer et grouper les personnages en jeu. La disposition est la même pour tous.
+  const applyLayout = async (body: Layout) => {
+    const { data } = await api.PUT("/api/rooms/{room_id}/instances/layout", { ...path(id), body });
+    if (data) { setGroups(data.groups); setInstances(data.instances); }
+    else { toast.error("Déplacement impossible"); loadInstances(); loadGroups(); }
   };
+  const groupVisibility = (ids: number[], visibility: InstanceVisibility) =>
+    ids.forEach((instanceId) => setVisibility(instanceId, visibility));
   const changeGodResource = async (instanceId: number, body: { god: string; name: string; delta: number }) => {
     const { data } = await api.PATCH("/api/rooms/{room_id}/instances/{instance_id}/god-resources",
       { params: { path: { room_id: id, instance_id: instanceId } }, body });
@@ -198,9 +201,14 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
     if (event.type === "room.presence") setOnline(event.online);
     if (event.type === "room.message") addMessage(event.message);
     if (event.type === "room.characters") { refreshCharacters(); loadInstances(); }
-    if (event.type === "room.instance") putInstance(event.instance);
+    if (event.type === "room.instance") {
+      putInstance(event.instance);
+      // Un monstre qui apparaît pour un joueur dans un groupe qu'il ne voyait pas encore : relire les groupes.
+      const gid = event.instance.group_id;
+      if (gid != null && !groups.some((g) => g.id === gid)) loadGroups();
+    }
     if (event.type === "room.instance.removed") dropInstance(event.id);
-    if (event.type === "room.instances.order") loadInstances();
+    if (event.type === "room.instances.layout") { loadInstances(); loadGroups(); }
   }, (code) => {
     if (code === WS_FORBIDDEN) { toast.info("Tu n'as plus accès à cette room"); onGone(); }
   });
@@ -304,10 +312,18 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section className="flex flex-col gap-3">
-          <h2 className="font-heading text-lg font-semibold">En jeu</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="flex-1 font-heading text-lg font-semibold">En jeu</h2>
+            {isGM && instances.length > 0 && (
+              <Button variant="ghost" size="sm" title="Les cartes s'y rangent en les glissant par leur poignée"
+                onClick={() => applyLayout(newGroupLayout(instances, groups))}>
+                <FolderPlus data-icon="inline-start" />Nouveau groupe
+              </Button>
+            )}
+          </div>
           {!rules ? (
             <Skeleton className="h-48" />
-          ) : instances.length === 0 ? (
+          ) : instances.length === 0 && groups.length === 0 ? (
             <Card className="items-center py-10 text-center">
               <CardDescription className="max-w-sm">
                 Aucun personnage en jeu. Un PJ y entre dès que le MJ l'accepte (bouton « Personnages ») ;
@@ -315,21 +331,19 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
               </CardDescription>
             </Card>
           ) : (
-            <div className="flex flex-wrap gap-x-12 gap-y-8 pb-4">
-              {instances.map((i, index) => (
-                <InstanceCard key={i.id} instance={i} defs={rules.monitors} canEdit={isGM || i.character.kind === "pj"}
-                  onMoveBefore={isGM && index > 0 ? () => moveInstance(i.id, -1) : undefined}
-                  onMoveAfter={isGM && index < instances.length - 1 ? () => moveInstance(i.id, 1) : undefined}
-                  isGM={isGM} statusSuggestions={statusSuggestions} statusActions={statusActions(i.id)}
-                  onDelta={(m, d) => changeMonitors(i.id, { delta: { [m]: d } })}
-                  onSet={(m, v) => changeMonitors(i.id, { set: { [m]: v } })}
-                  onGodResource={(god, name, delta) => changeGodResource(i.id, { god, name, delta })}
-                  onResync={() => resync(i.id)} onSheet={canReadSheet(i) ? () => setSheetId(i.character.id) : undefined}
-                  onVisibility={isGM && i.character.kind !== "pj" ? (v) => setVisibility(i.id, v) : undefined}
-                  onRemove={!isGM ? undefined
-                    : i.character.kind === "pj" ? () => setRemovingPc(i.character) : () => removeInstance(i.id)} />
-              ))}
-            </div>
+            <RoomBoard instances={instances} groups={groups} isGM={isGM} onLayout={applyLayout}
+              onGroupVisibility={groupVisibility}
+              card={(i) => ({
+                defs: rules.monitors, canEdit: isGM || i.character.kind === "pj",
+                isGM, statusSuggestions, statusActions: statusActions(i.id),
+                onDelta: (m, d) => changeMonitors(i.id, { delta: { [m]: d } }),
+                onSet: (m, v) => changeMonitors(i.id, { set: { [m]: v } }),
+                onGodResource: (god, name, delta) => changeGodResource(i.id, { god, name, delta }),
+                onResync: () => resync(i.id), onSheet: canReadSheet(i) ? () => setSheetId(i.character.id) : undefined,
+                onVisibility: isGM && i.character.kind !== "pj" ? (v) => setVisibility(i.id, v) : undefined,
+                onRemove: !isGM ? undefined
+                  : i.character.kind === "pj" ? () => setRemovingPc(i.character) : () => removeInstance(i.id),
+              })} />
           )}
         </section>
 

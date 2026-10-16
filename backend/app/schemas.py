@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.rules.data import Attribute, Priority
 from app.rules.role_model import RESOURCE_DEFS
@@ -346,6 +346,8 @@ class InstanceRead(BaseModel):
     god_resources: list[GodResourceValue] = []
     # Place dans la room (ordre choisi par le MJ) : trier par `position`, puis par `id`.
     position: int = 0
+    # Groupe de la room (`GroupRead`) ; absent : hors groupe.
+    group_id: int | None = None
     updated_at: datetime
 
 
@@ -369,10 +371,37 @@ class MonitorChange(BaseModel):
     set: dict[str, Annotated[int, Field(ge=0)]] = {}
 
 
-class InstanceOrder(BaseModel):
-    """Nouvel ordre des personnages en jeu : les ids de toutes les instances de la room, chacune une fois."""
+class GroupRead(BaseModel):
+    """Groupe de personnages en jeu dans une room. Ses membres sont les instances qui portent son `group_id`."""
 
-    ids: list[int]
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    position: int
+
+
+class GroupLayout(BaseModel):
+    """Un groupe dans la disposition : `id` absent pour un nouveau groupe ; `ids` : ses personnages en jeu, dans l'ordre."""
+
+    id: int | None = None
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+    ids: list[int] = []
+
+
+class InstanceLayout(BaseModel):
+    """Disposition des personnages en jeu : `loose` (hors groupe) puis les groupes, chacun dans l'ordre.
+    Chaque instance de la room y figure une fois. Un groupe existant qui n'y est plus est dissous."""
+
+    loose: list[int] = []
+    groups: list[GroupLayout] = []
+
+
+class LayoutRead(BaseModel):
+    """Disposition vue du MJ : les groupes et les personnages en jeu, dans l'ordre."""
+
+    groups: list[GroupRead]
+    instances: list[InstanceRead]
 
 
 class GodResourceChange(BaseModel):

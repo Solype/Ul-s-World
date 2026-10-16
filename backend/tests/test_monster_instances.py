@@ -103,25 +103,47 @@ def test_pc_cannot_be_hidden_or_removed_this_way(wolf):
     assert gm.delete(f"{wolf['base']}/{pc['id']}").status_code == 422
 
 
-def test_gm_reorders_characters_in_play(wolf):
-    """Le MJ choisit l'ordre (le même pour tous) ; une nouvelle carte arrive à la fin."""
+def test_gm_places_and_groups_characters_in_play(wolf):
+    """Le MJ place les cartes et les groupe (le même pour tous) ; une nouvelle carte arrive hors groupe, à la fin."""
     gm, alice, bob, room, base = wolf["gm"], wolf["alice"], wolf["bob"], wolf["room"], wolf["base"]
+    layout, groups = f"{base}/layout", f"/api/rooms/{room}/groups"
     alice.post(f"/api/rooms/{room}/characters", json={"character_id": wolf["pj"]})
     gm.post(f"/api/rooms/{room}/characters/{wolf['pj']}/accept")
     [pc] = gm.get(base).json()
     w1 = gm.post(base, json={"character_id": wolf["wolf"], "visibility": "visible"}).json()
     w2 = gm.post(base, json={"character_id": wolf["wolf"]}).json()   # caché aux joueurs
     assert [i["id"] for i in gm.get(base).json()] == [pc["id"], w1["id"], w2["id"]]
+    assert gm.get(groups).json() == []
 
-    order = [w2["id"], pc["id"], w1["id"]]
-    assert bob.put(f"{base}/order", json={"ids": order}).status_code == 403
-    assert gm.put(f"{base}/order", json={"ids": order[:2]}).status_code == 422          # il en manque un
-    assert gm.put(f"{base}/order", json={"ids": [*order, pc["id"]]}).status_code == 422  # doublon
+    body = {"loose": [pc["id"]], "groups": [{"name": " Embuscade ", "ids": [w2["id"]]},
+                                            {"name": "Meute", "ids": [w1["id"]]}]}
+    assert bob.put(layout, json=body).status_code == 403
+    assert gm.put(layout, json={**body, "loose": []}).status_code == 422                       # il en manque un
+    assert gm.put(layout, json={**body, "loose": [pc["id"], w1["id"]]}).status_code == 422     # doublon
+    assert gm.put(layout, json={**body, "groups": [{"id": 999, "name": "X", "ids": [w1["id"], w2["id"]]}]}
+                  ).status_code == 422                                                         # groupe inconnu
     with bob.websocket_connect(f"/ws/room:{room}") as ws:
         ws.receive_json()  # présence
-        assert [i["id"] for i in gm.put(f"{base}/order", json={"ids": order}).json()] == order
-        assert ws.receive_json() == {"type": "room.instances.order"}
-    assert [i["id"] for i in gm.get(base).json()] == order
-    assert [i["id"] for i in bob.get(base).json()] == [pc["id"], w1["id"]]   # sans le loup caché
+        res = gm.put(layout, json=body).json()
+        assert ws.receive_json() == {"type": "room.instances.layout"}
+    ambush, pack = res["groups"]
+    assert (ambush["name"], pack["name"]) == ("Embuscade", "Meute")
+    assert [(i["id"], i["group_id"]) for i in res["instances"]] == [
+        (pc["id"], None), (w2["id"], ambush["id"]), (w1["id"], pack["id"])]
+    assert [i["id"] for i in gm.get(base).json()] == [pc["id"], w2["id"], w1["id"]]
+    # Le joueur ne voit pas le groupe où il n'y a que le loup caché.
+    assert [i["id"] for i in bob.get(base).json()] == [pc["id"], w1["id"]]
+    assert bob.get(groups).json() == [pack]
+
+    # Renommer, réordonner, déplacer : la Meute passe devant et reçoit les deux loups ; l'Embuscade est dissoute
+    # par son absence, un groupe vide est créé.
+    res = gm.put(layout, json={"loose": [pc["id"]], "groups": [
+        {"id": pack["id"], "name": "Loups", "ids": [w1["id"], w2["id"]]}, {"name": "Renforts"}]}).json()
+    assert [(g["id"], g["name"], g["position"]) for g in res["groups"]] == [
+        (pack["id"], "Loups", 0), (res["groups"][1]["id"], "Renforts", 1)]
+    assert [i["group_id"] for i in gm.get(base).json()] == [None, pack["id"], pack["id"]]
     w3 = gm.post(base, json={"character_id": wolf["wolf"]}).json()
-    assert [i["id"] for i in gm.get(base).json()] == [*order, w3["id"]]
+    assert w3["group_id"] is None
+    assert [i["id"] for i in gm.get(base).json()] == [pc["id"], w1["id"], w2["id"], w3["id"]]
+    # Supprimer la room emporte ses groupes.
+    assert gm.delete(f"/api/rooms/{room}").status_code == 204

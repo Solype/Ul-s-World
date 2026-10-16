@@ -1,9 +1,14 @@
 import {
-  ChevronLeft, ChevronRight, Eye, EyeOff, FileText, Minus, Pin, PinOff, Plus, RefreshCw, ScanEye, Shield, Skull, Trash2, type LucideIcon,
+  ChevronLeft, ChevronRight, Eye, EyeOff, FileText, FolderPlus, GripVertical, Minus, Move, Pin, PinOff, Plus, RefreshCw,
+  ScanEye, Shield, Skull, Trash2, Ungroup, type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { Instance, InstanceVisibility, MonitorDef } from "@/api/client";
+import type { Instance, InstanceVisibility, MonitorDef, RoomGroup } from "@/api/client";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import StatusTags, { COLORS, type StatusActions, type StatusSuggestion } from "./StatusTags";
 
@@ -51,9 +56,24 @@ type Props = {
   onVisibility?: (visibility: InstanceVisibility) => void;
   /** MJ : retirer cet exemplaire du jeu (monstre), ou le personnage de la room (PJ). */
   onRemove?: () => void;
-  /** MJ : déplacer la carte d'un cran dans l'ordre de la room (absent au bout de la liste). */
+  /** MJ : ranger la carte dans la room (glisser-déposer par la poignée, ou menu). */
+  arrange?: Arrange;
+};
+
+/** Rangement d'une carte par le MJ. */
+export type Arrange = {
+  /** Mime type des données glissées (et seulement celui-là : déposée dans le chat, la carte n'y écrit rien). */
+  dragType: string;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  /** Déplacer d'un cran dans son groupe (absent au bout). */
   onMoveBefore?: () => void;
   onMoveAfter?: () => void;
+  groups: RoomGroup[];
+  /** Groupe actuel (null : hors groupe). */
+  groupId: number | null;
+  /** Mettre la carte dans un groupe, hors groupe (null) ou dans un nouveau groupe. */
+  onGroup: (group: number | null | "new") => void;
 };
 
 /** Ce que voient les joueurs (le MJ voit toujours tout). */
@@ -227,6 +247,31 @@ function Nameplate({ name, outdated, monster, hidden }: { name: string; outdated
   );
 }
 
+/** Ranger la carte sans glisser-déposer (écran tactile, clavier) : d'un cran, ou dans un autre groupe. */
+function ArrangeMenu({ arrange }: { arrange: Arrange }) {
+  const { onMoveBefore, onMoveAfter, groups, groupId, onGroup } = arrange;
+  return (
+    // Non modal : un menu modal coupe la souris du reste de la page, la carte se replierait et l'emporterait.
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon-sm" aria-label="Ranger" title="Déplacer, grouper"><Move /></Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem disabled={!onMoveBefore} onSelect={onMoveBefore}><ChevronLeft />Déplacer avant</DropdownMenuItem>
+        <DropdownMenuItem disabled={!onMoveAfter} onSelect={onMoveAfter}><ChevronRight />Déplacer après</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Groupe</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={String(groupId ?? "")}
+          onValueChange={(v) => onGroup(v === "" ? null : Number(v))}>
+          <DropdownMenuRadioItem value=""><Ungroup />Hors groupe</DropdownMenuRadioItem>
+          {groups.map((g) => <DropdownMenuRadioItem key={g.id} value={String(g.id)}>{g.name}</DropdownMenuRadioItem>)}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuItem onSelect={() => onGroup("new")}><FolderPlus />Nouveau groupe</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /**
  * Un personnage en jeu, sous forme de jeton : cartouche du nom, barre de mana, anneaux des moniteurs de
  * condition et statuts pendus au jeton. Au survol (ou épinglée d'un clic sur le jeton), la carte se déplie
@@ -234,7 +279,7 @@ function Nameplate({ name, outdated, monster, hidden }: { name: string; outdated
  */
 export default function InstanceCard({
   instance, defs, canEdit, isGM, statusSuggestions, statusActions, onDelta, onSet, onGodResource, onResync, onSheet,
-  onVisibility, onRemove, onMoveBefore, onMoveAfter,
+  onVisibility, onRemove, arrange,
 }: Props) {
   const c = instance.character;
   const isMonster = c.kind === "monstre";
@@ -253,6 +298,10 @@ export default function InstanceCard({
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [pinned, setPinned] = useState(false);
+  // Glissée par sa poignée : la carte dépliée s'efface (sans quitter le DOM, sinon le navigateur annule le glisser)
+  // pour laisser voir où la déposer ; le jeton replié reste en place, estompé.
+  const [dragging, setDragging] = useState(false);
+  const dragImage = useRef<HTMLDivElement>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(leaveTimer.current), []);
   const expanded = hovered || focused || pinned;
@@ -265,8 +314,8 @@ export default function InstanceCard({
       onFocus={(e) => setFocused(e.target instanceof HTMLInputElement)} onBlur={() => setFocused(false)}>
       {/* Jeton replié : il garde sa place dans la grille même quand la carte dépliée le recouvre. */}
       {/* Caché aux joueurs : le MJ le voit estompé. */}
-      <div className={cn("flex flex-col gap-1.5 transition-opacity", hiddenFromPlayers && "opacity-55", expanded && "opacity-0")}
-        inert={expanded}>
+      <div className={cn("flex flex-col gap-1.5 transition-opacity", hiddenFromPlayers && "opacity-55",
+        expanded && (dragging ? "opacity-30" : "opacity-0"))} inert={expanded}>
         <Nameplate name={name} outdated={instance.outdated} monster={isMonster} hidden={hiddenFromPlayers} />
         {mana && <ManaBar mana={mana} />}
         <div className="relative mx-auto mt-1 w-[120px]">
@@ -300,15 +349,22 @@ export default function InstanceCard({
       </div>
 
       {expanded && (
-        <div className="arcane-card absolute -top-2 left-1/2 z-30 flex w-80 -translate-x-1/2 flex-col gap-2 rounded-xl bg-card p-3 text-card-foreground ring-1 shadow-xl animate-in fade-in zoom-in-95 duration-150">
+        <div className={cn("arcane-card absolute -top-2 left-1/2 z-30 flex w-80 -translate-x-1/2 flex-col gap-2 rounded-xl bg-card p-3 text-card-foreground ring-1 shadow-xl animate-in fade-in zoom-in-95 duration-150",
+          dragging && "pointer-events-none opacity-0")}>
           <div className="flex items-center gap-1">
-            {(onMoveBefore || onMoveAfter) && (
-              <>
-                <Button variant="ghost" size="icon-sm" aria-label="Déplacer avant" title="Déplacer avant"
-                  disabled={!onMoveBefore} onClick={onMoveBefore}><ChevronLeft /></Button>
-                <Button variant="ghost" size="icon-sm" aria-label="Déplacer après" title="Déplacer après"
-                  disabled={!onMoveAfter} onClick={onMoveAfter}><ChevronRight /></Button>
-              </>
+            {arrange && (
+              <span draggable aria-hidden title="Glisser pour déplacer ou grouper"
+                className="-ml-1 flex h-7 cursor-grab items-center rounded-md px-0.5 text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(arrange.dragType, String(instance.id));
+                  e.dataTransfer.effectAllowed = "move";
+                  if (dragImage.current) e.dataTransfer.setDragImage(dragImage.current, C, C);
+                  // Après le départ du glisser : changer le DOM dans `dragstart` l'annulerait.
+                  setTimeout(() => { setDragging(true); arrange.onDragStart(); });
+                }}
+                onDragEnd={() => { setDragging(false); setHovered(false); setPinned(false); arrange.onDragEnd(); }}>
+                <GripVertical className="size-4" />
+              </span>
             )}
             <div className="min-w-0 flex-1">
               <Nameplate name={name} outdated={instance.outdated} monster={isMonster} hidden={hiddenFromPlayers} />
@@ -318,6 +374,7 @@ export default function InstanceCard({
                 title="Reprendre les max de la fiche (les dégâts subis sont conservés)"><RefreshCw /></Button>
             )}
             {onSheet && <Button variant="ghost" size="icon-sm" aria-label="Fiche" title="Fiche" onClick={onSheet}><FileText /></Button>}
+            {arrange && <ArrangeMenu arrange={arrange} />}
             {onRemove && (
               <Button variant="ghost" size="icon-sm" aria-label={isPC ? "Retirer de la room" : "Retirer du jeu"}
                 title={isPC ? "Retirer ce personnage de la room" : "Retirer cet exemplaire du jeu"}
@@ -348,8 +405,11 @@ export default function InstanceCard({
             </div>
           )}
           {mana && <ManaBar mana={mana} large />}
-          <Token name={c.name} rings={rings} defs={defs} unknown={unknown} armor={instance.natural_armor}
-            className="mx-auto" onClick={() => setPinned(!pinned)} />
+          {/* Sert aussi d'image au glisser-déposer. */}
+          <div ref={dragImage} className="mx-auto">
+            <Token name={c.name} rings={rings} defs={defs} unknown={unknown} armor={instance.natural_armor}
+              onClick={() => setPinned(!pinned)} />
+          </div>
           {unknown && <p className="text-center text-xs text-muted-foreground">Le MJ n'a pas révélé son état.</p>}
           {instance.natural_armor != null && (
             <p className="text-center text-xs text-muted-foreground">Armure naturelle {instance.natural_armor}</p>

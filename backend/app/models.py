@@ -101,6 +101,8 @@ class Room(Base):
     characters: Mapped[list["RoomCharacter"]] = relationship(back_populates="room", cascade="all, delete-orphan",
                                                            lazy="selectin", order_by="RoomCharacter.created_at")
     messages: Mapped[list["ChatMessage"]] = relationship(cascade="all, delete-orphan")
+    groups: Mapped[list["RoomGroup"]] = relationship(cascade="all, delete-orphan", lazy="selectin",
+                                                     order_by="RoomGroup.position")
 
 
 class RoomMember(Base):
@@ -134,6 +136,19 @@ class RoomCharacter(Base):
         back_populates="link", cascade="all, delete-orphan", lazy="selectin", order_by="CharacterInstance.id")
 
 
+class RoomGroup(Base):
+    """Groupe de personnages en jeu dans une room (l'avant-garde, une embuscade...), formé par le MJ.
+    Un groupe vide reste (le MJ y glisse ensuite des cartes) ; le dissoudre remet ses cartes hors groupe."""
+
+    __tablename__ = "room_groups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(60))
+    # Place parmi les groupes de la room (après les personnages hors groupe).
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class CharacterInstance(Base):
     """Un personnage en jeu dans une room : la fiche sert de modèle, l'instance porte l'état
     (moniteurs de condition, statuts, ressources des dieux). Elle vit et meurt avec la présence du personnage
@@ -155,12 +170,16 @@ class CharacterInstance(Base):
     god_resources: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     # Place dans la room (ordre d'affichage choisi par le MJ) ; une nouvelle instance arrive à la fin.
     position: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Groupe dans la room (NULL : hors groupe). `position` reste l'ordre global : hors groupe, puis groupe par groupe.
+    group_id: Mapped[int | None] = mapped_column(
+        ForeignKey("room_groups.id", ondelete="SET NULL", name="fk_character_instances_group"))
     # Ce que voient les joueurs : cache | visible | revele (schemas.InstanceVisibility).
     visibility: Mapped[str] = mapped_column(String(10), default="revele", server_default="revele")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
     link: Mapped[RoomCharacter] = relationship(back_populates="instances")
+    group: Mapped[RoomGroup | None] = relationship()
 
 
 class ChatMessage(Base):
