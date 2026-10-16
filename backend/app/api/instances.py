@@ -27,7 +27,7 @@ from app.db import get_session
 from app.models import Character, CharacterInstance, Room, RoomCharacter, RoomGroup, User
 from app.realtime.manager import manager, room_channel
 from app.rules.catalogs import CATALOGS, GodResourceDef
-from app.rules.monitors import monitor_maxima
+from app.rules.monitors import bound_monitor, monitor_maxima
 from app.schemas import (
     CharacterKind,
     CharacterRead,
@@ -298,8 +298,8 @@ def change_monitors(room_id: int, instance_id: int, payload: MonitorChange, back
         monitors[key]["current"] = value
     for key, delta in payload.delta.items():
         monitors[key]["current"] += delta
-    for m in monitors.values():
-        m["current"] = max(0, min(m["max"], m["current"]))
+    for key, m in monitors.items():
+        m["current"] = bound_monitor(key, m["current"], m["max"])
     instance.monitors = monitors
     return _save_and_push(session, background, instance, user)
 
@@ -326,12 +326,12 @@ def change_god_resource(room_id: int, instance_id: int, payload: GodResourceChan
              summary="Reprendre les max de la fiche")
 def resync_instance(room_id: int, instance_id: int, background: BackgroundTasks,
                     user: User = Depends(current_user), session: Session = Depends(get_session)) -> InstanceRead:
-    """Les max sont recalculés d'après la fiche, les dégâts subis (max - actuel) sont conservés.
-    Un moniteur qui apparaît (mana gagné) commence au max."""
+    """Les max sont recalculés d'après la fiche, les dégâts subis (max - actuel) sont conservés, comme un
+    dépassement du max (dégâts négatifs). Un moniteur qui apparaît (mana gagné) commence au max."""
     instance = _instance_or_404(session, room_id, instance_id, user)
     old = instance.monitors
     instance.monitors = {
-        k: {"current": max(0, m - (old[k]["max"] - old[k]["current"] if k in old else 0)), "max": m}
+        k: {"current": bound_monitor(k, m - (old[k]["max"] - old[k]["current"] if k in old else 0), m), "max": m}
         for k, m in _sheet_max(instance.link).items()
     }
     return _save_and_push(session, background, instance, user)

@@ -575,8 +575,8 @@ export interface paths {
         put?: never;
         /**
          * Reprendre les max de la fiche
-         * @description Les max sont recalculés d'après la fiche, les dégâts subis (max - actuel) sont conservés.
-         *     Un moniteur qui apparaît (mana gagné) commence au max.
+         * @description Les max sont recalculés d'après la fiche, les dégâts subis (max - actuel) sont conservés, comme un
+         *     dépassement du max (dégâts négatifs). Un moniteur qui apparaît (mana gagné) commence au max.
          */
         post: operations["resync_instance_api_rooms__room_id__instances__instance_id__resync_post"];
         delete?: never;
@@ -1624,7 +1624,8 @@ export interface components {
         /**
          * MonitorChange
          * @description Modifier des moniteurs. `delta` ajoute (positif : soin, négatif : dégâts), `set` fixe la valeur.
-         *     Le résultat reste entre 0 et le max. Préférer `delta` : deux changements simultanés s'additionnent.
+         *     Un moniteur de condition reste à 0 ou plus mais peut dépasser son max ; le mana reste au plus à son max
+         *     mais peut être négatif. Préférer `delta` : deux changements simultanés s'additionnent.
          */
         MonitorChange: {
             /**

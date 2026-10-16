@@ -310,7 +310,8 @@ class ChatMessageRead(BaseModel):
 
 
 class Monitor(BaseModel):
-    current: int = Field(ge=0)
+    # Moniteur de condition : 0 ou plus, peut dépasser `max`. Mana : jusqu'à `max`, peut être négatif.
+    current: int
     max: int = Field(ge=0)
 
 
@@ -365,10 +366,11 @@ class VisibilityUpdate(BaseModel):
 
 class MonitorChange(BaseModel):
     """Modifier des moniteurs. `delta` ajoute (positif : soin, négatif : dégâts), `set` fixe la valeur.
-    Le résultat reste entre 0 et le max. Préférer `delta` : deux changements simultanés s'additionnent."""
+    Un moniteur de condition reste à 0 ou plus mais peut dépasser son max ; le mana reste au plus à son max
+    mais peut être négatif. Préférer `delta` : deux changements simultanés s'additionnent."""
 
     delta: dict[str, int] = {}
-    set: dict[str, Annotated[int, Field(ge=0)]] = {}
+    set: dict[str, int] = {}
 
 
 class GroupRead(BaseModel):

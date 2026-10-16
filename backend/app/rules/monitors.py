@@ -61,3 +61,9 @@ def monitor_maxima(character: CharacterBase, fx: TraitEffects | None = None) -> 
     if character.mana.max > 0 and (access is None or access.magic):
         maxima["mana"] = character.mana.max
     return maxima
+
+
+def bound_monitor(key: str, current: int, maximum: int) -> int:
+    """Bornes de la valeur actuelle. Un moniteur de condition ne descend pas sous 0 (brisé) mais peut dépasser
+    son max ; le mana ne dépasse pas son max mais peut être négatif. Voir refdoc/infos.md."""
+    return min(maximum, current) if key == "mana" else max(0, current)

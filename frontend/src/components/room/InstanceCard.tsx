@@ -2,7 +2,7 @@ import {
   ChevronLeft, ChevronRight, Eye, EyeOff, FileText, FolderPlus, GripVertical, Minus, Move, Pin, PinOff, Plus, RefreshCw,
   ScanEye, Shield, Skull, Trash2, Ungroup, type LucideIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Instance, InstanceVisibility, MonitorDef, RoomGroup } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +33,8 @@ const MAX_TICKS = 30;
 const MAX_HANGING = 4;
 /** Délai avant de replier la carte quand la souris sort (évite le clignotement en bordure). */
 const LEAVE_DELAY_MS = 150;
+/** Marge minimale (px) entre la carte dépliée et le bord de l'écran. */
+const EDGE = 8;
 
 type Monitor = { current: number; max: number };
 
@@ -111,16 +113,22 @@ function Token({ name, rings, defs, className, onClick, unknown, armor }: {
           const gap = m.max > 0 ? 1.5 / ((1.5 * Math.PI * r) / m.max) : 0;
           return (
             <g key={k}>
-              <title>{`${defs[k]?.label ?? k} : ${m.current} / ${m.max}`}</title>
+              <title>{`${defs[k]?.label ?? k} : ${m.current} / ${m.max}${m.current > m.max ? ` (+${m.current - m.max})` : ""}`}</title>
               <path d={path} fill="none" strokeWidth={STROKE} strokeLinecap="round" className="stroke-foreground/10" />
               {m.max > 0 && m.current > 0 && (
                 <path d={path} fill="none" strokeWidth={STROKE} strokeLinecap="round" pathLength={m.max}
-                  strokeDasharray={`${m.current} ${m.max + 1}`}
+                  strokeDasharray={`${Math.min(m.current, m.max)} ${m.max + 1}`}
                   className={cn("transition-[stroke-dasharray] duration-500", color.stroke, color.glow)} />
               )}
               {m.max > 1 && m.max <= MAX_TICKS && (
                 <path d={path} fill="none" strokeWidth={STROKE + 1} pathLength={m.max} className="stroke-card"
                   strokeDasharray={`${gap} ${1 - gap}`} strokeDashoffset={gap / 2} />
+              )}
+              {/* Au-delà du max : un filet lumineux repart du début de l'anneau, un point par point de dépassement. */}
+              {m.max > 0 && m.current > m.max && (
+                <path d={path} fill="none" strokeWidth={2.5} strokeLinecap="round" pathLength={m.max}
+                  strokeDasharray={`${Math.min(m.current - m.max, m.max)} ${m.max + 1}`}
+                  className="stroke-white drop-shadow-[0_0_3px_white] transition-[stroke-dasharray] duration-500 dark:stroke-yellow-100" />
               )}
             </g>
           );
@@ -144,16 +152,20 @@ function Token({ name, rings, defs, className, onClick, unknown, armor }: {
   );
 }
 
-/** Barre de mana façon MOBA : cadre doré, remplissage bleu brillant, une case par point. */
+/** Barre de mana façon MOBA : cadre doré, remplissage bleu brillant, une case par point. Négatif, la barre
+ * se remplit de rouge (un max de dette au plus). */
 function ManaBar({ mana, large }: { mana: Monitor; large?: boolean }) {
-  const pct = mana.max > 0 ? (mana.current / mana.max) * 100 : 0;
+  const ratio = mana.max > 0 ? Math.min(1, Math.abs(mana.current) / mana.max) : 0;
+  const negative = mana.current < 0;
   return (
-    <div role="meter" aria-label="Mana" aria-valuemin={0} aria-valuemax={mana.max} aria-valuenow={mana.current}
+    <div role="meter" aria-label="Mana" aria-valuemax={mana.max} aria-valuenow={mana.current}
       title={`Mana : ${mana.current} / ${mana.max}`}
-      className={cn("relative w-full overflow-hidden rounded-[3px] border border-black/70 bg-slate-950 ring-1 ring-amber-600/60",
-        large ? "h-4" : "h-2.5")}>
-      <div className="h-full bg-linear-to-b from-sky-300 via-blue-500 to-blue-800 shadow-[0_0_6px_var(--color-sky-400)] transition-[width] duration-500"
-        style={{ width: `${pct}%` }} />
+      className={cn("relative w-full overflow-hidden rounded-[3px] border border-black/70 bg-slate-950 ring-1",
+        negative ? "ring-red-600/80" : "ring-amber-600/60", large ? "h-4" : "h-2.5")}>
+      <div className={cn("h-full transition-[width] duration-500", negative
+        ? "bg-linear-to-b from-red-400 via-red-600 to-red-900 shadow-[0_0_6px_var(--color-red-500)]"
+        : "bg-linear-to-b from-sky-300 via-blue-500 to-blue-800 shadow-[0_0_6px_var(--color-sky-400)]")}
+        style={{ width: `${ratio * 100}%` }} />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[40%] bg-white/25" />
       {mana.max > 1 && mana.max <= MAX_TICKS && (
         <div className="pointer-events-none absolute inset-0"
@@ -168,40 +180,45 @@ function ManaBar({ mana, large }: { mana: Monitor; large?: boolean }) {
   );
 }
 
-/** Ligne détaillée d'un moniteur (carte dépliée) : intitulé, − valeur +. */
-function MonitorRow({ label, dot, monitor: { current, max }, canEdit, onDelta, onSet }: {
-  label: string; dot: string; monitor: Monitor; canEdit: boolean;
+/** Ligne détaillée d'un moniteur (carte dépliée) : intitulé, − valeur +. Un moniteur de condition reste à 0 ou
+ * plus mais peut dépasser son max ; le mana reste au plus à son max mais peut être négatif (comme le serveur). */
+function MonitorRow({ label, dot, monitor: { current, max }, mana, canEdit, onDelta, onSet }: {
+  label: string; dot: string; monitor: Monitor; mana?: boolean; canEdit: boolean;
   onDelta: (d: number) => void; onSet: (v: number) => void;
 }) {
+  const [low, high] = mana ? [-Infinity, max] : [0, Infinity];
   // Saisie directe de la valeur ; resynchronisée quand la valeur change (autre joueur, temps réel).
   const [draft, setDraft] = useState(String(current));
   useEffect(() => setDraft(String(current)), [current]);
   const commit = () => {
     const v = Number(draft);
-    if (draft.trim() !== "" && Number.isInteger(v) && v !== current) onSet(Math.max(0, Math.min(max, v)));
+    if (draft.trim() !== "" && Number.isInteger(v) && v !== current) onSet(Math.max(low, Math.min(high, v)));
     else setDraft(String(current));
   };
-  const broken = max > 0 && current === 0;
+  const broken = max > 0 && (mana ? current <= 0 : current === 0);
   return (
     <div className="flex items-center gap-2 text-sm">
       <span className={cn("size-2.5 shrink-0 rounded-full", dot)} />
       <span className={cn("flex-1 font-heading font-semibold", broken && "text-destructive")}>{label}</span>
       {broken && <Skull className="size-3.5 text-destructive" aria-label="brisé" />}
       {canEdit && (
-        <Button variant="ghost" size="icon-xs" aria-label={`${label} -1`} disabled={current <= 0}
+        <Button variant="ghost" size="icon-xs" aria-label={`${label} -1`} disabled={current <= low}
           onClick={() => onDelta(-1)}><Minus /></Button>
       )}
-      <span className="flex items-baseline tabular-nums">
+      {/* Au-delà du max : en vert ; mana négatif : en rouge. */}
+      <span className={cn("flex items-baseline tabular-nums", current > max && "text-emerald-600 dark:text-emerald-400",
+        current < 0 && "text-destructive")}>
         {canEdit ? (
-          <input aria-label={`${label} actuel`} inputMode="numeric"
-            className="w-7 rounded-sm bg-transparent text-right font-semibold outline-none focus:bg-background focus:ring-1 focus:ring-ring"
+          // Mana : clavier texte, le pavé numérique des téléphones n'a pas toujours le signe moins.
+          <input aria-label={`${label} actuel`} inputMode={mana ? "text" : "numeric"}
+            className="w-8 rounded-sm bg-transparent text-right font-semibold outline-none focus:bg-background focus:ring-1 focus:ring-ring"
             value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit}
             onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
         ) : <span className="font-semibold">{current}</span>}
         <span className="w-8 text-muted-foreground">/{max}</span>
       </span>
       {canEdit && (
-        <Button variant="ghost" size="icon-xs" aria-label={`${label} +1`} disabled={current >= max}
+        <Button variant="ghost" size="icon-xs" aria-label={`${label} +1`} disabled={current >= high}
           onClick={() => onDelta(1)}><Plus /></Button>
       )}
     </div>
@@ -306,6 +323,20 @@ export default function InstanceCard({
   useEffect(() => () => clearTimeout(leaveTimer.current), []);
   const expanded = hovered || focused || pinned;
 
+  // La carte dépliée, plus large que le jeton, est centrée sur lui : au bord de l'écran (téléphone), on la décale
+  // pour qu'elle y reste entière. Mesure par le centre, que l'animation d'ouverture (zoom) ne déplace pas.
+  const overlay = useRef<HTMLDivElement>(null);
+  const [shift, setShift] = useState(0);
+  useLayoutEffect(() => {
+    const el = overlay.current;
+    if (!expanded || !el) { setShift(0); return; }
+    const r = el.getBoundingClientRect();
+    const left = r.left + r.width / 2 - el.offsetWidth / 2 - shift;
+    const right = left + el.offsetWidth;
+    const screen = document.documentElement.clientWidth;
+    setShift(left < EDGE ? EDGE - left : right > screen - EDGE ? screen - EDGE - right : 0);
+  }, [expanded]); // seulement à l'ouverture
+
   return (
     // Les évènements des popovers (rendus en portail) remontent l'arbre React : la carte reste dépliée pendant leur usage.
     <div className="relative w-56"
@@ -349,7 +380,8 @@ export default function InstanceCard({
       </div>
 
       {expanded && (
-        <div className={cn("arcane-card absolute -top-2 left-1/2 z-30 flex w-80 -translate-x-1/2 flex-col gap-2 rounded-xl bg-card p-3 text-card-foreground ring-1 shadow-xl animate-in fade-in zoom-in-95 duration-150",
+        <div ref={overlay} style={{ marginLeft: shift }}
+          className={cn("arcane-card absolute -top-2 left-1/2 z-30 flex w-[min(20rem,calc(100vw_-_1rem))] -translate-x-1/2 flex-col gap-2 rounded-xl bg-card p-3 text-card-foreground ring-1 shadow-xl animate-in fade-in zoom-in-95 duration-150",
           dragging && "pointer-events-none opacity-0")}>
           <div className="flex items-center gap-1">
             {arrange && (
@@ -416,7 +448,7 @@ export default function InstanceCard({
           )}
           <div className="flex flex-col gap-0.5">
             {keys.map((k) => (
-              <MonitorRow key={k} label={defs[k].label} monitor={instance.monitors[k]} canEdit={canEdit}
+              <MonitorRow key={k} label={defs[k].label} monitor={instance.monitors[k]} mana={k === "mana"} canEdit={canEdit}
                 dot={k === "mana" ? "bg-sky-500" : (RING_COLORS[k] ?? DEFAULT_RING).dot}
                 onDelta={(d) => onDelta(k, d)} onSet={(v) => onSet(k, v)} />
             ))}

@@ -1725,7 +1725,7 @@
           "instances"
         ],
         "summary": "Reprendre les max de la fiche",
-        "description": "Les max sont recalculés d'après la fiche, les dégâts subis (max - actuel) sont conservés.\nUn moniteur qui apparaît (mana gagné) commence au max.",
+        "description": "Les max sont recalculés d'après la fiche, les dégâts subis (max - actuel) sont conservés, comme un\ndépassement du max (dégâts négatifs). Un moniteur qui apparaît (mana gagné) commence au max.",
         "operationId": "resync_instance_api_rooms__room_id__instances__instance_id__resync_post",
         "parameters": [
           {
@@ -3875,7 +3875,6 @@
         "properties": {
           "current": {
             "type": "integer",
-            "minimum": 0.0,
             "title": "Current"
           },
           "max": {
@@ -3903,8 +3902,7 @@
           },
           "set": {
             "additionalProperties": {
-              "type": "integer",
-              "minimum": 0.0
+              "type": "integer"
             },
             "type": "object",
             "title": "Set",
@@ -3913,7 +3911,7 @@
         },
         "type": "object",
         "title": "MonitorChange",
-        "description": "Modifier des moniteurs. `delta` ajoute (positif : soin, négatif : dégâts), `set` fixe la valeur.\nLe résultat reste entre 0 et le max. Préférer `delta` : deux changements simultanés s'additionnent."
+        "description": "Modifier des moniteurs. `delta` ajoute (positif : soin, négatif : dégâts), `set` fixe la valeur.\nUn moniteur de condition reste à 0 ou plus mais peut dépasser son max ; le mana reste au plus à son max\nmais peut être négatif. Préférer `delta` : deux changements simultanés s'additionnent."
       },
       "MonitorDef": {
         "properties": {

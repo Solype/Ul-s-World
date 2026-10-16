@@ -16,6 +16,9 @@ export type Layout = { loose: number[]; groups: { id?: number; name: string; ids
 /** Où déposer : dans un groupe (id), hors groupe (null) ou dans un nouveau groupe, avant la carte n° `index`. */
 type Target = { group: number | null | "new"; index: number };
 
+/** Rangée de cartes : centrées sur téléphone (une par ligne), alignées à gauche au-delà. */
+const CARD_ROW = "flex flex-wrap justify-center gap-x-12 gap-y-8 sm:justify-start";
+
 /** Données glissées : l'id de l'instance, sous un type que seul ce tableau accepte. */
 const DRAG_TYPE = "application/x-newmannheim-instance";
 
@@ -141,7 +144,7 @@ export default function RoomBoard({ instances, groups, isGM, card, onLayout, onG
 
   return (
     <div className="flex flex-col gap-6 pb-4" onDragOver={(e) => over(e, null)}>
-      {layout.loose.length > 0 && zone(null, layout.loose, "flex flex-wrap gap-x-12 gap-y-8", cards(null, layout.loose))}
+      {layout.loose.length > 0 && zone(null, layout.loose, CARD_ROW, cards(null, layout.loose))}
 
       {(shownGroups.length > 0 || (isGM && dragging)) && (
         <div className="flex flex-wrap items-start gap-6">
@@ -161,7 +164,7 @@ export default function RoomBoard({ instances, groups, isGM, card, onLayout, onG
                 onVisibility={(v) => onGroupVisibility(g.ids.filter((iid) => byId.get(iid)?.character.kind !== "pj"), v)}
                 onDissolve={() => commit({ loose: [...layout.loose, ...g.ids], groups: layout.groups.filter((o) => o.id !== g.id) })} />
               {g.ids.length > 0 ? (
-                <div className="flex flex-wrap gap-x-12 gap-y-8">{cards(g.id!, g.ids)}</div>
+                <div className={CARD_ROW}>{cards(g.id!, g.ids)}</div>
               ) : (
                 <p className="py-6 text-center text-sm text-muted-foreground">Glisse des cartes ici</p>
               )}

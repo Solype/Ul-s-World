@@ -56,9 +56,10 @@ def test_any_member_changes_monitors_within_bounds(in_play):
     assert res.status_code == 200
     assert res.json()["monitors"]["physique"]["current"] == physique - 3
     assert in_play["alice"].patch(url, json={"delta": {"physique": 1}}).json()["monitors"]["physique"]["current"] == physique - 2
-    # Bornes : jamais sous 0 ni au-dessus du max.
+    # Bornes : jamais sous 0 (brisé), mais au-dessus du max, oui.
     assert bob.patch(url, json={"delta": {"physique": -999}}).json()["monitors"]["physique"]["current"] == 0
-    assert bob.patch(url, json={"delta": {"physique": 999}}).json()["monitors"]["physique"]["current"] == physique
+    assert bob.patch(url, json={"set": {"physique": -3}}).json()["monitors"]["physique"]["current"] == 0
+    assert bob.patch(url, json={"delta": {"physique": physique + 3}}).json()["monitors"]["physique"]["current"] == physique + 3
     assert bob.patch(url, json={"set": {"endurance": 2}}).json()["monitors"]["endurance"]["current"] == 2
     assert bob.patch(url, json={"delta": {"mana": -1}}).status_code == 422
     assert in_play["outsider"].patch(url, json={"delta": {"physique": -1}}).status_code == 404
@@ -81,6 +82,25 @@ def test_resync_applies_sheet_changes_and_keeps_damage(in_play):
     assert synced["monitors"]["physique"] == {"max": before["physique"]["max"] + 1,
                                               "current": before["physique"]["max"] + 1 - 4}
     assert synced["monitors"]["mana"] == {"current": 30, "max": 30}  # nouveau moniteur : au max
+
+
+def test_mana_can_go_negative_but_not_above_max(in_play):
+    alice, url, pj = in_play["alice"], in_play["url"], in_play["pj"]
+    character = alice.get(f"/api/characters/{pj}").json()
+    alice.patch(f"/api/characters/{pj}", json={"mana": {"current": 0, "max": 10}})
+    alice.post(f"{url}/resync")
+    mana = lambda res: res.json()["monitors"]["mana"]["current"]  # noqa: E731
+    assert mana(alice.patch(url, json={"delta": {"mana": -14}})) == -4
+    assert mana(alice.patch(url, json={"delta": {"mana": 99}})) == 10
+    assert mana(alice.patch(url, json={"set": {"mana": -7}})) == -7
+    # Un max qui change garde l'écart au max, dépassement ou négatif compris.
+    alice.patch(url, json={"delta": {"physique": 2}})
+    alice.patch(f"/api/characters/{pj}", json={
+        "attributes": {**character["attributes"], "resistance": character["attributes"]["resistance"] + 1},
+        "mana": {"current": 0, "max": 12}})
+    synced = alice.post(f"{url}/resync").json()["monitors"]
+    assert synced["mana"]["current"] == -5
+    assert synced["physique"]["current"] == synced["physique"]["max"] + 2
 
 
 def test_instance_leaves_with_the_character(in_play):
