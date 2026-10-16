@@ -47,6 +47,7 @@ APK_SERVER_URL=http://192.168.1.24:8080 docker compose run --rm apk   # → andr
 - Installer : depuis le navigateur d'un téléphone Android, bouton **« Télécharger »** (barre du haut, et sous la connexion), puis ouvrir le fichier. Android demande d'autoriser l'installation depuis cette source. nginx sert l'APK compilé (`android/dist`, monté dans le conteneur `frontend`, URL `/newmannheim.apk`). Le bouton n'apparaît que si l'APK existe, et jamais dans l'app elle-même (sa WebView ajoute `NewMannheimApp` au user-agent).
 - L'adresse du serveur est demandée au premier lancement (pré-remplie avec `APK_SERVER_URL`, facultatif). Pour la changer : bouton retour à l'accueil de l'app, ou « Changer de serveur » quand le serveur ne répond pas.
 - Signature : la clé `android/keystore/newmannheim.jks` est créée au premier build puis réutilisée, pour qu'un nouvel APK s'installe par-dessus l'ancien. Elle est hors du dépôt : **la garder**. Sans elle, il faut désinstaller l'app avant d'installer le nouvel APK, et la connexion est perdue. Mot de passe : `APK_KEYSTORE_PASSWORD`, `newmannheim` par défaut.
+- Impression (fiche d'un personnage, fiche vierge `#/fiche-vierge`) : la WebView ignore `window.print()`, l'app expose donc `NewMannheimApp.print()` qui ouvre l'impression d'Android (ou l'enregistrement en PDF). Un APK compilé avant ce pont n'imprime pas.
 - Android 8 minimum. Le serveur peut être en HTTP (réseau local).
 
 ### En développement (rechargement à chaud)

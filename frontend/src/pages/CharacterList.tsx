@@ -1,4 +1,4 @@
-import { FileJson, MoreHorizontal, Plus, Printer, Trash2, UserRound, UserRoundCog } from "lucide-react";
+import { FileJson, FileText, MoreHorizontal, Plus, Printer, Trash2, UserRound, UserRoundCog } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api, type Character, type CharacterKind, type UserPublic } from "@/api/client";
@@ -80,7 +80,14 @@ export default function CharacterList({ kind, onKindChange, onOpen, onSheet }: P
           <h1 className="text-2xl font-semibold">Personnages</h1>
           <p className="text-sm text-muted-foreground">Joueurs, personnages non joueurs et créatures de la campagne.</p>
         </div>
-        <Button onClick={() => onOpen(null)}><Plus data-icon="inline-start" />{NEW_LABEL[kind]}</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <a href="#/fiche-vierge" title="Fiche à imprimer pour créer un personnage sur papier">
+              <FileText data-icon="inline-start" />Fiche vierge
+            </a>
+          </Button>
+          <Button onClick={() => onOpen(null)}><Plus data-icon="inline-start" />{NEW_LABEL[kind]}</Button>
+        </div>
       </div>
 
       <Tabs value={kind} onValueChange={(v) => onKindChange(v as CharacterKind)}>

@@ -7,9 +7,12 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
+import android.print.PrintAttributes;
+import android.print.PrintManager;
 import android.text.InputType;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -24,7 +27,8 @@ import android.widget.FrameLayout;
  *
  * L'adresse du serveur est demandée au premier lancement et retenue. Retour à la racine de l'app : quitter
  * ou changer de serveur ; serveur injoignable : réessayer ou changer de serveur. Les liens vers d'autres
- * sites s'ouvrent dans le navigateur.
+ * sites s'ouvrent dans le navigateur. La WebView ignore `window.print()` : le site imprime par
+ * `NewMannheimApp.print(titre)` (frontend/src/lib/print.ts), qui ouvre l'impression d'Android (ou PDF).
  */
 public class MainActivity extends Activity {
     private static final String PREFS = "newmannheim";
@@ -51,6 +55,7 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);  // captcha Turnstile
         webView.setWebViewClient(new Client());
+        webView.addJavascriptInterface(new Bridge(), "NewMannheimApp");
         setContentView(webView);
 
         if (savedInstanceState != null) {
@@ -111,6 +116,18 @@ public class MainActivity extends Activity {
     private boolean sameServer(Uri uri) {
         Uri server = Uri.parse(serverUrl());
         return uri.getHost() != null && uri.getHost().equals(server.getHost()) && uri.getPort() == server.getPort();
+    }
+
+    /** Appelé par le site (thread JavaScript) : imprime la page affichée, en A4 comme le prévoit son CSS. */
+    private class Bridge {
+        @JavascriptInterface
+        public void print(String title) {
+            runOnUiThread(() -> {
+                PrintManager printManager = (PrintManager) getSystemService(PRINT_SERVICE);
+                printManager.print(title, webView.createPrintDocumentAdapter(title),
+                        new PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build());
+            });
+        }
     }
 
     private class Client extends WebViewClient {

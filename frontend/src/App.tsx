@@ -11,6 +11,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu";
 import { cn } from "./lib/utils";
+import BlankSheet from "./pages/BlankSheet";
 import CharacterEditor from "./pages/CharacterEditor";
 import CharacterList from "./pages/CharacterList";
 import CharacterSheet from "./pages/CharacterSheet";
@@ -26,6 +27,7 @@ import RulesReader from "./rules/RulesReader";
 //   #/nouveau/<type>              création
 //   #/personnage/<id>             édition
 //   #/fiche/<id>                  fiche à lire ou imprimer
+//   #/fiche-vierge                fiche vierge à imprimer (personnage sur papier)
 //   #/regles/<page>/<section>     règles en pleine page
 //   #/rooms, #/room/<id>          rooms (tables de jeu)
 //   #/rejoindre/<code>            lien d'invitation : rejoint la room puis l'ouvre
@@ -33,6 +35,7 @@ export type View =
   | { page: "list"; kind: CharacterKind }
   | { page: "edit"; id: number | null; kind: CharacterKind }
   | { page: "sheet"; id: number }
+  | { page: "blank" }
   | { page: "rules"; rulesPage?: string; section?: string }
   | { page: "rooms" }
   | { page: "room"; id: number }
@@ -46,6 +49,7 @@ function parseHash(hash: string): View {
   if (a === "nouveau") return { page: "edit", id: null, kind: asKind(b) };
   if (a === "personnage" && Number(b)) return { page: "edit", id: Number(b), kind: "pj" };
   if (a === "fiche" && Number(b)) return { page: "sheet", id: Number(b) };
+  if (a === "fiche-vierge") return { page: "blank" };
   if (a === "rooms") return { page: "rooms" };
   if (a === "room" && Number(b)) return { page: "room", id: Number(b) };
   if (a === "rejoindre" && b) return { page: "join", code: b };
@@ -58,6 +62,7 @@ const toHash = (v: View) => {
     case "list": return `#/${v.kind}`;
     case "edit": return v.id === null ? `#/nouveau/${v.kind}` : `#/personnage/${v.id}`;
     case "sheet": return `#/fiche/${v.id}`;
+    case "blank": return "#/fiche-vierge";
     case "rules": return `#/regles${v.rulesPage ? `/${v.rulesPage}` : ""}${v.section ? `/${v.section}` : ""}`;
     case "rooms": return "#/rooms";
     case "room": return `#/room/${v.id}`;
@@ -123,7 +128,7 @@ function Layout() {
             <span className="hidden font-heading text-lg font-semibold md:inline">NewMannheim</span>
           </button>
           <nav className="flex items-center gap-1">
-            <Button variant={["list", "edit", "sheet"].includes(view.page) ? "secondary" : "ghost"} size="sm"
+            <Button variant={["list", "edit", "sheet", "blank"].includes(view.page) ? "secondary" : "ghost"} size="sm"
               aria-label="Personnages" onClick={() => setView({ page: "list", kind: listKind })}>
               <UserRound data-icon="inline-start" /><span className="hidden sm:inline">Personnages</span>
             </Button>
@@ -157,6 +162,7 @@ function Layout() {
               <CharacterEditor key={toHash(view)} id={view.id} kind={view.kind} onClose={back} />
             )}
             {view.page === "sheet" && <CharacterSheet id={view.id} onClose={back} />}
+            {view.page === "blank" && <BlankSheet onClose={back} />}
             {view.page === "rooms" && <RoomList onOpen={(id) => setView({ page: "room", id })} />}
             {view.page === "room" && (
               <RoomPage key={view.id} id={view.id} onBack={back} onGone={() => setView({ page: "rooms" })} />

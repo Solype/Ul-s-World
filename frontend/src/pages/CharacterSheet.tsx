@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRules } from "@/hooks/useRules";
 import { ATTRIBUTE_LABELS } from "@/lib/labels";
+import { printPage } from "@/lib/print";
 import { cn } from "@/lib/utils";
 import { KIND_LABELS } from "./CharacterEditor";
 
@@ -110,7 +111,7 @@ export default function CharacterSheet({ id, onClose, embedded = false }: {
           // Imprimer depuis une fenêtre superposée imprimerait la page derrière : on ouvre la fiche seule.
           <Button asChild><a href={`#/fiche/${id}`} target="_blank" rel="noopener"><Printer data-icon="inline-start" />Imprimer</a></Button>
         ) : (
-          <Button onClick={() => window.print()}><Printer data-icon="inline-start" />Imprimer</Button>
+          <Button onClick={printPage}><Printer data-icon="inline-start" />Imprimer</Button>
         )}
       </div>
 
