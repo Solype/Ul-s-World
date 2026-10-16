@@ -2,11 +2,19 @@ package fr.newmannheim.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageInstaller;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.print.PrintAttributes;
 import android.print.PrintManager;
@@ -25,7 +33,10 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -37,14 +48,31 @@ import java.nio.charset.StandardCharsets;
  * sites s'ouvrent dans le navigateur.
  *
  * Ce que la WebView ne fait pas seule passe par le pont `NewMannheimApp` (frontend/src/lib/appBridge.ts) :
- * imprimer (`window.print()` est ignoré) et enregistrer un fichier (les téléchargements sont ignorés). Les
- * champs fichier (`<input type=file>`, import d'un personnage) ouvrent le sélecteur de fichiers d'Android.
+ * imprimer (`window.print()` est ignoré), enregistrer un fichier (les téléchargements sont ignorés) et se
+ * mettre à jour depuis l'APK du serveur. Les champs fichier (`<input type=file>`, import d'un personnage)
+ * ouvrent le sélecteur de fichiers d'Android.
  */
 public class MainActivity extends Activity {
     private static final String PREFS = "newmannheim";
     private static final String SERVER_URL = "server_url";
     private static final int REQUEST_SAVE_FILE = 1;
     private static final int REQUEST_PICK_FILE = 2;
+    private static final String ACTION_INSTALL_STATUS = "fr.newmannheim.app.INSTALL_STATUS";
+
+    /** Résultat de l'installation de la mise à jour : Android demande d'abord la confirmation du joueur. */
+    private final BroadcastReceiver installStatus = new BroadcastReceiver() {
+        @Override
+        @SuppressWarnings("deprecation")
+        public void onReceive(Context context, Intent intent) {
+            int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
+            if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
+                Intent confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT);
+                if (confirm != null) startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } else if (status != PackageInstaller.STATUS_SUCCESS && status != PackageInstaller.STATUS_FAILURE_ABORTED) {
+                Toast.makeText(MainActivity.this, R.string.update_failed, Toast.LENGTH_LONG).show();
+            }
+        }
+    };
 
     private WebView webView;
     private SharedPreferences prefs;
@@ -74,6 +102,10 @@ public class MainActivity extends Activity {
         webView.setWebChromeClient(new ChromeClient());
         webView.addJavascriptInterface(new Bridge(), "NewMannheimApp");
         setContentView(webView);
+
+        IntentFilter filter = new IntentFilter(ACTION_INSTALL_STATUS);
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(installStatus, filter, Context.RECEIVER_NOT_EXPORTED);
+        else registerReceiver(installStatus, filter);
 
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
@@ -144,6 +176,19 @@ public class MainActivity extends Activity {
                 printManager.print(title, webView.createPrintDocumentAdapter(title),
                         new PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build());
             });
+        }
+
+        /** Version de l'app, comparée par le site à celle de l'APK du serveur (`/newmannheim-version.json`). */
+        @JavascriptInterface
+        public long versionCode() {
+            return installedVersion();
+        }
+
+        /** Installe l'APK du serveur par-dessus l'app (même clé de signature). */
+        @JavascriptInterface
+        public void update() {
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, R.string.update_downloading, Toast.LENGTH_SHORT).show());
+            new Thread(MainActivity.this::installUpdate).start();
         }
 
         /** Demande où enregistrer le fichier (sélecteur d'Android, sans permission), puis l'écrit. */
@@ -255,7 +300,49 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        unregisterReceiver(installStatus);
         webView.destroy();
         super.onDestroy();
+    }
+
+    /** Version de l'app installée (`versionCode`, voir android/build.sh). */
+    @SuppressWarnings("deprecation")
+    private long installedVersion() {
+        try {
+            PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
+        } catch (PackageManager.NameNotFoundException e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Télécharge l'APK du serveur dans une session d'installation, puis la valide : Android demande au joueur de
+     * confirmer (et, la première fois, d'autoriser l'app à installer des applications). Hors du thread principal.
+     */
+    private void installUpdate() {
+        PackageInstaller installer = getPackageManager().getPackageInstaller();
+        int sessionId = -1;
+        try {
+            sessionId = installer.createSession(
+                    new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL));
+            try (PackageInstaller.Session session = installer.openSession(sessionId)) {
+                HttpURLConnection connection = (HttpURLConnection) new URL(serverUrl() + "/newmannheim.apk").openConnection();
+                try (InputStream in = connection.getInputStream();
+                     OutputStream out = session.openWrite("newmannheim.apk", 0, connection.getContentLengthLong())) {
+                    byte[] buffer = new byte[64 * 1024];
+                    for (int n; (n = in.read(buffer)) != -1; ) out.write(buffer, 0, n);
+                    session.fsync(out);
+                } finally {
+                    connection.disconnect();
+                }
+                Intent status = new Intent(ACTION_INSTALL_STATUS).setPackage(getPackageName());
+                int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0);
+                session.commit(PendingIntent.getBroadcast(this, sessionId, status, flags).getIntentSender());
+            }
+        } catch (Exception e) {
+            if (sessionId != -1) installer.abandonSession(sessionId);
+            runOnUiThread(() -> Toast.makeText(this, R.string.update_failed, Toast.LENGTH_LONG).show());
+        }
     }
 }

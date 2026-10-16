@@ -21,9 +21,13 @@ fi
 # Compilation dans une copie : le dossier monté ne reçoit que l'APK (pas de build/ ni de .gradle/ à root).
 rm -rf /tmp/build && cp -r /project /tmp/build && rm -rf /tmp/build/dist /tmp/build/keystore
 cd /tmp/build
+# Croît à chaque build (minutes depuis 1970) : l'app compare le sien à celui du serveur pour proposer la mise à jour.
+VERSION_CODE=$(( $(date +%s) / 60 ))
 gradle --no-daemon --quiet assembleRelease \
     -PkeystoreFile="$KEYSTORE" -PkeystorePassword="$PASSWORD" \
-    -PversionCode="$(( $(date +%s) / 60 ))" -PserverUrl="${APK_SERVER_URL:-}"
+    -PversionCode="$VERSION_CODE" -PserverUrl="${APK_SERVER_URL:-}"
 
 cp app/build/outputs/apk/release/app-release.apk /project/dist/newmannheim.apk
-echo "APK : android/dist/newmannheim.apk"
+# Écrit après l'APK : l'app ne propose jamais une version dont l'APK n'est pas encore là.
+echo "{\"versionCode\": $VERSION_CODE}" > /project/dist/newmannheim-version.json
+echo "APK : android/dist/newmannheim.apk (version $VERSION_CODE)"

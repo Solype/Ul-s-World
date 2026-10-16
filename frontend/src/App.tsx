@@ -5,6 +5,7 @@ import { api, type CharacterKind } from "./api/client";
 import { AuthProvider, useAuth, useUser } from "./auth/AuthContext";
 import DownloadApp from "./components/DownloadApp";
 import ThemeToggle from "./components/ThemeToggle";
+import UpdateApp from "./components/UpdateApp";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import {
@@ -149,6 +150,7 @@ function Layout() {
             <AccountMenu />
           </div>
         </div>
+        <UpdateApp />
       </header>
       <div className="flex">
         <main className={cn("min-w-0 flex-1 @container/main print:p-0")}>

@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Bouton « Mettre à jour » : installer l'APK du serveur (le joueur l'autorise la première fois). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- usesCleartextTraffic : le serveur peut être en http sur le réseau local (http://machine.local:8080). -->
     <application
