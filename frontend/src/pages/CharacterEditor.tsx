@@ -182,10 +182,10 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
 
   const gauges = rulesMode && report
     ? [
-        { label: "Points de création", spent: report.pc_spent, total: report.pc_total },
-        { label: "Attributs", spent: report.attribute_points_spent, total: report.attribute_points_available },
-        { label: "Points de groupe", spent: report.skill_group_points_spent, total: report.skill_group_points_available },
-        { label: "Sous", spent: creation.money_spent ?? 0, total: report.money_available },
+        { label: "Points de création", short: "PC", spent: report.pc_spent, total: report.pc_total },
+        { label: "Attributs", short: "Attr.", spent: report.attribute_points_spent, total: report.attribute_points_available },
+        { label: "Points de groupe", short: "Groupes", spent: report.skill_group_points_spent, total: report.skill_group_points_available },
+        { label: "Sous", short: "Sous", spent: creation.money_spent ?? 0, total: report.money_available },
       ]
     : [];
 
@@ -548,6 +548,49 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
             <p className="px-1 text-xs text-muted-foreground">Création libre : les règles de création ne sont pas vérifiées.</p>
           )}
         </aside>
+      </div>
+
+      {/* Téléphone : le panneau latéral passe en bas de page ; cette barre garde sous la main le budget, l'état
+          (menu des sections) et l'enregistrement. */}
+      <div className="sticky bottom-0 z-40 -mx-4 -mb-6 flex flex-col gap-1.5 border-t bg-background/95 px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur @4xl/main:hidden print:hidden">
+        {gauges.length > 0 && (
+          <div className="flex justify-between gap-2 text-[0.7rem] tabular-nums text-muted-foreground">
+            {gauges.map((g) => (
+              <span key={g.label} title={g.label}
+                className={cn(g.total != null && g.spent > g.total && "font-semibold text-destructive",
+                  g.total != null && g.spent === g.total && "text-success")}>
+                {g.short} {g.spent}/{g.total ?? "?"}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" className="min-w-0 flex-1 justify-start">
+                {!report ? <Loader2 className="animate-spin" data-icon="inline-start" />
+                  : report.valid ? <CircleCheck className="text-success" data-icon="inline-start" />
+                  : <CircleAlert className="text-warning" data-icon="inline-start" />}
+                <span className="truncate">{!report ? "Vérification…" : report.valid ? "Valide" : `${issues.length} à compléter`}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start" className="w-64">
+              {sections.map((s) => {
+                const n = issueCount(s.id);
+                return (
+                  <DropdownMenuItem key={s.id} onSelect={() => scrollTo(s.id)}>
+                    <s.icon /><span className="flex-1">{s.title}</span>
+                    {n > 0 ? <Badge variant="destructive">{n}</Badge> : report && <CircleCheck className="text-success" />}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button type="submit" className="flex-1" disabled={saving}>
+            {saving ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Save data-icon="inline-start" />}
+            Enregistrer
+          </Button>
+        </div>
       </div>
     </form>
   );
