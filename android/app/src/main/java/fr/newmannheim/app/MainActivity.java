@@ -2,6 +2,7 @@ package fr.newmannheim.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
@@ -13,6 +14,8 @@ import android.text.InputType;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -20,6 +23,10 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.Toast;
+
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 /**
  * NewMannheim dans une WebView plein écran : le site du serveur, tel quel (connexion par cookie, temps réel,
@@ -27,16 +34,25 @@ import android.widget.FrameLayout;
  *
  * L'adresse du serveur est demandée au premier lancement et retenue. Retour à la racine de l'app : quitter
  * ou changer de serveur ; serveur injoignable : réessayer ou changer de serveur. Les liens vers d'autres
- * sites s'ouvrent dans le navigateur. La WebView ignore `window.print()` : le site imprime par
- * `NewMannheimApp.print(titre)` (frontend/src/lib/print.ts), qui ouvre l'impression d'Android (ou PDF).
+ * sites s'ouvrent dans le navigateur.
+ *
+ * Ce que la WebView ne fait pas seule passe par le pont `NewMannheimApp` (frontend/src/lib/appBridge.ts) :
+ * imprimer (`window.print()` est ignoré) et enregistrer un fichier (les téléchargements sont ignorés). Les
+ * champs fichier (`<input type=file>`, import d'un personnage) ouvrent le sélecteur de fichiers d'Android.
  */
 public class MainActivity extends Activity {
     private static final String PREFS = "newmannheim";
     private static final String SERVER_URL = "server_url";
+    private static final int REQUEST_SAVE_FILE = 1;
+    private static final int REQUEST_PICK_FILE = 2;
 
     private WebView webView;
     private SharedPreferences prefs;
     private boolean errorShown;
+    /** Contenu à écrire une fois l'emplacement choisi (`saveFile`). */
+    private String pendingSave;
+    /** Réponse attendue par le champ fichier ouvert. */
+    private ValueCallback<Uri[]> pendingPick;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,6 +71,7 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);  // captcha Turnstile
         webView.setWebViewClient(new Client());
+        webView.setWebChromeClient(new ChromeClient());
         webView.addJavascriptInterface(new Bridge(), "NewMannheimApp");
         setContentView(webView);
 
@@ -127,6 +144,57 @@ public class MainActivity extends Activity {
                 printManager.print(title, webView.createPrintDocumentAdapter(title),
                         new PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build());
             });
+        }
+
+        /** Demande où enregistrer le fichier (sélecteur d'Android, sans permission), puis l'écrit. */
+        @JavascriptInterface
+        public void saveFile(String name, String mime, String content) {
+            runOnUiThread(() -> {
+                pendingSave = content;
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT)
+                        .addCategory(Intent.CATEGORY_OPENABLE).setType(mime).putExtra(Intent.EXTRA_TITLE, name);
+                try {
+                    startActivityForResult(intent, REQUEST_SAVE_FILE);
+                } catch (ActivityNotFoundException e) {
+                    pendingSave = null;
+                    Toast.makeText(MainActivity.this, R.string.save_failed, Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+    }
+
+    private class ChromeClient extends WebChromeClient {
+        @Override
+        public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+            if (pendingPick != null) pendingPick.onReceiveValue(null);
+            pendingPick = callback;
+            try {
+                startActivityForResult(params.createIntent(), REQUEST_PICK_FILE);
+            } catch (ActivityNotFoundException e) {
+                pendingPick = null;
+                return false;
+            }
+            return true;
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_PICK_FILE && pendingPick != null) {
+            pendingPick.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+            pendingPick = null;
+        } else if (requestCode == REQUEST_SAVE_FILE && pendingSave != null) {
+            String content = pendingSave;
+            pendingSave = null;
+            if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+            try (OutputStream out = getContentResolver().openOutputStream(data.getData())) {
+                out.write(content.getBytes(StandardCharsets.UTF_8));
+                Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Toast.makeText(this, R.string.save_failed, Toast.LENGTH_LONG).show();
+            }
+        } else {
+            super.onActivityResult(requestCode, resultCode, data);
         }
     }
 

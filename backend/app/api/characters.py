@@ -4,6 +4,8 @@ from datetime import UTC, datetime
 from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -18,15 +20,18 @@ from app.rules.roles import apply_role_points, compute_role_points, raise_to_flo
 from app.rules.traits import expected_mana_max, trait_effects
 from app.rules.validation import ValidationReport, validate_character
 from app.schemas import (
+    EXPORT_VERSION,
     CharacterBase,
     CharacterCreate,
     CharacterExport,
+    CharacterImport,
     CharacterKind,
     CharacterRead,
     CharacterUpdate,
     CreationMode,
     OwnerUpdate,
     TraitPick,
+    upgrade_export,
 )
 
 router = APIRouter(prefix="/characters", tags=["characters"])
@@ -119,6 +124,22 @@ def create_character(payload: CharacterCreate, background: BackgroundTasks, user
     return character
 
 
+@router.post("/import", response_model=CharacterRead, status_code=status.HTTP_201_CREATED,
+             summary="Importer un personnage (fichier JSON d'export)")
+def import_character(payload: CharacterImport, background: BackgroundTasks, user: User = Depends(current_user),
+                     session: Session = Depends(get_session)) -> Character:
+    """Recrée le personnage d'un fichier d'export, converti s'il vient d'une version antérieure.
+    C'est un nouveau personnage, qui appartient à celui qui l'importe."""
+    if payload.version > EXPORT_VERSION:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            "Fichier d'une version plus récente de NewMannheim : mettre à jour le serveur")
+    try:
+        character = CharacterCreate.model_validate(upgrade_export(payload.version, payload.character))
+    except ValidationError as e:
+        raise RequestValidationError([{**err, "loc": ("body", "character", *err["loc"])} for err in e.errors()]) from e
+    return create_character(character, background, user, session)
+
+
 @router.get("/{character_id}", response_model=CharacterRead, summary="Lire un personnage")
 def get_character(character_id: int, user: User = Depends(current_user),
                   session: Session = Depends(get_session)) -> Character:
@@ -185,8 +206,8 @@ def delete_character(character_id: int, background: BackgroundTasks, user: User 
 @router.get("/{character_id}/export", response_model=CharacterExport, summary="Exporter un personnage (fichier JSON)")
 def export_character(character_id: int, response: Response, user: User = Depends(current_user),
                      session: Session = Depends(get_session)) -> CharacterExport:
-    """Fichier téléchargeable, versionné, prévu pour être réimporté plus tard. Le propriétaire n'y figure
-    pas : à l'import, le personnage appartiendra à celui qui l'importe."""
+    """Fichier téléchargeable, versionné, à réimporter avec `POST /characters/import`. Le propriétaire n'y
+    figure pas : à l'import, le personnage appartient à celui qui l'importe."""
     character = CharacterRead.model_validate(_get_or_404(session, character_id, user))
     slug = re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", character.name).encode("ascii", "ignore").decode().lower())
     filename = f"{slug.strip('-') or 'personnage'}.json"

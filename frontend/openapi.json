@@ -357,6 +357,48 @@
         }
       }
     },
+    "/api/characters/import": {
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Importer un personnage (fichier JSON d'export)",
+        "description": "Recrée le personnage d'un fichier d'export, converti s'il vient d'une version antérieure.\nC'est un nouveau personnage, qui appartient à celui qui l'importe.",
+        "operationId": "import_character_api_characters_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CharacterImport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/characters/{character_id}": {
       "get": {
         "tags": [
@@ -552,7 +594,7 @@
           "characters"
         ],
         "summary": "Exporter un personnage (fichier JSON)",
-        "description": "Fichier téléchargeable, versionné, prévu pour être réimporté plus tard. Le propriétaire n'y figure\npas : à l'import, le personnage appartiendra à celui qui l'importe.",
+        "description": "Fichier téléchargeable, versionné, à réimporter avec `POST /characters/import`. Le propriétaire n'y\nfigure pas : à l'import, le personnage appartient à celui qui l'importe.",
         "operationId": "export_character_api_characters__character_id__export_get",
         "parameters": [
           {
@@ -2578,7 +2620,7 @@
           "version": {
             "type": "integer",
             "title": "Version",
-            "default": 1
+            "default": 2
           },
           "exported_at": {
             "type": "string",
@@ -2596,6 +2638,45 @@
         ],
         "title": "CharacterExport",
         "description": "Fichier d'export d'un personnage, prévu pour être réimporté.\n\n`version` augmente quand le format change, pour que l'import sache convertir les anciens fichiers."
+      },
+      "CharacterImport": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "const": "newmannheim/personnage",
+            "title": "Format"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "exported_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exported At"
+          },
+          "character": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Character"
+          }
+        },
+        "type": "object",
+        "required": [
+          "format",
+          "version",
+          "character"
+        ],
+        "title": "CharacterImport",
+        "description": "Fichier d'export à réimporter, de n'importe quelle version (convertie avant d'être vérifiée)."
       },
       "CharacterKind": {
         "type": "string",

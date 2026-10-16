@@ -173,6 +173,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Importer un personnage (fichier JSON d'export)
+         * @description Recrée le personnage d'un fichier d'export, converti s'il vient d'une version antérieure.
+         *     C'est un nouveau personnage, qui appartient à celui qui l'importe.
+         */
+        post: operations["import_character_api_characters_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/characters/{character_id}": {
         parameters: {
             query?: never;
@@ -218,8 +239,8 @@ export interface paths {
         };
         /**
          * Exporter un personnage (fichier JSON)
-         * @description Fichier téléchargeable, versionné, prévu pour être réimporté plus tard. Le propriétaire n'y figure
-         *     pas : à l'import, le personnage appartiendra à celui qui l'importe.
+         * @description Fichier téléchargeable, versionné, à réimporter avec `POST /characters/import`. Le propriétaire n'y
+         *     figure pas : à l'import, le personnage appartient à celui qui l'importe.
          */
         get: operations["export_character_api_characters__character_id__export_get"];
         put?: never;
@@ -955,7 +976,7 @@ export interface components {
             format?: "newmannheim/personnage";
             /**
              * Version
-             * @default 1
+             * @default 2
              */
             version?: number;
             /**
@@ -964,6 +985,25 @@ export interface components {
              */
             exported_at: string;
             character: components["schemas"]["CharacterBase"];
+        };
+        /**
+         * CharacterImport
+         * @description Fichier d'export à réimporter, de n'importe quelle version (convertie avant d'être vérifiée).
+         */
+        CharacterImport: {
+            /**
+             * Format
+             * @constant
+             */
+            format: "newmannheim/personnage";
+            /** Version */
+            version: number;
+            /** Exported At */
+            exported_at?: string | null;
+            /** Character */
+            character: {
+                [key: string]: unknown;
+            };
         };
         /**
          * CharacterKind
@@ -2792,6 +2832,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CharacterCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_character_api_characters_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CharacterImport"];
             };
         };
         responses: {

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRules } from "@/hooks/useRules";
 import { ATTRIBUTE_LABELS } from "@/lib/labels";
+import { exportCharacter } from "@/lib/characterFile";
 import { printPage } from "@/lib/print";
 import { cn } from "@/lib/utils";
 import { KIND_LABELS } from "./CharacterEditor";
@@ -104,9 +105,7 @@ export default function CharacterSheet({ id, onClose, embedded = false }: {
       <div className={cn("flex flex-wrap items-center gap-2 print:hidden", embedded && "pr-8")}>
         {!embedded && <Button variant="ghost" size="icon" aria-label="Retour" onClick={onClose}><ArrowLeft /></Button>}
         <h1 className="flex-1 truncate text-xl font-semibold">Fiche de {c.name}</h1>
-        <Button variant="outline" asChild>
-          <a href={`/api/characters/${id}/export`} download><FileJson data-icon="inline-start" />JSON</a>
-        </Button>
+        <Button variant="outline" onClick={() => exportCharacter(id)}><FileJson data-icon="inline-start" />JSON</Button>
         {embedded ? (
           // Imprimer depuis une fenêtre superposée imprimerait la page derrière : on ouvre la fiche seule.
           <Button asChild><a href={`#/fiche/${id}`} target="_blank" rel="noopener"><Printer data-icon="inline-start" />Imprimer</a></Button>

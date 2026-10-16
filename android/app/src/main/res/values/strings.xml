@@ -10,4 +10,6 @@
     <string name="change_server">Changer de serveur</string>
     <string name="unreachable_title">Serveur injoignable</string>
     <string name="unreachable_message">Impossible de joindre %1$s (%2$s).</string>
+    <string name="saved">Fichier enregistré</string>
+    <string name="save_failed">Impossible d\'enregistrer le fichier</string>
 </resources>

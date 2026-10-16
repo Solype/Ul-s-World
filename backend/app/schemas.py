@@ -147,7 +147,10 @@ class CharacterUpdate(CharacterBase):
 
 
 EXPORT_FORMAT = "newmannheim/personnage"
-EXPORT_VERSION = 1
+# Versions du format (l'import convertit les anciennes, voir `upgrade_export`) :
+#   1 : une seule piété (`resources.piete`) ;
+#   2 : une piété par dieu (`selections.dieux[i].value`), `resources.piete` devient la piété de départ.
+EXPORT_VERSION = 2
 
 
 class CharacterExport(BaseModel):
@@ -160,6 +163,29 @@ class CharacterExport(BaseModel):
     version: int = EXPORT_VERSION
     exported_at: datetime
     character: CharacterBase
+
+
+class CharacterImport(BaseModel):
+    """Fichier d'export à réimporter, de n'importe quelle version (convertie avant d'être vérifiée)."""
+
+    format: Literal["newmannheim/personnage"]
+    version: int = Field(ge=1)
+    exported_at: datetime | None = None
+    # Brut : sa forme dépend de la version du fichier.
+    character: dict
+
+
+def upgrade_export(version: int, character: dict) -> dict:
+    """Convertit le personnage d'un fichier d'export au format actuel (`EXPORT_VERSION`)."""
+    character = dict(character)
+    if version < 2:
+        # Chaque dieu part de la piété unique de l'ancien format.
+        selections = dict(character.get("selections") or {})
+        piete = (character.get("resources") or {}).get("piete", 0)
+        if selections.get("dieux"):
+            selections["dieux"] = [{**g, "value": g.get("value", piete)} for g in selections["dieux"]]
+            character["selections"] = selections
+    return character
 
 
 class UserPublic(BaseModel):

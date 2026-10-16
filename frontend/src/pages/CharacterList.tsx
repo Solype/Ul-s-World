@@ -1,5 +1,5 @@
-import { FileJson, FileText, MoreHorizontal, Plus, Printer, Trash2, UserRound, UserRoundCog } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { FileJson, FileText, MoreHorizontal, Plus, Printer, Trash2, Upload, UserRound, UserRoundCog } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api, type Character, type CharacterKind, type UserPublic } from "@/api/client";
 import { useUser } from "@/auth/AuthContext";
@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useChannel } from "@/hooks/useChannel";
 import { useRules } from "@/hooks/useRules";
+import { exportCharacter, importCharacter } from "@/lib/characterFile";
 import { KIND_LABELS } from "./CharacterEditor";
 
 type Props = {
@@ -34,6 +35,7 @@ export default function CharacterList({ kind, onKindChange, onOpen, onSheet }: P
   const user = useUser();
   const [characters, setCharacters] = useState<Character[] | null>(null);
   const [toDelete, setToDelete] = useState<Character | null>(null);
+  const importInput = useRef<HTMLInputElement>(null);
   // Admin : changement de propriétaire.
   const [toReassign, setToReassign] = useState<Character | null>(null);
   const [newOwner, setNewOwner] = useState<string>("");
@@ -81,6 +83,17 @@ export default function CharacterList({ kind, onKindChange, onOpen, onSheet }: P
           <p className="text-sm text-muted-foreground">Joueurs, personnages non joueurs et créatures de la campagne.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* Fichier JSON d'un export (de ce serveur ou d'un autre) : recréé comme un nouveau personnage. */}
+          <input ref={importInput} type="file" accept=".json,application/json" hidden
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = ""; // pour pouvoir réimporter le même fichier
+              const imported = file && await importCharacter(file);
+              if (imported) onOpen(imported.id);
+            }} />
+          <Button variant="outline" onClick={() => importInput.current?.click()} title="Recréer un personnage depuis son fichier JSON d'export">
+            <Upload data-icon="inline-start" />Importer
+          </Button>
           <Button variant="outline" asChild>
             <a href="#/fiche-vierge" title="Fiche à imprimer pour créer un personnage sur papier">
               <FileText data-icon="inline-start" />Fiche vierge
@@ -133,9 +146,7 @@ export default function CharacterList({ kind, onKindChange, onOpen, onSheet }: P
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onSelect={() => onSheet(c.id)}><Printer />Fiche imprimable</DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <a href={`/api/characters/${c.id}/export`} download><FileJson />Exporter (JSON)</a>
-                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => exportCharacter(c.id)}><FileJson />Exporter (JSON)</DropdownMenuItem>
                         {user.is_admin && (
                           <DropdownMenuItem onSelect={() => openReassign(c)}><UserRoundCog />Changer de propriétaire</DropdownMenuItem>
                         )}

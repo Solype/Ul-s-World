@@ -34,6 +34,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useRules } from "@/hooks/useRules";
 import { creationBudget } from "@/lib/budget";
+import { exportCharacter } from "@/lib/characterFile";
 import { ATTRIBUTE_LABELS } from "@/lib/labels";
 import { applyRoleEffects, roleFloors } from "@/lib/roleEffects";
 import { cn } from "@/lib/utils";
@@ -210,9 +211,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => { location.hash = `#/fiche/${id}`; }}><Printer />Fiche imprimable</DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <a href={`/api/characters/${id}/export`} download><FileJson />Fichier JSON</a>
-                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => exportCharacter(id)}><FileJson />Fichier JSON</DropdownMenuItem>
                 <p className="max-w-56 px-2 py-1.5 text-xs text-muted-foreground">Version enregistrée : enregistre d'abord tes modifications.</p>
               </DropdownMenuContent>
             </DropdownMenu>
