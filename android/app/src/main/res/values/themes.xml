@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Couleur primaire de l'app web (variable CSS primary, thème clair). -->
+    <color name="primary">#994C14</color>
+    <color name="parchment">#FAF8F3</color>
+
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">@color/primary</item>
+        <item name="android:colorAccent">@color/primary</item>
+        <item name="android:statusBarColor">@color/primary</item>
+        <item name="android:windowBackground">@color/parchment</item>
+    </style>
+</resources>

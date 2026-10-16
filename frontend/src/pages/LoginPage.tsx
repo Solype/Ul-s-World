@@ -4,6 +4,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "@/api/client";
 import { useAuth } from "@/auth/AuthContext";
+import DownloadApp from "@/components/DownloadApp";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -103,6 +104,7 @@ export default function LoginPage() {
           </form>
         </CardContent>
       </Card>
+      <DownloadApp wide className="max-w-sm" />
     </div>
   );
 }

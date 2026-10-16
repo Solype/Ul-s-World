@@ -30,8 +30,25 @@ services:
     build: ./frontend
     ports:
       - "8080:80"
+    volumes:
+      # APK compilé par le service `apk`, proposé au téléchargement (bouton sur les téléphones Android).
+      - ./android/dist:/usr/share/nginx/apk:ro
     depends_on:
       - backend
 
+  # APK Android (WebView sur le serveur), compilé à la demande : `docker compose run --rm apk`.
+  # Le profil le tient à l'écart de `docker compose up`.
+  apk:
+    build: ./android
+    profiles: ["apk"]
+    environment:
+      # Adresse proposée au premier lancement de l'app (ex. http://192.168.1.10:8080) ; modifiable dans l'app.
+      APK_SERVER_URL: ${APK_SERVER_URL:-}
+      APK_KEYSTORE_PASSWORD: ${APK_KEYSTORE_PASSWORD:-newmannheim}
+    volumes:
+      - ./android:/project
+      - apk-gradle:/root/.gradle
+
 volumes:
   db-data:
+  apk-gradle:

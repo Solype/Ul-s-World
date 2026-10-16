@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api, type CharacterKind } from "./api/client";
 import { AuthProvider, useAuth, useUser } from "./auth/AuthContext";
+import DownloadApp from "./components/DownloadApp";
 import ThemeToggle from "./components/ThemeToggle";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
@@ -132,6 +133,7 @@ function Layout() {
             </Button>
           </nav>
           <div className="ml-auto flex items-center gap-1">
+            <DownloadApp />
             {!onRulesPage && (
               <Button variant={rulesPanel.isOpen ? "secondary" : "ghost"} size="sm" onClick={rulesPanel.toggle}
                 aria-label="Règles" aria-pressed={rulesPanel.isOpen} title="Règles (Ctrl+K pour rechercher)">

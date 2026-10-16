@@ -36,6 +36,19 @@ hostname -I      # ex. 192.168.1.24  →  http://192.168.1.24:8080   (en dev : :
 - C'est du HTTP sans chiffrement, fait pour un réseau de confiance. Pour une exposition sur Internet, passer en HTTPS et mettre `COOKIE_SECURE=true`.
 - **Captcha à l'inscription** (Cloudflare Turnstile, désactivé par défaut) : créer un widget sur le dashboard Cloudflare pour le domaine du site, puis lancer avec `TURNSTILE_SITE_KEY=<clé du site> TURNSTILE_SECRET=<clé secrète> docker compose up -d --build`. Pour essayer en local, Cloudflare fournit des clés de test qui valident toujours : `1x00000000000000000000AA` / `1x0000000000000000000000000000000AA`.
 
+### Application Android (APK)
+
+L'APK (`android/`) affiche le site du serveur dans une WebView plein écran, sans barre d'adresse. Il n'embarque pas le frontend : une mise à jour du serveur suffit, sans republier l'APK. Il est compilé dans Docker (JDK 17, Gradle, Android SDK 34) :
+
+```bash
+APK_SERVER_URL=http://192.168.1.24:8080 docker compose run --rm apk   # → android/dist/newmannheim.apk
+```
+
+- Installer : depuis le navigateur d'un téléphone Android, bouton **« Télécharger »** (barre du haut, et sous la connexion), puis ouvrir le fichier. Android demande d'autoriser l'installation depuis cette source. nginx sert l'APK compilé (`android/dist`, monté dans le conteneur `frontend`, URL `/newmannheim.apk`). Le bouton n'apparaît que si l'APK existe, et jamais dans l'app elle-même (sa WebView ajoute `NewMannheimApp` au user-agent).
+- L'adresse du serveur est demandée au premier lancement (pré-remplie avec `APK_SERVER_URL`, facultatif). Pour la changer : bouton retour à l'accueil de l'app, ou « Changer de serveur » quand le serveur ne répond pas.
+- Signature : la clé `android/keystore/newmannheim.jks` est créée au premier build puis réutilisée, pour qu'un nouvel APK s'installe par-dessus l'ancien. Elle est hors du dépôt : **la garder**. Sans elle, il faut désinstaller l'app avant d'installer le nouvel APK, et la connexion est perdue. Mot de passe : `APK_KEYSTORE_PASSWORD`, `newmannheim` par défaut.
+- Android 8 minimum. Le serveur peut être en HTTP (réseau local).
+
 ### En développement (rechargement à chaud)
 
 ```bash

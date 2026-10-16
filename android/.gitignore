@@ -1,0 +1,8 @@
+# APK produit et clé de signature (secrète, à garder hors du dépôt).
+dist/
+keystore/
+# Compilation à la main, hors Docker.
+.gradle/
+build/
+app/build/
+local.properties

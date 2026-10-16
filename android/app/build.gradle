@@ -1,0 +1,50 @@
+plugins {
+    id "com.android.application"
+}
+
+// Valeurs passées par build.sh (-P...) ; par défaut, de quoi compiler à la main.
+def prop = { String name, String fallback -> project.findProperty(name)?.toString() ?: fallback }
+
+android {
+    namespace "fr.newmannheim.app"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "fr.newmannheim.app"
+        // Android 8 : icône adaptative sans images bitmap.
+        minSdk 26
+        targetSdk 34
+        versionCode prop("versionCode", "1").toInteger()
+        versionName "1.0"
+        // Adresse du serveur proposée au premier lancement (APK_SERVER_URL), modifiable dans l'app.
+        resValue "string", "default_server_url", prop("serverUrl", "")
+    }
+
+    signingConfigs {
+        release {
+            def file = prop("keystoreFile", "")
+            if (file) {
+                storeFile new File(file)
+                storePassword prop("keystorePassword", "")
+                keyAlias "newmannheim"
+                keyPassword prop("keystorePassword", "")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        checkReleaseBuilds false
+    }
+}
