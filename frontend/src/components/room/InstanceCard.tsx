@@ -1,6 +1,6 @@
 import {
-  ChevronLeft, ChevronRight, Eye, EyeOff, FileText, FolderPlus, GripVertical, Minus, Move, Pin, PinOff, Plus, RefreshCw,
-  ScanEye, Shield, Skull, Trash2, Ungroup, type LucideIcon,
+  ChevronLeft, ChevronRight, Eye, EyeOff, FileText, FolderPlus, GripVertical, Minus, Move, Pin, Plus, RefreshCw,
+  ScanEye, Shield, Skull, Trash2, Ungroup, X, type LucideIcon,
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Instance, InstanceVisibility, MonitorDef, RoomGroup } from "@/api/client";
@@ -291,8 +291,9 @@ function ArrangeMenu({ arrange }: { arrange: Arrange }) {
 
 /**
  * Un personnage en jeu, sous forme de jeton : cartouche du nom, barre de mana, anneaux des moniteurs de
- * condition et statuts pendus au jeton. Au survol (ou épinglée d'un clic sur le jeton), la carte se déplie
- * par-dessus ses voisines avec les valeurs, la modification et la gestion des statuts.
+ * condition et statuts pendus au jeton. Au survol de la souris, ou ouverte d'un clic (tap) sur le jeton, la carte se
+ * déplie par-dessus ses voisines avec les valeurs, la modification et la gestion des statuts. Ouverte, elle se
+ * referme d'un clic en dehors ou sur ✕ : pas d'épingle à retirer sur téléphone.
  */
 export default function InstanceCard({
   instance, defs, canEdit, isGM, statusSuggestions, statusActions, onDelta, onSet, onGodResource, onResync, onSheet,
@@ -314,14 +315,29 @@ export default function InstanceCard({
 
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
-  const [pinned, setPinned] = useState(false);
+  const [open, setOpen] = useState(false);
   // Glissée par sa poignée : la carte dépliée s'efface (sans quitter le DOM, sinon le navigateur annule le glisser)
   // pour laisser voir où la déposer ; le jeton replié reste en place, estompé.
   const [dragging, setDragging] = useState(false);
   const dragImage = useRef<HTMLDivElement>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(leaveTimer.current), []);
-  const expanded = hovered || focused || pinned;
+  const expanded = hovered || focused || open;
+  const close = () => { setOpen(false); setHovered(false); setFocused(false); };
+
+  // Ouverte, un pointeur posé hors de la carte la referme. Les popovers de la carte (rendus en portail) remontent
+  // l'arbre React jusqu'à elle : `onPointerDownCapture` marque l'évènement avant qu'il n'atteigne `document`.
+  const pointerInside = useRef(false);
+  useEffect(() => {
+    if (!open) return;
+    pointerInside.current = false; // le tap qui vient d'ouvrir la carte ne compte pas
+    const onPointerDown = () => {
+      if (!pointerInside.current) close();
+      pointerInside.current = false;
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
 
   // La carte dépliée, plus large que le jeton, est centrée sur lui : au bord de l'écran (téléphone), on la décale
   // pour qu'elle y reste entière. Mesure par le centre, que l'animation d'ouverture (zoom) ne déplace pas.
@@ -339,9 +355,14 @@ export default function InstanceCard({
 
   return (
     // Les évènements des popovers (rendus en portail) remontent l'arbre React : la carte reste dépliée pendant leur usage.
+    // Survol à la souris seulement : sur écran tactile, le tap émule un survol qui ne se termine jamais.
     <div className="relative w-56"
-      onMouseEnter={() => { clearTimeout(leaveTimer.current); setHovered(true); }}
-      onMouseLeave={() => { leaveTimer.current = setTimeout(() => setHovered(false), LEAVE_DELAY_MS); }}
+      onPointerDownCapture={() => { pointerInside.current = true; }}
+      onPointerEnter={(e) => { if (e.pointerType !== "mouse") return; clearTimeout(leaveTimer.current); setHovered(true); }}
+      onPointerLeave={(e) => {
+        if (e.pointerType !== "mouse") return;
+        leaveTimer.current = setTimeout(() => setHovered(false), LEAVE_DELAY_MS);
+      }}
       onFocus={(e) => setFocused(e.target instanceof HTMLInputElement)} onBlur={() => setFocused(false)}>
       {/* Jeton replié : il garde sa place dans la grille même quand la carte dépliée le recouvre. */}
       {/* Caché aux joueurs : le MJ le voit estompé. */}
@@ -351,7 +372,7 @@ export default function InstanceCard({
         {mana && <ManaBar mana={mana} />}
         <div className="relative mx-auto mt-1 w-[120px]">
           <Token name={c.name} rings={rings} defs={defs} unknown={unknown} armor={instance.natural_armor}
-            onClick={() => setPinned(true)} />
+            onClick={() => setOpen(true)} />
           {statuses.slice(0, MAX_HANGING).map((s, i) => {
             // En alternance à droite puis à gauche du jeton, de plus en plus bas ; l'étiquette pend en se balançant.
             const left = i % 2 === 1;
@@ -394,7 +415,7 @@ export default function InstanceCard({
                   // Après le départ du glisser : changer le DOM dans `dragstart` l'annulerait.
                   setTimeout(() => { setDragging(true); arrange.onDragStart(); });
                 }}
-                onDragEnd={() => { setDragging(false); setHovered(false); setPinned(false); arrange.onDragEnd(); }}>
+                onDragEnd={() => { setDragging(false); setHovered(false); setOpen(false); arrange.onDragEnd(); }}>
                 <GripVertical className="size-4" />
               </span>
             )}
@@ -412,10 +433,14 @@ export default function InstanceCard({
                 title={isPC ? "Retirer ce personnage de la room" : "Retirer cet exemplaire du jeu"}
                 onClick={onRemove}><Trash2 /></Button>
             )}
-            <Button variant="ghost" size="icon-sm" aria-label={pinned ? "Replier" : "Garder ouvert"} title={pinned ? "Replier" : "Garder ouvert"}
-              onClick={() => { setPinned(!pinned); if (pinned) { setHovered(false); setFocused(false); } }}>
-              {pinned ? <PinOff /> : <Pin />}
-            </Button>
+            {/* Dépliée au survol, l'épingle la garde ouverte quand la souris s'en va ; ouverte, ✕ la referme. */}
+            {open ? (
+              <Button variant="ghost" size="icon-sm" aria-label="Fermer" title="Fermer" onClick={close}><X /></Button>
+            ) : (
+              <Button variant="ghost" size="icon-sm" aria-label="Garder ouvert" title="Garder ouvert" onClick={() => setOpen(true)}>
+                <Pin />
+              </Button>
+            )}
           </div>
           <p className="-mt-1 truncate text-center text-xs text-muted-foreground">
             {[c.species, c.owner?.username].filter(Boolean).join(" · ")}
@@ -440,7 +465,7 @@ export default function InstanceCard({
           {/* Sert aussi d'image au glisser-déposer. */}
           <div ref={dragImage} className="mx-auto">
             <Token name={c.name} rings={rings} defs={defs} unknown={unknown} armor={instance.natural_armor}
-              onClick={() => setPinned(!pinned)} />
+              onClick={() => (open ? close() : setOpen(true))} />
           </div>
           {unknown && <p className="text-center text-xs text-muted-foreground">Le MJ n'a pas révélé son état.</p>}
           {instance.natural_armor != null && (
