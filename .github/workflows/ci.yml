@@ -12,7 +12,7 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3  # pas de tag majeur v10 publié
         with:
           python-version: "3.14"
       # pytest est dans l'extra `dev` de pyproject.toml. Les tests tournent sur SQLite en mémoire : pas de service Postgres.
