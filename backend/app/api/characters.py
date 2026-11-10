@@ -116,7 +116,8 @@ def create_character(payload: CharacterCreate, background: BackgroundTasks, user
                      session: Session = Depends(get_session)) -> Character:
     """Le personnage appartient au compte qui le crée."""
     character = Character(**payload.model_dump(mode="json"), owner=user)
-    if _uses_role_points(character):
+    # Personnage importé modifié hors règles : ses PCR et valeurs imposées sont gardés tels quels.
+    if _uses_role_points(character) and not character.off_rules:
         _sync_role_points(character)
     session.add(character)
     session.commit()
@@ -156,14 +157,22 @@ def update_character(
         description="Recalculer les PCR à partir des rôles et des choix actuels. "
         "Sinon, les PCR stockés sont conservés (les valeurs envoyées par le client sont ignorées).",
     ),
+    off_rules: bool = Query(
+        False,
+        description="Modification hors règles : les valeurs envoyées (PCR compris) sont gardées telles quelles, "
+        "sans recalcul ni PCR imposés (`sync_roles` est ignoré), et le personnage est marqué `off_rules`.",
+    ),
     user: User = Depends(current_user),
     session: Session = Depends(get_session),
 ) -> Character:
     character = _get_or_404(session, character_id, user, edit=True)
     stored_pcr = stored_role_points(character.skills or {}, character.skill_groups or {})
-    for field, value in payload.model_dump(mode="json", exclude_unset=True).items():
+    # La marque ne se pose que par le paramètre `off_rules` et ne s'enlève pas.
+    for field, value in payload.model_dump(mode="json", exclude_unset=True, exclude={"off_rules"}).items():
         setattr(character, field, value)
-    if _uses_role_points(character):
+    if off_rules:
+        character.off_rules = True
+    elif _uses_role_points(character):
         if sync_roles:
             _sync_role_points(character)
         else:

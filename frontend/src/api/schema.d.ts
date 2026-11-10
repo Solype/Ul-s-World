@@ -773,6 +773,12 @@ export interface components {
             kind?: components["schemas"]["CharacterKind"];
             /** @default rules */
             creation_mode?: components["schemas"]["CreationMode"];
+            /**
+             * Off Rules
+             * @description Personnage selon les règles modifié hors règles (PATCH `?off_rules=true`). Ignoré dans le corps d'un PATCH.
+             * @default false
+             */
+            off_rules?: boolean;
             /** Species */
             species?: string | null;
             /** Age */
@@ -881,6 +887,12 @@ export interface components {
             kind?: components["schemas"]["CharacterKind"];
             /** @default rules */
             creation_mode?: components["schemas"]["CreationMode"];
+            /**
+             * Off Rules
+             * @description Personnage selon les règles modifié hors règles (PATCH `?off_rules=true`). Ignoré dans le corps d'un PATCH.
+             * @default false
+             */
+            off_rules?: boolean;
             /** Species */
             species?: string | null;
             /** Age */
@@ -1038,6 +1050,12 @@ export interface components {
             kind?: components["schemas"]["CharacterKind"];
             /** @default rules */
             creation_mode?: components["schemas"]["CreationMode"];
+            /**
+             * Off Rules
+             * @description Personnage selon les règles modifié hors règles (PATCH `?off_rules=true`). Ignoré dans le corps d'un PATCH.
+             * @default false
+             */
+            off_rules?: boolean;
             /** Species */
             species?: string | null;
             /** Age */
@@ -1176,6 +1194,12 @@ export interface components {
             kind?: components["schemas"]["CharacterKind"];
             /** @default rules */
             creation_mode?: components["schemas"]["CreationMode"];
+            /**
+             * Off Rules
+             * @description Personnage selon les règles modifié hors règles (PATCH `?off_rules=true`). Ignoré dans le corps d'un PATCH.
+             * @default false
+             */
+            off_rules?: boolean;
             /** Species */
             species?: string | null;
             /** Age */
@@ -3010,6 +3034,8 @@ export interface operations {
             query?: {
                 /** @description Recalculer les PCR à partir des rôles et des choix actuels. Sinon, les PCR stockés sont conservés (les valeurs envoyées par le client sont ignorées). */
                 sync_roles?: boolean;
+                /** @description Modification hors règles : les valeurs envoyées (PCR compris) sont gardées telles quelles, sans recalcul ni PCR imposés (`sync_roles` est ignoré), et le personnage est marqué `off_rules`. */
+                off_rules?: boolean;
             };
             header?: never;
             path: {

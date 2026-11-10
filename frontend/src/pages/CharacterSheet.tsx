@@ -2,6 +2,7 @@ import { ArrowLeft, FileJson, Printer } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, type Attribute, type Character, type ValidationReport } from "@/api/client";
 import { unlockedPowers } from "@/components/GodPowers";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRules } from "@/hooks/useRules";
@@ -118,7 +119,10 @@ export default function CharacterSheet({ id, onClose, embedded = false }: {
         {/* Identité */}
         <div className="mb-5 flex flex-wrap items-end gap-x-8 gap-y-1 border-b pb-3">
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-muted-foreground">{KIND_LABELS[c.kind ?? "pj"]}{rulesMode ? "" : " · création libre"}</p>
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {KIND_LABELS[c.kind ?? "pj"]}{rulesMode ? "" : " · création libre"}
+              {rulesMode && c.off_rules && <Badge variant="outline">hors règles</Badge>}
+            </p>
             <h2 className="truncate font-heading text-2xl font-semibold">{c.name}</h2>
           </div>
           <p><span className="text-muted-foreground">Espèce</span> <span className="capitalize">{c.species || "—"}</span></p>

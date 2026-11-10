@@ -99,6 +99,8 @@ class CharacterBase(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     kind: CharacterKind = CharacterKind.PJ
     creation_mode: CreationMode = CreationMode.RULES
+    off_rules: bool = Field(False, description="Personnage selon les règles modifié hors règles "
+                            "(PATCH `?off_rules=true`). Ignoré dans le corps d'un PATCH.")
     # Texte libre : une espèce jouable (elfe, nain...) ou n'importe quelle créature (loup, dragon...).
     species: str | None = Field(None, max_length=50)
     age: int | None = Field(None, ge=0)

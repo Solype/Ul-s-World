@@ -124,6 +124,39 @@ def test_patch_with_sync_roles_recomputes(client, saved_guerrier, monkeypatch):
     assert client.get(f"/api/characters/{cid}/validation").json()["role_points_outdated"] is False
 
 
+def test_patch_off_rules_keeps_sent_pcr_and_marks_character(client, saved_guerrier):
+    cid = saved_guerrier["id"]
+    body = {**saved_guerrier, "skills": {**saved_guerrier["skills"], "sabre": {"pcp": 0, "pcr": 50}}, "magic": 7}
+    # `sync_roles` est ignoré hors règles.
+    patched = client.patch(f"/api/characters/{cid}", params={"off_rules": True, "sync_roles": True}, json=body).json()
+    assert patched["skills"]["sabre"]["pcr"] == 50
+    assert patched["magic"] == 7
+    assert patched["off_rules"] is True and patched["creation_mode"] == "rules"
+    # La marque reste, même si le client renvoie `off_rules: false` lors d'une modification suivante.
+    again = client.patch(f"/api/characters/{cid}", json={**patched, "off_rules": False}).json()
+    assert again["off_rules"] is True
+    assert again["skills"]["sabre"]["pcr"] == 50   # PCR stockés conservés, comme d'habitude
+
+
+def test_patch_without_off_rules_does_not_mark(client, saved_guerrier):
+    cid = saved_guerrier["id"]
+    body = {**saved_guerrier, "off_rules": True, "skills": {**saved_guerrier["skills"], "sabre": {"pcp": 0, "pcr": 50}}}
+    patched = client.patch(f"/api/characters/{cid}", json=body).json()
+    assert patched["off_rules"] is False
+    assert patched["skills"]["sabre"]["pcr"] == 2
+
+
+def test_off_rules_survives_export_and_import(client, saved_guerrier):
+    cid = saved_guerrier["id"]
+    body = {**saved_guerrier, "skills": {**saved_guerrier["skills"], "sabre": {"pcp": 0, "pcr": 50}}}
+    client.patch(f"/api/characters/{cid}", params={"off_rules": True}, json=body)
+    exported = client.get(f"/api/characters/{cid}/export").json()
+    assert exported["character"]["off_rules"] is True
+    imported = client.post("/api/characters/import", json=exported).json()
+    assert imported["off_rules"] is True
+    assert imported["skills"]["sabre"]["pcr"] == 50
+
+
 # --- Catalogue réel : effets numériques et minimums ---
 
 @pytest.fixture
