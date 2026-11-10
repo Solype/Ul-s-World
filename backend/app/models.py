@@ -13,7 +13,7 @@ pour les personnages créés avant les comptes : ils sont rattachés au premier 
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, ForeignKeyConstraint, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, ForeignKeyConstraint, Integer, String, Text, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -57,6 +57,8 @@ class Character(Base):
     name: Mapped[str] = mapped_column(String(100), index=True)
     kind: Mapped[str] = mapped_column(String(20), index=True, default="pj")
     creation_mode: Mapped[str] = mapped_column(String(10), default="rules")
+    # Modifié au moins une fois hors règles (PCR et limites non imposés), voir PATCH `?off_rules=true`.
+    off_rules: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     species: Mapped[str | None] = mapped_column(String(50), index=True)
     age: Mapped[int | None]
     attributes: Mapped[dict] = mapped_column(JSON, default=dict)

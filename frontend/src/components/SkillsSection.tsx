@@ -29,6 +29,8 @@ type Props = {
   pcrSource: "stored" | "computed";
   /** Monstre : ce que ses caractéristiques lui donnent. Le reste n'est montré que s'il a encore des points. */
   access?: MonsterAccess | null;
+  /** Modification hors règles : ni bornes ni PCR imposés, comme en création libre. */
+  offRules?: boolean;
 };
 
 /**
@@ -48,20 +50,22 @@ type Props = {
  * ses compétences : son en-tête suffit pour monter le niveau, et il se déplie alors. Un clic sur son nom le plie
  * ou le déplie.
  */
-export default function SkillsSection({ rules, character, report, onChange, pcrSource, roleMana, access }: Props) {
+export default function SkillsSection({ rules, character, report, onChange, pcrSource, roleMana, access, offRules = false }: Props) {
   const [wide] = useState(() => window.matchMedia(WIDE).matches);
   // Choix explicite de l'utilisateur, groupe par groupe ; sinon dépend de l'écran et des points du groupe.
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   const rulesMode = character.creation_mode !== "free";
+  // Règles imposées (bornes, PCR, mana max) ; hors règles, elles ne sont plus qu'affichées.
+  const strict = rulesMode && !offRules;
   const isPC = (character.kind ?? "pj") === "pj";
-  const pcrLocked = rulesMode;
+  const pcrLocked = strict;
   const groups = character.skill_groups ?? {};
   const skills = character.skills ?? {};
   const pools = character.pools ?? {};
   const setPool = (name: string, value: number) => {
     const next = { ...pools, [name]: value };
     // Mode règles : le mana max suit la réserve Mana (même calcul que le backend).
-    const mana = name === "mana" && rulesMode
+    const mana = name === "mana" && strict
       ? { mana: { ...character.mana, max: manaMax(rules, roleMana, value, report?.trait_effects) } }
       : {};
     onChange({ pools: next, ...mana });
@@ -69,7 +73,7 @@ export default function SkillsSection({ rules, character, report, onChange, pcrS
   const pcr = (s: string) =>
     pcrLocked && pcrSource === "computed" ? report?.role_points?.skills?.[s] ?? 0 : skills[s]?.pcr ?? 0;
   // Mode règles : les « + » sont bornés par les points de groupe restants et les PCP à répartir.
-  const groupsLeft = rulesMode ? creationBudget(rules, character, report).groupsLeft : null;
+  const groupsLeft = strict ? creationBudget(rules, character, report).groupsLeft : null;
   // Compétences rendues inaccessibles par un trait (Incompétent !, Asocial...) -> trait responsable.
   const forbidden: Record<string, string> = Object.fromEntries(
     Object.entries(report?.trait_effects?.forbidden_skills ?? {}).map(([s, trait]) => [s, `trait « ${trait} »`]));
@@ -109,7 +113,7 @@ export default function SkillsSection({ rules, character, report, onChange, pcrS
                 <span className="ml-1.5 text-xs font-normal text-muted-foreground">×{pool.per_point} par PCP</span>
               </TableCell>
               <TableCell>
-                <NumberStepper value={pcp} max={rulesMode ? pcp + left : undefined} onChange={(v) => setPool(name, v)} className={STEP} />
+                <NumberStepper value={pcp} max={strict ? pcp + left : undefined} onChange={(v) => setPool(name, v)} className={STEP} />
               </TableCell>
               {isPC && (
                 <TableCell colSpan={2} className="text-center text-xs font-semibold text-primary">
@@ -196,7 +200,7 @@ export default function SkillsSection({ rules, character, report, onChange, pcrS
                       </TableCell>
                       <TableCell>
                         <NumberStepper value={score.pcp ?? 0}
-                          max={blockedBy ? score.pcp ?? 0 : rulesMode ? (score.pcp ?? 0) + left : undefined}
+                          max={blockedBy && !offRules ? score.pcp ?? 0 : strict ? (score.pcp ?? 0) + left : undefined}
                           onChange={(v) => setSkill(s, "pcp", v)} className={STEP} />
                       </TableCell>
                       {isPC && (

@@ -95,6 +95,9 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
   const [saving, setSaving] = useState(false);
   // Recalcul des PCR à l'enregistrement. Coché automatiquement si on touche aux rôles ou aux choix.
   const [syncRoles, setSyncRoles] = useState(false);
+  // Modification hors règles (personnage selon les règles déjà enregistré) : ni bornes ni valeurs imposées
+  // par les rôles ; la validation reste affichée, à titre indicatif. Vaut pour cette modification seulement.
+  const [offRules, setOffRules] = useState(false);
 
   useEffect(() => {
     if (id === null) return;
@@ -113,7 +116,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
 
   // Nouveau PJ ou mise à jour des rôles demandée : on applique tout de suite ce que donnent les rôles,
   // comme le fera le backend à l'enregistrement.
-  const appliesRoles = c.kind === "pj" && c.creation_mode !== "free" && (id === null || syncRoles);
+  const appliesRoles = c.kind === "pj" && c.creation_mode !== "free" && !offRules && (id === null || syncRoles);
   useEffect(() => {
     if (!rules || !appliesRoles) return;
     const patch = applyRoleEffects(rules, c, report);
@@ -132,9 +135,12 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
 
   const set = (patch: Partial<CharacterInput>) => setC((prev) => ({ ...prev, ...patch }));
   const rulesMode = c.creation_mode !== "free";
+  // Règles imposées à la saisie (bornes, valeurs des rôles en lecture seule) : pas hors règles.
+  const strict = rulesMode && !offRules;
   const isPC = (c.kind ?? "pj") === "pj";
-  // Points restants (mode règles uniquement) : bornent les boutons « + ».
+  // Points restants (mode règles uniquement) : affichés, et bornent les boutons « + » (`bounds`).
   const budget = rulesMode ? creationBudget(rules, c, report) : null;
+  const bounds = strict ? budget : null;
   const creation: Creation = c.creation ?? {};
   const setCreation = (patch: Partial<Creation>) => set({ creation: { ...creation, ...patch } });
   // Limites d'attributs : celles calculées par le backend, traits compris (Aptitude, Hybride...).
@@ -169,7 +175,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
       id === null
         ? await api.POST("/api/characters", { body })
         : await api.PATCH("/api/characters/{character_id}", {
-            params: { path: { character_id: id }, query: { sync_roles: syncRoles } },
+            params: { path: { character_id: id }, query: { sync_roles: syncRoles, off_rules: rulesMode && offRules } },
             body,
           });
     setSaving(false);
@@ -200,6 +206,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
           <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
             <Badge variant="secondary">{KIND_LABELS[c.kind ?? "pj"]}</Badge>
             <Badge variant="outline">{rulesMode ? "Selon les règles" : "Création libre"}</Badge>
+            {rulesMode && (c.off_rules || offRules) && <Badge variant="outline">hors règles</Badge>}
             {c.species && <span className="capitalize">{c.species}</span>}
           </div>
         </div>
@@ -248,9 +255,15 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
                     <SelectItem value="free">Libre (sans vérification des règles)</SelectItem>
                   </SelectContent>
                 </Select>
+                {rulesMode && id !== null && (
+                  <Label className="flex items-center gap-2 font-normal">
+                    <Checkbox checked={offRules} onCheckedChange={(v) => setOffRules(v === true)} />
+                    Modifier hors règles
+                  </Label>
+                )}
               </Field>
               <Field label="Espèce">
-                {rulesMode ? (
+                {strict ? (
                   <Select value={c.species ?? undefined} onValueChange={(v) => set({ species: v })}>
                     <SelectTrigger className={cn("w-full", c.species && "capitalize")} aria-invalid={!!issueFor("species") || undefined}>
                       <SelectValue placeholder="Choisir une espèce" />
@@ -315,13 +328,16 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
                       <Field key={k} label={label}>
                         <NumberStepper
                           value={creation.extra_pc?.[k] ?? 0}
-                          max={(creation.extra_pc?.[k] ?? 0) + Math.max(0, budget?.pcLeft ?? 0)}
+                          max={bounds ? (creation.extra_pc?.[k] ?? 0) + Math.max(0, bounds.pcLeft) : undefined}
                           onChange={(v) => {
                             const extra = { ...creation.extra_pc, [k]: v };
                             set({
                               creation: { ...creation, extra_pc: extra },
-                              magic: (floors.stats.magic ?? 0) + (extra.magic ?? 0),
-                              bottes: (floors.stats.bottes ?? 0) + (extra.bottes ?? 0) * rules.bottes_per_pc,
+                              // Hors règles, magie et bottes se saisissent directement.
+                              ...(strict && {
+                                magic: (floors.stats.magic ?? 0) + (extra.magic ?? 0),
+                                bottes: (floors.stats.bottes ?? 0) + (extra.bottes ?? 0) * rules.bottes_per_pc,
+                              }),
                             });
                           }}
                         />
@@ -349,8 +365,8 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
               {rules.attributes.filter((a) => !access || access.attributes.includes(a) || (c.attributes?.[a] ?? 0) > 0).map((a: Attribute) => {
                 const value = c.attributes?.[a] ?? 0;
                 // Mode règles : plafonné par le maximum de l'espèce et par les points d'attributs restants.
-                const max = budget
-                  ? Math.min(limits?.[a].max ?? Infinity, value + Math.max(0, budget.attributesLeft))
+                const max = bounds
+                  ? Math.min(limits?.[a].max ?? Infinity, value + Math.max(0, bounds.attributesLeft))
                   : undefined;
                 const invalid = !!issueFor(`attributes.${a}`);
                 return (
@@ -373,7 +389,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
               {(!access || access.magic || (c.magic ?? 0) > 0) && <div className={cn("flex flex-col items-center gap-2 rounded-xl border border-dashed p-3",
                 issueFor("magic") && "border-destructive/60 bg-destructive/5")}>
                 <span className="text-sm font-medium">Magie</span>
-                {rulesMode ? (
+                {strict ? (
                   <NumberStepper value={c.magic ?? 0} readOnly title="Rôles + PC restants" />
                 ) : (
                   <NumberStepper value={c.magic ?? 0} onChange={(v) => set({ magic: v })} />
@@ -389,7 +405,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
             <div className="flex flex-col gap-4">
               {(["primary", "secondary"] as const).map((k) => {
                 const other = k === "primary" ? "secondary" : "primary";
-                const canAdd = budget ? (k === "primary" ? budget.canAddPrimary : budget.canAddSecondary) : true;
+                const canAdd = bounds ? (k === "primary" ? bounds.canAddPrimary : bounds.canAddSecondary) : true;
                 return (
                   <div key={k} className="grid gap-2 sm:grid-cols-[8rem_1fr] sm:items-center">
                     <span className="text-sm font-medium text-muted-foreground">{k === "primary" ? "Principaux" : "Secondaires"}</span>
@@ -402,7 +418,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
                 <RoleChoices rules={rules} creation={creation} report={report}
                   onChange={(patch) => { setSyncRoles(true); setCreation(patch); }} />
               )}
-              {rulesMode && isPC && id !== null && (report?.role_points_outdated || syncRoles) && (
+              {strict && isPC && id !== null && (report?.role_points_outdated || syncRoles) && (
                 <Alert>
                   <CircleAlert />
                   <AlertTitle>Mise à jour des rôles</AlertTitle>
@@ -427,14 +443,14 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
               : undefined}>
             {/* Nouveau personnage ou mise à jour demandée : aperçu des PCR calculés ; sinon PCR enregistrés. */}
             <SkillsSection rules={rules} character={c} report={report} onChange={set} roleMana={floors.stats.mana ?? 0} access={access}
-              pcrSource={id === null || syncRoles ? "computed" : "stored"} />
+              pcrSource={id === null || syncRoles ? "computed" : "stored"} offRules={offRules} />
           </Section>
 
           {shown("connaissances") && <Section id="connaissances"action={<RulesLink page="creation" section="repartition-des-competences" />} title="Mana et connaissances" icon={Sparkles} issues={issueCount("connaissances")}>
             <KnowledgeAndMana character={c} onChange={set} knowledgeFloors={floors.knowledges}
               showMana={!access || access.magic || (c.mana?.max ?? 0) > 0}
               showKnowledges={!access || access.knowledges || Object.keys(c.knowledges ?? {}).length > 0}
-              rules={rulesMode ? {
+              rules={strict ? {
                 roleMana: floors.stats.mana ?? 0,
                 // Part du mana des rôles qui vient des animaux totems (Cerf).
                 totemMana: (report?.role_points?.totems ?? []).reduce(
@@ -448,7 +464,7 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
 
           <Section id="ressources" action={<RulesLink page="langues" />} title="Ressources" icon={Gem} issues={issueCount("ressources")}
             description="Sorts, langues, bottes, dieux, compagnons… : chaque ressource donne accès à des choix.">
-            <ResourcesSection rules={rules} character={c} rulesMode={rulesMode} imposed={floors.imposed}
+            <ResourcesSection rules={rules} character={c} rulesMode={strict} imposed={floors.imposed}
               forbidden={access?.forbidden_resources ?? []}
               onChange={(patch) => {
                 // Les animaux totems (bonus comptés en PCR, mana du Cerf...) et la Piété (Absorption
@@ -467,11 +483,11 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
               {rulesMode && (
                 <Field label="Sous dépensés" hint={`Budget : ${report?.money_available ?? 0} sous (priorité « Sous »).`}>
                   <NumberStepper value={creation.money_spent ?? 0} className="w-32"
-                    max={report?.money_available ?? (creation.priorities?.money ? rules.priorities[creation.priorities.money].money : 0)}
+                    max={!strict ? undefined : report?.money_available ?? (creation.priorities?.money ? rules.priorities[creation.priorities.money].money : 0)}
                     onChange={(v) => setCreation({ money_spent: v })} />
                 </Field>
               )}
-              <RelationsField relations={c.relations ?? []} bought={rulesMode ? creation.extra_pc?.relations ?? 0 : null}
+              <RelationsField relations={c.relations ?? []} bought={strict ? creation.extra_pc?.relations ?? 0 : null}
                 invalid={!!issueFor("relations")} onChange={(relations) => set({ relations })} />
               <Field label="Notes">
                 <Textarea rows={4} value={c.notes ?? ""} placeholder="Histoire, équipement, apparence…"
@@ -545,6 +561,12 @@ export default function CharacterEditor({ id, kind, onClose }: Props) {
           )}
           {report && !report.rules_checked && (
             <p className="px-1 text-xs text-muted-foreground">Création libre : les règles de création ne sont pas vérifiées.</p>
+          )}
+          {rulesMode && offRules && (
+            <p className="px-1 text-xs text-muted-foreground">
+              Hors règles : limites et valeurs des rôles ne sont pas imposées, les points signalés sont indicatifs.
+              Le personnage sera marqué « hors règles ».
+            </p>
           )}
         </aside>
       </div>

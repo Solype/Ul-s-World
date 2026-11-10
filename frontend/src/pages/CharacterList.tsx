@@ -135,6 +135,7 @@ export default function CharacterList({ kind, onKindChange, onOpen, onSheet }: P
                     <span className="capitalize">{c.species ?? "espèce ?"}</span>
                     {c.age != null && <span>· {c.age} ans</span>}
                     {c.creation_mode === "free" && <Badge variant="outline">libre</Badge>}
+                    {c.creation_mode !== "free" && c.off_rules && <Badge variant="outline">hors règles</Badge>}
                     {user.is_admin && c.owner && c.owner.id !== user.id && (
                       <Badge variant="secondary"><UserRound />{c.owner.username}</Badge>
                     )}
