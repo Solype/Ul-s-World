@@ -6,7 +6,12 @@
 set -eu
 
 KEYSTORE=/project/keystore/newmannheim.jks
-PASSWORD="${APK_KEYSTORE_PASSWORD:-newmannheim}"
+# Pas de valeur par défaut : la clé existante a été créée avec ce mot de passe (`newmannheim` avant qu'il soit obligatoire).
+PASSWORD="${APK_KEYSTORE_PASSWORD:-}"
+if [ -z "$PASSWORD" ]; then
+    echo "APK_KEYSTORE_PASSWORD manquant : le définir dans .env (voir .env.example)." >&2
+    exit 1
+fi
 OWNER=$(stat -c %u:%g /project)
 
 mkdir -p /project/keystore /project/dist

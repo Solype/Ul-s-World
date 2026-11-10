@@ -3,7 +3,7 @@ services:
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: newmannheim
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-newmannheim}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant, voir .env.example}
       POSTGRES_DB: newmannheim
     ports:
       # Accès depuis la machine hôte (DBeaver, psql...), limité à localhost.
@@ -18,13 +18,18 @@ services:
   backend:
     build: ./backend
     environment:
-      DATABASE_URL: postgresql+psycopg://newmannheim:${POSTGRES_PASSWORD:-newmannheim}@db:5432/newmannheim
+      DATABASE_URL: postgresql+psycopg://newmannheim:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant, voir .env.example}@db:5432/newmannheim
       # Captcha Turnstile à l'inscription ; vide = désactivé.
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       TURNSTILE_SECRET: ${TURNSTILE_SECRET:-}
     depends_on:
       db:
         condition: service_healthy
+    # L'image python:*-slim n'a pas curl.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      retries: 20
 
   frontend:
     build: ./frontend
@@ -34,7 +39,8 @@ services:
       # APK compilé par le service `apk`, proposé au téléchargement (bouton sur les téléphones Android).
       - ./android/dist:/usr/share/nginx/apk:ro
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   # APK Android (WebView sur le serveur), compilé à la demande : `docker compose run --rm apk`.
   # Le profil le tient à l'écart de `docker compose up`.
@@ -44,7 +50,8 @@ services:
     environment:
       # Adresse proposée au premier lancement de l'app (ex. http://192.168.1.10:8080) ; modifiable dans l'app.
       APK_SERVER_URL: ${APK_SERVER_URL:-}
-      APK_KEYSTORE_PASSWORD: ${APK_KEYSTORE_PASSWORD:-newmannheim}
+      # Obligatoire, vérifié par build.sh (pas ici : `docker compose up` échouerait aussi sans lui).
+      APK_KEYSTORE_PASSWORD: ${APK_KEYSTORE_PASSWORD:-}
     volumes:
       - ./android:/project
       - apk-gradle:/root/.gradle

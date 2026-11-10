@@ -14,6 +14,10 @@ from app.schemas import CaptchaConfig, Credentials, Registration, UserPublic, Us
 
 router = APIRouter(tags=["auth"])
 
+# Empreinte vérifiée quand l'identifiant n'existe pas : la réponse prend alors autant de temps
+# que pour un mauvais mot de passe, et sa durée ne révèle pas quels comptes existent.
+_DUMMY_HASH = hash_password("compte-inexistant")
+
 # Session ouverte par un cookie HttpOnly : le navigateur l'envoie tout seul sur /api et /ws,
 # et le JavaScript de la page ne peut pas le lire.
 
@@ -54,7 +58,8 @@ def register(payload: Registration, response: Response, session: Session = Depen
 @router.post("/auth/login", response_model=UserRead, summary="Se connecter")
 def login(payload: Credentials, response: Response, session: Session = Depends(get_session)) -> User:
     user = session.scalar(select(User).where(User.username == payload.username.lower()))
-    if user is None or not verify_password(payload.password, user.password_hash):
+    password_hash = user.password_hash if user is not None else _DUMMY_HASH
+    if not verify_password(payload.password, password_hash) or user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Identifiant ou mot de passe incorrect")
     _open_session(session, response, user)
     return user

@@ -54,6 +54,18 @@ def test_register_login_logout(make_client):
     assert anon.get("/api/auth/me").json()["username"] == "alice"
 
 
+def test_login_unknown_user_still_checks_a_password(make_client, monkeypatch):
+    """Identifiant inconnu : le mot de passe est quand même vérifié, pour une réponse aussi lente."""
+    from app.api import auth
+
+    calls = []
+    monkeypatch.setattr(auth, "verify_password", lambda password, stored: calls.append(stored) or False)
+    res = make_client().post("/api/auth/login", json={"username": "personne", "password": "motdepasse"})
+    assert res.status_code == 401 and res.json()["detail"] == "Identifiant ou mot de passe incorrect"
+    assert calls == [auth._DUMMY_HASH]
+    assert verify_password("compte-inexistant", auth._DUMMY_HASH)  # une vraie empreinte scrypt
+
+
 def test_captcha_disabled_without_secret(make_client):
     assert make_client().get("/api/auth/captcha").json() == {"site_key": None}
 
@@ -151,6 +163,21 @@ def test_websocket_requires_login_and_access(make_client, valid_character):
             with client.websocket_connect(f"/ws/{channel}") as ws:
                 ws.receive_json()
         assert refused.value.code == 4403
+
+
+def test_websocket_rejects_foreign_origin(make_client, monkeypatch):
+    alice = make_client("alice")
+    # Le TestClient envoie `Host: testserver` : même hôte, origine CORS autorisée, ou pas d'Origin.
+    for headers in [{"origin": "http://testserver"}, {"origin": "http://localhost:5173"}, {}]:
+        with alice.websocket_connect("/ws/characters", headers=headers):
+            pass
+    with pytest.raises(WebSocketDisconnect) as refused:
+        with alice.websocket_connect("/ws/characters", headers={"origin": "https://evil.example"}) as ws:
+            ws.receive_json()
+    assert refused.value.code == 4403
+    monkeypatch.setattr(settings, "cors_origins", ["https://evil.example"])
+    with alice.websocket_connect("/ws/characters", headers={"origin": "https://evil.example"}):
+        pass
 
 
 def test_list_channel_only_announces_own_characters(make_client, valid_character, monster):

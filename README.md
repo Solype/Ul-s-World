@@ -15,11 +15,25 @@ navigateur ──► frontend (nginx :8080) ──/api, /ws, /docs──► back
 ## Lancer
 
 ```bash
+cp .env.example .env   # puis remplir, au moins POSTGRES_PASSWORD
 docker compose up -d --build
 ```
 
 - Application : http://localhost:8080
 - Doc de l'API (générée automatiquement) : http://localhost:8080/docs (Swagger) ou `/redoc`
+
+### Variables (.env)
+
+`docker compose` lit le fichier `.env` à la racine (hors du dépôt). `.env.example` liste chaque variable avec son rôle : `POSTGRES_PASSWORD` (obligatoire), `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET` (captcha), `APK_KEYSTORE_PASSWORD` (obligatoire pour compiler l'APK) et `APK_SERVER_URL`. Il n'y a plus de mot de passe par défaut : une base ou une clé de signature créée avant garde le sien (`newmannheim`), à reporter dans `.env`.
+
+### Sauvegarde de la base
+
+```bash
+scripts/backup-db.sh             # → backups/newmannheim-AAAAmmjj-HHMMSS.dump, garde les 14 plus récentes
+scripts/backup-db.sh --help      # options (--dir, --keep) et commande de restauration
+```
+
+Tous les jours à 3 h, avec `crontab -e` : `0 3 * * * cd /chemin/du/depot && scripts/backup-db.sh`. Depuis un autre dossier que le checkout principal (un worktree), ajouter `COMPOSE_PROJECT_NAME=newmannheim`. Copier `backups/` ailleurs que sur la machine pour survivre à une panne de disque.
 
 ### Jouer à plusieurs sur le même wifi
 
@@ -47,7 +61,7 @@ APK_SERVER_URL=http://192.168.1.24:8080 docker compose run --rm apk   # → andr
 - Installer : depuis le navigateur d'un téléphone Android, bouton **« Télécharger »** (barre du haut, et sous la connexion), puis ouvrir le fichier. Android demande d'autoriser l'installation depuis cette source. nginx sert l'APK compilé (`android/dist`, monté dans le conteneur `frontend`, URL `/newmannheim.apk`). Le bouton n'apparaît que si l'APK existe, et jamais dans l'app elle-même (sa WebView ajoute `NewMannheimApp` au user-agent).
 - **Mettre à jour** : le build écrit aussi `android/dist/newmannheim-version.json` (`versionCode`, qui croît à chaque build), servi en `/newmannheim-version.json`. Quand l'APK du serveur est plus récent que l'app, un bandeau « Mettre à jour » apparaît sous la barre du haut. L'app télécharge alors l'APK et l'installe par-dessus elle-même (`PackageInstaller`). Android demande confirmation et, la première fois, d'autoriser l'app à installer des applications. Un APK compilé avant ce bouton se met à jour à la main.
 - L'adresse du serveur est demandée au premier lancement (pré-remplie avec `APK_SERVER_URL`, facultatif). Pour la changer : bouton retour à l'accueil de l'app, ou « Changer de serveur » quand le serveur ne répond pas.
-- Signature : la clé `android/keystore/newmannheim.jks` est créée au premier build puis réutilisée, pour qu'un nouvel APK s'installe par-dessus l'ancien. Elle est hors du dépôt : **la garder**. Sans elle, il faut désinstaller l'app avant d'installer le nouvel APK, et la connexion est perdue. Mot de passe : `APK_KEYSTORE_PASSWORD`, `newmannheim` par défaut.
+- Signature : la clé `android/keystore/newmannheim.jks` est créée au premier build puis réutilisée, pour qu'un nouvel APK s'installe par-dessus l'ancien. Elle est hors du dépôt : **la garder**. Sans elle, il faut désinstaller l'app avant d'installer le nouvel APK, et la connexion est perdue. Mot de passe : `APK_KEYSTORE_PASSWORD` (dans `.env`, obligatoire ; `newmannheim` pour une clé créée avant).
 - Ce que la WebView ne fait pas seule passe par le pont `NewMannheimApp` (`frontend/src/lib/appBridge.ts`) : **impression** (fiche d'un personnage, fiche vierge `#/fiche-vierge`), car elle ignore `window.print()`, avec `print()` qui ouvre l'impression d'Android (ou l'enregistrement en PDF) ; **enregistrement d'un fichier** (export JSON), car elle ignore les téléchargements, avec `saveFile()` qui demande où l'enregistrer. Les champs fichier (import d'un personnage) ouvrent le sélecteur de fichiers d'Android. Un APK compilé avant ces ajouts ne sait faire ni l'un ni l'autre.
 - Android 8 minimum. Le serveur peut être en HTTP (réseau local).
 

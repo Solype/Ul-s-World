@@ -1,8 +1,11 @@
+from urllib.parse import urlsplit
+
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app.api.deps import can_edit, is_room_member, user_from_token
+from app.core.config import settings
 from app.core.security import SESSION_COOKIE
 from app.db import get_session
 from app.models import Character, Room
@@ -17,6 +20,16 @@ WS_FORBIDDEN = 4403
 def _numeric_suffix(channel: str, prefix: str) -> int | None:
     rest = channel.removeprefix(prefix)
     return int(rest) if channel.startswith(prefix) and rest.isdigit() else None
+
+
+def _origin_allowed(ws: WebSocket) -> bool:
+    """Bloque le détournement depuis un autre site (le navigateur y joindrait le cookie de session).
+    Sans en-tête Origin (client hors navigateur), on laisse passer ; sinon il faut le même hôte que
+    la requête (page servie par ce serveur, app Android comprise) ou une origine CORS autorisée."""
+    origin = ws.headers.get("origin")
+    if origin is None or origin in settings.cors_origins:
+        return True
+    return urlsplit(origin).netloc.lower() == ws.headers.get("host", "").lower()
 
 
 def _resolve_channel(session: Session, token: str | None, channel: str) -> tuple[str, int, int | None] | None:
@@ -41,8 +54,8 @@ def _resolve_channel(session: Session, token: str | None, channel: str) -> tuple
 
 @router.websocket("/ws/{channel}")
 async def websocket_endpoint(ws: WebSocket, channel: str, session: Session = Depends(get_session)) -> None:
-    """Il faut être connecté (cookie de session) ; sinon, ou sans droit sur le canal, la connexion
-    est refusée (code 4403). Canaux :
+    """Il faut être connecté (cookie de session) ; sinon, sans droit sur le canal, ou depuis la page
+    d'un autre site (en-tête Origin), la connexion est refusée (code 4403). Canaux :
 
     - `characters` : liste de ses personnages (de tous pour un admin) ;
     - `character:<id>` : un de ses personnages ;
@@ -52,7 +65,9 @@ async def websocket_endpoint(ws: WebSocket, channel: str, session: Session = Dep
 
     Les messages reçus du client sont ignorés pour l'instant.
     """
-    resolved = await run_in_threadpool(_resolve_channel, session, ws.cookies.get(SESSION_COOKIE), channel)
+    resolved = None
+    if _origin_allowed(ws):
+        resolved = await run_in_threadpool(_resolve_channel, session, ws.cookies.get(SESSION_COOKIE), channel)
     if resolved is None:
         # Accepter puis fermer : refusée avant `accept`, la connexion échouerait en HTTP 403 et le
         # navigateur ne verrait qu'un code 1006, pas 4403.
