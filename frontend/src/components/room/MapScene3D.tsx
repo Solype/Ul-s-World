@@ -6,6 +6,8 @@ import { insidePolygon, type Point, type Segment } from "@/lib/vision";
 /** Un pion tel que la vue 2D le dessinerait : déjà filtré (vue des joueurs) et à sa place de glisser. */
 export type Token3D = { id: number; x: number; y: number; color: string; label: string; hidden: boolean; movable: boolean };
 export type Door3D = { id: number; a: number[]; b: number[]; closed: boolean };
+/** Torche, brasero... du fichier Universal VTT. `range` en cases, `color` en « #rrggbb ». */
+export type Light3D = { x: number; y: number; range: number; intensity: number; color: string };
 
 type Props = {
   imageUrl: string;
@@ -13,6 +15,7 @@ type Props = {
   height: number;
   walls: Segment[];
   doors: Door3D[];
+  lights: Light3D[];
   tokens: Token3D[];
   /** Brouillard : null = tout voir (MJ). Sinon ce que voient les PJ et ce qu'ils ont déjà vu. */
   fog: { seen: Point[][]; explored: Point[][] } | null;
@@ -28,6 +31,9 @@ type Props = {
 const WALL_H = 1.1;
 const WALL_T = 0.14;
 const DOOR_T = 0.1;
+const LIGHT_Y = 0.9; // hauteur des torches (cases), sous le haut des murs (WALL_H)
+const LIGHT_GAIN = 1.6; // intensité du fichier -> intensité Three.js
+const LIGHT_MAX = 48; // au-delà, les shaders deviennent lourds sur téléphone
 const FOG_PX = 24; // pixels de brouillard par case
 const FOG_MAX = 4096;
 const CLICK_SLOP = 6; // pixels : au-delà, c'est un glisser de caméra, pas un clic
@@ -59,8 +65,9 @@ export default function MapScene3D(props: Props) {
     }
   }, [props.imageUrl, props.width, props.height]); // le reste passe par `latest`
 
-  const { walls, doors, tokens, fog, placing } = props;
+  const { walls, doors, lights, tokens, fog, placing } = props;
   useEffect(() => { scene.current?.setWalls(walls, doors, fog); }, [walls, doors, fog]);
+  useEffect(() => { scene.current?.setLights(lights, fog); }, [lights, fog]);
   useEffect(() => { scene.current?.setTokens(tokens); }, [tokens]);
   useEffect(() => { scene.current?.setFog(fog); }, [fog]);
   useEffect(() => { if (box.current) box.current.style.cursor = placing ? "crosshair" : ""; }, [placing]);
@@ -76,6 +83,7 @@ export default function MapScene3D(props: Props) {
 
 type Scene = {
   setWalls: (walls: Segment[], doors: Door3D[], fog: Props["fog"]) => void;
+  setLights: (lights: Light3D[], fog: Props["fog"]) => void;
   setTokens: (tokens: Token3D[]) => void;
   setFog: (fog: Props["fog"]) => void;
   dispose: () => void;
@@ -108,7 +116,8 @@ function createScene(el: HTMLDivElement, imageUrl: string, W: number, H: number,
   controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
 
-  scene.add(new THREE.HemisphereLight("#ffffff", "#404040", 2.2));
+  const sky = new THREE.HemisphereLight("#ffffff", "#404040", 2.2);
+  scene.add(sky);
   const sun = new THREE.DirectionalLight("#fff4e0", 1.6);
   sun.position.set(center.x - W * 0.4, Math.max(W, H), center.z - H * 0.6);
   sun.target.position.copy(center);
@@ -151,7 +160,9 @@ function createScene(el: HTMLDivElement, imageUrl: string, W: number, H: number,
   let wallMesh: THREE.InstancedMesh | null = null;
   const doorGroup = new THREE.Group();
   const tokenGroup = new THREE.Group();
-  scene.add(doorGroup, tokenGroup);
+  const lightGroup = new THREE.Group();
+  scene.add(doorGroup, tokenGroup, lightGroup);
+  const flame = keep(new THREE.SphereGeometry(0.09, 12, 8));
 
   /** Mur ou porte, de (x1, y1) à (x2, y2) sur la carte. */
   const segmentMatrix = (x1: number, y1: number, x2: number, y2: number, h: number, t: number, lift = 0) => {
@@ -179,8 +190,9 @@ function createScene(el: HTMLDivElement, imageUrl: string, W: number, H: number,
     for (const o of [...g.children]) {
       g.remove(o);
       o.traverse((c) => {
+        if (c instanceof THREE.Light) c.dispose();
         if (c instanceof THREE.Mesh || c instanceof THREE.Sprite) {
-          if (c.geometry !== box) c.geometry.dispose();
+          if (c.geometry !== box && c.geometry !== flame) c.geometry.dispose();
           const m = c.material as THREE.Material & { map?: THREE.Texture | null };
           m.map?.dispose();
           m.dispose();
@@ -216,6 +228,29 @@ function createScene(el: HTMLDivElement, imageUrl: string, W: number, H: number,
       mesh.userData = { doorId: d.id, closed: d.closed };
       doorGroup.add(mesh);
     }
+    render();
+  }
+
+  /** Une torche éclaire autour d'elle. Sous le brouillard, seulement là où un PJ voit (ou a vu : plus faible) :
+   * une lueur dans le noir trahirait une pièce que personne n'a encore ouverte. */
+  function setLights(lights: Light3D[], fog: Props["fog"]) {
+    clear(lightGroup);
+    let shown = 0;
+    for (const l of lights) {
+      if (shown >= LIGHT_MAX) break;
+      const p: Point = [l.x, l.y];
+      const seen = !fog || fog.seen.some((poly) => insidePolygon(p, poly));
+      if (fog && !seen && !fog.explored.some((poly) => insidePolygon(p, poly))) continue;
+      const light = new THREE.PointLight(l.color, l.intensity * LIGHT_GAIN * (seen ? 1 : 0.35), l.range * 1.25, 1.5);
+      light.position.set(l.x, LIGHT_Y, l.y);
+      const glow = new THREE.Mesh(flame, new THREE.MeshBasicMaterial({ color: l.color }));
+      glow.position.copy(light.position);
+      lightGroup.add(light, glow);
+      shown++;
+    }
+    // Avec des torches, le jour qui tombe d'en haut s'efface pour qu'on voie leur lueur.
+    sky.intensity = shown ? 1.1 : 2.2;
+    sun.intensity = shown ? 0.7 : 1.6;
     render();
   }
 
@@ -381,7 +416,7 @@ function createScene(el: HTMLDivElement, imageUrl: string, W: number, H: number,
   resize();
 
   return {
-    setWalls, setTokens, setFog,
+    setWalls, setLights, setTokens, setFog,
     dispose() {
       cancelAnimationFrame(frame);
       observer.disconnect();
@@ -393,6 +428,7 @@ function createScene(el: HTMLDivElement, imageUrl: string, W: number, H: number,
       canvas.removeEventListener("pointercancel", pointerCancel);
       clear(tokenGroup);
       clear(doorGroup);
+      clear(lightGroup);
       wallMesh?.dispose();
       disposables.forEach((d) => d.dispose());
       renderer.dispose();

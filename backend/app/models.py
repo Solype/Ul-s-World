@@ -131,6 +131,8 @@ class RoomMap(Base):
     walls: Mapped[list] = mapped_column(JSON, default=list)
     # Portes : [{"a": [x, y], "b": [x, y], "closed": bool}] ; une porte fermée bloque la vue. Id = rang dans la liste.
     doors: Mapped[list] = mapped_column(JSON, default=list)
+    # Lumières : [{"x", "y", "range", "intensity", "color": "#rrggbb"}].
+    lights: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     tokens: Mapped[list["MapToken"]] = relationship(back_populates="map", cascade="all, delete-orphan",

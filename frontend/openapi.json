@@ -4595,6 +4595,40 @@
         "title": "LayoutRead",
         "description": "Disposition vue du MJ : les groupes et les personnages en jeu, dans l'ordre."
       },
+      "LightRead": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y"
+          },
+          "range": {
+            "type": "number",
+            "title": "Range"
+          },
+          "intensity": {
+            "type": "number",
+            "title": "Intensity"
+          },
+          "color": {
+            "type": "string",
+            "title": "Color"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "range",
+          "intensity",
+          "color"
+        ],
+        "title": "LightRead",
+        "description": "Lumière de la carte (centre, en cases). `color` : « #rrggbb »."
+      },
       "Mana": {
         "properties": {
           "current": {
@@ -4657,6 +4691,13 @@
             "type": "array",
             "title": "Doors"
           },
+          "lights": {
+            "items": {
+              "$ref": "#/components/schemas/LightRead"
+            },
+            "type": "array",
+            "title": "Lights"
+          },
           "tokens": {
             "items": {
               "$ref": "#/components/schemas/TokenRead"
@@ -4675,6 +4716,7 @@
           "pixels_per_grid",
           "walls",
           "doors",
+          "lights",
           "tokens"
         ],
         "title": "MapRead",
@@ -6501,6 +6543,14 @@
             "title": "Portals",
             "default": []
           },
+          "lights": {
+            "items": {
+              "$ref": "#/components/schemas/UvttLight"
+            },
+            "type": "array",
+            "title": "Lights",
+            "default": []
+          },
           "image": {
             "type": "string",
             "minLength": 1,
@@ -6513,6 +6563,39 @@
           "image"
         ],
         "title": "UvttFile"
+      },
+      "UvttLight": {
+        "properties": {
+          "position": {
+            "$ref": "#/components/schemas/UvttPoint"
+          },
+          "range": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Range",
+            "default": 4
+          },
+          "intensity": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Intensity",
+            "default": 1
+          },
+          "color": {
+            "type": "string",
+            "maxLength": 16,
+            "title": "Color",
+            "default": "ffffffff"
+          }
+        },
+        "type": "object",
+        "required": [
+          "position"
+        ],
+        "title": "UvttLight",
+        "description": "Source de lumière (torche, brasero...). `color` : hexadécimal AARRGGBB (Dungeon Alchemist) ou RRGGBB."
       },
       "UvttPoint": {
         "properties": {

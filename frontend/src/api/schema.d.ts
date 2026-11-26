@@ -1843,6 +1843,22 @@ export interface components {
             instances: components["schemas"]["InstanceRead"][];
         };
         /**
+         * LightRead
+         * @description Lumière de la carte (centre, en cases). `color` : « #rrggbb ».
+         */
+        LightRead: {
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+            /** Range */
+            range: number;
+            /** Intensity */
+            intensity: number;
+            /** Color */
+            color: string;
+        };
+        /**
          * Mana
          * @description Ressource commune à la magie et à la religion.
          */
@@ -1880,6 +1896,8 @@ export interface components {
             walls: number[][];
             /** Doors */
             doors: components["schemas"]["DoorRead"][];
+            /** Lights */
+            lights: components["schemas"]["LightRead"][];
             /** Tokens */
             tokens: components["schemas"]["TokenRead"][];
         };
@@ -2799,8 +2817,35 @@ export interface components {
              * @default []
              */
             portals?: components["schemas"]["UvttPortal"][];
+            /**
+             * Lights
+             * @default []
+             */
+            lights?: components["schemas"]["UvttLight"][];
             /** Image */
             image: string;
+        };
+        /**
+         * UvttLight
+         * @description Source de lumière (torche, brasero...). `color` : hexadécimal AARRGGBB (Dungeon Alchemist) ou RRGGBB.
+         */
+        UvttLight: {
+            position: components["schemas"]["UvttPoint"];
+            /**
+             * Range
+             * @default 4
+             */
+            range?: number;
+            /**
+             * Intensity
+             * @default 1
+             */
+            intensity?: number;
+            /**
+             * Color
+             * @default ffffffff
+             */
+            color?: string;
         };
         /** UvttPoint */
         UvttPoint: {

@@ -57,6 +57,22 @@ def test_map_upload_and_image(table):  # noqa: F811
     res = alice.get(f"/api/rooms/{room}/maps/{m['id']}/image")
     assert res.status_code == 200 and res.content == PNG and res.headers["content-type"] == "image/png"
     assert outsider.get(f"/api/rooms/{room}/maps/{m['id']}/image").status_code == 404
+    assert m["lights"] == []
+
+
+def test_map_lights(table):  # noqa: F811
+    """Lumières ramenées à l'origine de l'image ; couleur AARRGGBB ou RRGGBB vers #rrggbb, blanc si illisible."""
+    gm, alice, room = table["gm"], table["alice"], table["room"]
+    torch = {"position": {"x": 4, "y": 5}, "range": 4.5, "intensity": 3, "color": "ffFFEBBF", "shadows": True}
+    lights = [torch, {"position": {"x": 2, "y": 3}, "color": "#00ff80"}, {"position": {"x": 12, "y": 13}, "color": "?"}]
+    m = gm.post(f"/api/rooms/{room}/maps", json=_uvtt(lights=lights)).json()
+    expected = [{"x": 2, "y": 2, "range": 4.5, "intensity": 3, "color": "#ffebbf"},
+                {"x": 0, "y": 0, "range": 4, "intensity": 1, "color": "#00ff80"},
+                {"x": 10, "y": 10, "range": 4, "intensity": 1, "color": "#ffffff"}]
+    assert m["lights"] == expected
+    assert alice.get(f"/api/rooms/{room}/maps/{m['id']}").json()["lights"] == expected
+    too_far = [{**torch, "range": 1000}]
+    assert gm.post(f"/api/rooms/{room}/maps", json=_uvtt(lights=too_far)).status_code == 422
 
 
 def test_map_rejects_bad_files(table):  # noqa: F811

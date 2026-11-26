@@ -164,7 +164,7 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
         <Suspense fallback={<div className="flex h-[75svh] items-center justify-center rounded-lg border text-sm text-muted-foreground">
           Chargement de la 3D…</div>}>
           <MapScene3D imageUrl={`/api/rooms/${roomId}/maps/${map.id}/image`} width={W} height={H} walls={walls3d}
-            doors={map.doors} tokens={tokens3d} fog={fog3d} placing={placing !== null}
+            doors={map.doors} lights={map.lights} tokens={tokens3d} fog={fog3d} placing={placing !== null}
             onDoor={isGM ? onDoor : undefined} onGround={ground3d} onDrop={drop3d} />
         </Suspense>
       ) : (

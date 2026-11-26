@@ -497,7 +497,7 @@ InstanceRead.model_rebuild()
 
 # --- Carte de la room ------------------------------------------------------------------------------------
 # Import : fichier Universal VTT (.dd2vtt de Dungeon Alchemist, .uvtt...), JSON avec l'image en base64.
-# Coordonnées en cases. Les champs non lus ici (lumières, environnement...) sont ignorés.
+# Coordonnées en cases. Les champs non lus ici (environnement...) sont ignorés.
 
 Coord = Annotated[float, Field(allow_inf_nan=False, ge=-10_000, le=10_000)]
 
@@ -518,12 +518,22 @@ class UvttPortal(BaseModel):
     closed: bool = True
 
 
+class UvttLight(BaseModel):
+    """Source de lumière (torche, brasero...). `color` : hexadécimal AARRGGBB (Dungeon Alchemist) ou RRGGBB."""
+
+    position: UvttPoint
+    range: float = Field(4, allow_inf_nan=False, ge=0, le=100)
+    intensity: float = Field(1, allow_inf_nan=False, ge=0, le=100)
+    color: str = Field("ffffffff", max_length=16)
+
+
 class UvttFile(BaseModel):
     resolution: UvttResolution
     line_of_sight: list[list[UvttPoint]] = []
     # Format 0.3 : décor qui bloque la vue (piliers, rochers...).
     objects_line_of_sight: list[list[UvttPoint]] = []
     portals: list[UvttPortal] = []
+    lights: list[UvttLight] = []
     image: str = Field(min_length=1)
 
 
@@ -539,6 +549,16 @@ class DoorRead(BaseModel):
 
 class DoorUpdate(BaseModel):
     closed: bool
+
+
+class LightRead(BaseModel):
+    """Lumière de la carte (centre, en cases). `color` : « #rrggbb »."""
+
+    x: float
+    y: float
+    range: float
+    intensity: float
+    color: str
 
 
 class TokenRead(BaseModel):
@@ -588,4 +608,5 @@ class MapRead(MapSummary):
     # [x1, y1, x2, y2] par mur.
     walls: list[list[float]]
     doors: list[DoorRead]
+    lights: list[LightRead]
     tokens: list[TokenRead]

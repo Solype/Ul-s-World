@@ -1,7 +1,7 @@
 """Cartes de la room et pions des personnages en jeu.
 
-Le MJ ajoute des fichiers Universal VTT (export « Universal VTT » de Dungeon Alchemist : .dd2vtt) : image, murs et
-portes. Il en prépare autant qu'il veut et en montre une aux joueurs (`active`) ; la première ajoutée l'est
+Le MJ ajoute des fichiers Universal VTT (export « Universal VTT » de Dungeon Alchemist : .dd2vtt) : image, murs,
+portes et lumières. Il en prépare autant qu'il veut et en montre une aux joueurs (`active`) ; la première ajoutée l'est
 d'office. Une carte qui n'est pas montrée n'existe pas pour un joueur (404). Le MJ ouvre et ferme les portes.
 
 Pions : chaque carte garde les siens (`MapToken`). Le MJ pose et déplace tout le monde, sur toute carte ; un membre,
@@ -14,6 +14,7 @@ porte change ; `room.tokens` (`map_id`, pions filtrés par destinataire) quand u
 
 import base64
 import binascii
+import re
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
@@ -25,14 +26,23 @@ from app.db import get_session
 from app.models import MapToken, Room, RoomMap, User
 from app.realtime.manager import manager, room_channel
 from app.schemas import (
-    DoorRead, DoorUpdate, MapRead, MapSummary, MapUpdate, TokenMove, TokenRead, UvttFile, UvttPoint,
+    DoorRead, DoorUpdate, LightRead, MapRead, MapSummary, MapUpdate, TokenMove, TokenRead, UvttFile, UvttPoint,
 )
 
 router = APIRouter(prefix="/rooms", tags=["cartes"])
 
 MAX_WALLS = 20_000
 MAX_DOORS = 2_000
+MAX_LIGHTS = 500
 MAX_SIZE = 500  # cases, par côté
+_HEX_COLOR = re.compile(r"(?:[0-9a-fA-F]{2})?([0-9a-fA-F]{6})")
+
+
+def _light_color(raw: str) -> str:
+    """AARRGGBB (Dungeon Alchemist) ou RRGGBB, avec ou sans « # », vers « #rrggbb » ; blanc si illisible.
+    L'alpha est ignoré : `intensity` dit déjà la force de la lumière."""
+    match = _HEX_COLOR.fullmatch(raw.strip().removeprefix("#"))
+    return f"#{match.group(1).lower()}" if match else "#ffffff"
 # Types d'image acceptés, reconnus à leurs premiers octets (jamais de SVG : il peut porter du script).
 IMAGE_TYPES = {b"\x89PNG\r\n\x1a\n": "image/png", b"\xff\xd8\xff": "image/jpeg"}
 
@@ -47,6 +57,7 @@ def _read(m: RoomMap, gm_view: bool) -> MapRead:
     return MapRead(id=m.id, name=m.name, active=m.active, width=m.width, height=m.height,
                    pixels_per_grid=m.pixels_per_grid, walls=m.walls,
                    doors=[DoorRead(id=n, a=d["a"], b=d["b"], closed=d["closed"]) for n, d in enumerate(m.doors)],
+                   lights=[LightRead(**light) for light in m.lights or []],
                    tokens=map_tokens(m, gm_view))
 
 
@@ -95,14 +106,18 @@ def add_map(room_id: int, payload: UvttFile, background: BackgroundTasks,
         return [at(a) + at(b) for line in lines for a, b in zip(line, line[1:]) if (a.x, a.y) != (b.x, b.y)]
 
     walls = segments(payload.line_of_sight) + segments(payload.objects_line_of_sight)
-    if len(walls) > MAX_WALLS or len(payload.portals) > MAX_DOORS:
+    if len(walls) > MAX_WALLS or len(payload.portals) > MAX_DOORS or len(payload.lights) > MAX_LIGHTS:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
-                            f"Trop de murs ou de portes (au plus {MAX_WALLS} murs, {MAX_DOORS} portes)")
+                            f"Trop de murs, de portes ou de lumières (au plus {MAX_WALLS} murs, {MAX_DOORS} portes, "
+                            f"{MAX_LIGHTS} lumières)")
+    lights = [{"x": x, "y": y, "range": light.range, "intensity": light.intensity, "color": _light_color(light.color)}
+              for light in payload.lights for x, y in [at(light.position)]]
 
     m = RoomMap(name=" ".join(name.split()) or "Carte", active=active_map(room) is None, image=image,
                 image_type=image_type, width=res.map_size.x, height=res.map_size.y,
                 pixels_per_grid=res.pixels_per_grid, walls=walls,
-                doors=[{"a": at(p.bounds[0]), "b": at(p.bounds[1]), "closed": p.closed} for p in payload.portals])
+                doors=[{"a": at(p.bounds[0]), "b": at(p.bounds[1]), "closed": p.closed} for p in payload.portals],
+                lights=lights)
     room.maps.append(m)
     session.commit()
     _notify_maps(background, room_id)
