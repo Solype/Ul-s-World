@@ -493,3 +493,84 @@ class StatusUpdate(BaseModel):
 
 
 InstanceRead.model_rebuild()
+
+
+# --- Carte de la room ------------------------------------------------------------------------------------
+# Import : fichier Universal VTT (.dd2vtt de Dungeon Alchemist, .uvtt...), JSON avec l'image en base64.
+# Coordonnées en cases. Les champs non lus ici (lumières, environnement...) sont ignorés.
+
+Coord = Annotated[float, Field(allow_inf_nan=False, ge=-10_000, le=10_000)]
+
+
+class UvttPoint(BaseModel):
+    x: Coord
+    y: Coord
+
+
+class UvttResolution(BaseModel):
+    map_origin: UvttPoint = UvttPoint(x=0, y=0)
+    map_size: UvttPoint
+    pixels_per_grid: int = Field(ge=8, le=1024)
+
+
+class UvttPortal(BaseModel):
+    bounds: list[UvttPoint] = Field(min_length=2, max_length=2)
+    closed: bool = True
+
+
+class UvttFile(BaseModel):
+    resolution: UvttResolution
+    line_of_sight: list[list[UvttPoint]] = []
+    # Format 0.3 : décor qui bloque la vue (piliers, rochers...).
+    objects_line_of_sight: list[list[UvttPoint]] = []
+    portals: list[UvttPortal] = []
+    image: str = Field(min_length=1)
+
+
+class DoorRead(BaseModel):
+    """Porte (id : son rang sur la carte). Fermée, elle bloque la vue."""
+
+    id: int
+    # Listes plutôt que tuples : openapi-fetch ne garde pas les tuples dans ses types de réponse.
+    a: list[float]
+    b: list[float]
+    closed: bool
+
+
+class DoorUpdate(BaseModel):
+    closed: bool
+
+
+class TokenRead(BaseModel):
+    """Pion d'un personnage en jeu sur la carte (centre, en cases)."""
+
+    instance_id: int
+    x: float
+    y: float
+
+
+class TokenMove(BaseModel):
+    """Poser ou déplacer un pion ; `x` et `y` à null le retirent de la carte."""
+
+    x: Coord | None = None
+    y: Coord | None = None
+
+    @model_validator(mode="after")
+    def _both_or_none(self) -> "TokenMove":
+        if (self.x is None) != (self.y is None):
+            raise ValueError("x et y vont ensemble")
+        return self
+
+
+class MapRead(BaseModel):
+    """Carte de la room. `tokens` : pour un joueur, le serveur ne garde que les pions qu'un PJ voit (vision de
+    groupe) ; les PJ sont toujours là. L'image est sur `GET .../map/image?v=<id>`."""
+
+    id: int
+    width: float
+    height: float
+    pixels_per_grid: int
+    # [x1, y1, x2, y2] par mur.
+    walls: list[list[float]]
+    doors: list[DoorRead]
+    tokens: list[TokenRead]

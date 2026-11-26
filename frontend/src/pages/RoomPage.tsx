@@ -5,10 +5,11 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { toast } from "sonner";
 import {
   api, type Character, type ChatMessage, type Instance, type InstanceVisibility, type Room, type RoomCharacter, type RoomGroup,
-  type UserPublic,
+  type RoomMap, type UserPublic,
 } from "@/api/client";
 import { useUser } from "@/auth/AuthContext";
 import type { DamageInput } from "@/components/room/DamagePopover";
+import MapView, { MapUploadButton } from "@/components/room/MapView";
 import RoomBoard, { newGroupLayout, type Layout } from "@/components/room/RoomBoard";
 import type { StatusActions, StatusColor } from "@/components/room/StatusTags";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,7 @@ import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitl
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useChannel, WS_FORBIDDEN } from "@/hooks/useChannel";
 import { useRules } from "@/hooks/useRules";
 import { formatInviteCode, inviteLink, isLocalOnly } from "@/lib/rooms";
@@ -60,6 +62,9 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
   const [mine, setMine] = useState<Character[]>([]);
   const [instances, setInstances] = useState<Instance[]>([]);
   const [groups, setGroups] = useState<RoomGroup[]>([]);
+  // Carte de la room : undefined en chargement, null s'il n'y en a pas.
+  const [map, setMap] = useState<RoomMap | null | undefined>(undefined);
+  const [view, setView] = useState<"plaquettes" | "carte">("plaquettes");
   const [confirm, setConfirm] = useState<"leave" | "delete" | null>(null);
   // PJ que le MJ s'apprête à retirer de la room depuis sa carte.
   const [removingPc, setRemovingPc] = useState<Instance["character"] | null>(null);
@@ -83,6 +88,10 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
     api.GET("/api/rooms/{room_id}/groups", path(id)).then(({ data }) => data && setGroups(data));
   }, [id]);
   useEffect(loadGroups, [loadGroups]);
+  const loadMap = useCallback(() => {
+    api.GET("/api/rooms/{room_id}/map", path(id)).then(({ data }) => setMap(data ?? null));
+  }, [id]);
+  useEffect(loadMap, [loadMap]);
   useEffect(() => {
     api.GET("/api/rooms/{room_id}/messages", { params: { path: { room_id: id }, query: { limit: HISTORY_PAGE } } })
       .then(({ data }) => { setMessages(data ?? []); setHasOlder((data?.length ?? 0) === HISTORY_PAGE); });
@@ -155,6 +164,30 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
     else toast.error("Resynchronisation impossible");
   };
 
+  // Carte : le MJ l'envoie et ouvre les portes ; les pions se posent et se déplacent (PJ par tout membre).
+  const uploadMap = async (file: File) => {
+    const text = await file.text();
+    const loading = toast.loading("Envoi de la carte…");
+    const { data, response } = await api.PUT("/api/rooms/{room_id}/map",
+      { ...path(id), body: {} as never, bodySerializer: () => text });
+    toast.dismiss(loading);
+    if (data) { setMap(data); toast.success("Carte chargée : pose les pions"); }
+    else toast.error(response.status === 413 ? "Fichier trop lourd (60 Mo au plus)"
+      : "Fichier non reconnu : il faut un export « Universal VTT » (.dd2vtt)");
+  };
+  const moveToken = async (instanceId: number, x: number | null, y: number | null) => {
+    const { data } = await api.PUT("/api/rooms/{room_id}/instances/{instance_id}/token",
+      { params: { path: { room_id: id, instance_id: instanceId } }, body: { x, y } });
+    if (data) setMap((m) => m && { ...m, tokens: data });
+    else toast.error("Déplacement impossible");
+  };
+  const setDoor = async (doorId: number, closed: boolean) => {
+    const { data } = await api.PUT("/api/rooms/{room_id}/map/doors/{door_id}",
+      { params: { path: { room_id: id, door_id: doorId } }, body: { closed } });
+    if (data) setMap(data);
+    else toast.error("Porte bloquée");
+  };
+
   // Statuts (tags libres) des personnages en jeu. Les cachés n'arrivent qu'au MJ, filtrés par le serveur.
   const statusActions = (instanceId: number): StatusActions => {
     const p = { params: { path: { room_id: id, instance_id: instanceId } } };
@@ -213,7 +246,10 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
   useChannel(room ? `room:${id}` : null, (event) => {
     if (event.type === "room.presence") setOnline(event.online);
     if (event.type === "room.message") addMessage(event.message);
-    if (event.type === "room.characters") { refreshCharacters(); loadInstances(); }
+    // Un PJ qui entre ou sort change aussi ce que voit le groupe sur la carte.
+    if (event.type === "room.characters") { refreshCharacters(); loadInstances(); loadMap(); }
+    if (event.type === "room.map") loadMap();
+    if (event.type === "room.tokens") setMap((m) => m && { ...m, tokens: event.tokens });
     if (event.type === "room.instance") {
       putInstance(event.instance);
       // Un monstre qui apparaît pour un joueur dans un groupe qu'il ne voyait pas encore : relire les groupes.
@@ -324,16 +360,38 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <h2 className="flex-1 font-heading text-lg font-semibold">En jeu</h2>
-            {isGM && instances.length > 0 && (
+        <Tabs value={view} onValueChange={(v) => setView(v as typeof view)} className="gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <TabsList>
+              <TabsTrigger value="plaquettes">En jeu</TabsTrigger>
+              <TabsTrigger value="carte">Carte</TabsTrigger>
+            </TabsList>
+            <span className="flex-1" />
+            {view === "plaquettes" && isGM && instances.length > 0 && (
               <Button variant="ghost" size="sm" title="Les cartes s'y rangent en les glissant par leur poignée"
                 onClick={() => applyLayout(newGroupLayout(instances, groups))}>
                 <FolderPlus data-icon="inline-start" />Nouveau groupe
               </Button>
             )}
+            {view === "carte" && isGM && map && <MapUploadButton replace onUpload={uploadMap} />}
           </div>
+          <TabsContent value="carte">
+            {map === undefined ? (
+              <Skeleton className="h-96" />
+            ) : map === null ? (
+              <Card className="items-center gap-4 py-10 text-center">
+                <CardDescription className="max-w-sm">
+                  {isGM ? "Pas encore de carte. Dans Dungeon Alchemist, exporte la carte au format « Universal VTT » (.dd2vtt) et envoie le fichier ici."
+                    : "Le MJ n'a pas encore mis de carte."}
+                </CardDescription>
+                {isGM && <MapUploadButton onUpload={uploadMap} />}
+              </Card>
+            ) : (
+              <MapView roomId={id} map={map} instances={instances} isGM={isGM} onMove={moveToken} onDoor={setDoor}
+                canMove={(i) => isGM || i.character.kind === "pj"} />
+            )}
+          </TabsContent>
+          <TabsContent value="plaquettes" className="flex flex-col gap-3">
           {!rules ? (
             <Skeleton className="h-48" />
           ) : instances.length === 0 && groups.length === 0 ? (
@@ -359,7 +417,8 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
                   : i.character.kind === "pj" ? () => setRemovingPc(i.character) : () => removeInstance(i.id),
               })} />
           )}
-        </section>
+          </TabsContent>
+        </Tabs>
 
         {/* Membres au-dessus du chat, collés en haut de l'écran sur grand écran. */}
         <aside className="flex flex-col gap-4 lg:sticky lg:top-20 lg:h-[calc(100svh-7rem)]">

@@ -49,8 +49,10 @@ from app.schemas import (
     StatusCreate,
     StatusRead,
     StatusUpdate,
+    TokenRead,
     VisibilityUpdate,
 )
+from app.vision import blocking_segments, seen_by_any
 
 router = APIRouter(prefix="/rooms", tags=["instances"])
 
@@ -132,6 +134,31 @@ def _player_event(instance: CharacterInstance) -> dict:
     if not visible_to_players(instance):
         return {"type": "room.instance.removed", "id": instance.id}
     return {"type": "room.instance", "instance": read_instance(instance, gm_view=False).model_dump(mode="json")}
+
+
+def map_tokens(room: Room, gm_view: bool) -> list[TokenRead]:
+    """Pions sur la carte. Le MJ les a tous ; un joueur, les PJ et les personnages visibles qu'un PJ voit
+    (vision de groupe, `app/vision.py`). Un pion caché ou hors de vue n'est pas envoyé."""
+    if room.map is None:
+        return []
+    placed = [i for i in _ordered(room) if i.map_x is not None and i.map_y is not None]
+    is_pc = lambda i: i.link.character.kind == CharacterKind.PJ  # noqa: E731
+    if not gm_view:
+        segments = blocking_segments(room.map.walls, room.map.doors)
+        viewers = [(i.map_x, i.map_y) for i in placed if is_pc(i)]
+        placed = [i for i in placed if is_pc(i) or (
+            visible_to_players(i) and seen_by_any(viewers, i.map_x, i.map_y, segments))]
+    return [TokenRead(instance_id=i.id, x=i.map_x, y=i.map_y) for i in placed]
+
+
+def push_tokens(background: BackgroundTasks, room: Room) -> None:
+    """Pousse les pions à la room (`room.tokens`) : tous au MJ, ceux que voient les PJ aux joueurs."""
+    if room.map is None:
+        return
+    events = {gm: {"type": "room.tokens", "tokens": [t.model_dump() for t in map_tokens(room, gm_view=gm)]}
+              for gm in (True, False)}
+    background.add_task(manager.broadcast_each, room_channel(room.id),
+                        lambda uid: events[uid == room.gm_id])
 
 
 def _is_gm(instance: CharacterInstance, user: User) -> bool:
@@ -267,7 +294,9 @@ def set_visibility(room_id: int, instance_id: int, payload: VisibilityUpdate, ba
     if instance.link.character.kind == CharacterKind.PJ:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Un PJ est toujours visible")
     instance.visibility = payload.visibility
-    return _save_and_push(session, background, instance, user)
+    read = _save_and_push(session, background, instance, user)
+    push_tokens(background, instance.link.room)
+    return read
 
 
 @router.delete("/{room_id}/instances/{instance_id}", status_code=status.HTTP_204_NO_CONTENT,

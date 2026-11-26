@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { ChatMessage, Instance } from "@/api/client";
+import type { ChatMessage, Instance, MapToken } from "@/api/client";
 
 /** Événements poussés par le backend. Personnages : `{type, id}`. Rooms : présence et chat. */
 export type ServerEvent =
@@ -13,7 +13,11 @@ export type ServerEvent =
   // Personnage sorti du jeu, ou monstre que le MJ vient de cacher.
   | { type: "room.instance.removed"; id: number }
   /** Le MJ a changé l'ordre ou les groupes des personnages en jeu : relire la liste et les groupes. */
-  | { type: "room.instances.layout" };
+  | { type: "room.instances.layout" }
+  /** La carte ou une porte a changé : relire la carte. */
+  | { type: "room.map" }
+  /** Un pion a bougé : les pions vus par ce compte (filtrés par le serveur). */
+  | { type: "room.tokens"; tokens: MapToken[] };
 
 /** Le serveur a refusé ou coupé l'accès au canal (pas connecté, exclu de la room...). */
 export const WS_FORBIDDEN = 4403;

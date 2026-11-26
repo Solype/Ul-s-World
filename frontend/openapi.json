@@ -2077,6 +2077,275 @@
         }
       }
     },
+    "/api/rooms/{room_id}/map": {
+      "get": {
+        "tags": [
+          "carte"
+        ],
+        "summary": "Carte de la room (null s'il n'y en a pas)",
+        "operationId": "get_map_api_rooms__room_id__map_get",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MapRead"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Map Api Rooms  Room Id  Map Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "carte"
+        ],
+        "summary": "Envoyer la carte, fichier Universal VTT (MJ)",
+        "description": "Remplace la carte de la room et retire tous les pions.",
+        "operationId": "upload_map_api_rooms__room_id__map_put",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UvttFile"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}/map/image": {
+      "get": {
+        "tags": [
+          "carte"
+        ],
+        "summary": "Image de la carte",
+        "description": "Réservée aux membres. Une nouvelle carte a un nouvel id : l'URL `?v=<id>` change, le cache est donc permanent.",
+        "operationId": "map_image_api_rooms__room_id__map_image_get",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "image/png": {},
+              "image/jpeg": {},
+              "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}/map/doors/{door_id}": {
+      "put": {
+        "tags": [
+          "carte"
+        ],
+        "summary": "Ouvrir ou fermer une porte (MJ)",
+        "operationId": "set_door_api_rooms__room_id__map_doors__door_id__put",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "door_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Door Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DoorUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}/instances/{instance_id}/token": {
+      "put": {
+        "tags": [
+          "carte"
+        ],
+        "summary": "Poser, déplacer ou retirer un pion de la carte",
+        "description": "Le MJ déplace tout pion ; un membre, ceux des PJ. Renvoie les pions tels que les voit l'appelant.",
+        "operationId": "move_token_api_rooms__room_id__instances__instance_id__token_put",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Instance Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenMove"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TokenRead"
+                  },
+                  "title": "Response Move Token Api Rooms  Room Id  Instances  Instance Id  Token Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -3531,6 +3800,54 @@
         ],
         "title": "DamageRead"
       },
+      "DoorRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "a": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "A"
+          },
+          "b": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "B"
+          },
+          "closed": {
+            "type": "boolean",
+            "title": "Closed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "a",
+          "b",
+          "closed"
+        ],
+        "title": "DoorRead",
+        "description": "Porte (id : son rang sur la carte). Fermée, elle bloque la vue."
+      },
+      "DoorUpdate": {
+        "properties": {
+          "closed": {
+            "type": "boolean",
+            "title": "Closed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "closed"
+        ],
+        "title": "DoorUpdate"
+      },
       "ExtraPC": {
         "properties": {
           "relations": {
@@ -4103,6 +4420,62 @@
         "type": "object",
         "title": "Mana",
         "description": "Ressource commune à la magie et à la religion."
+      },
+      "MapRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "width": {
+            "type": "number",
+            "title": "Width"
+          },
+          "height": {
+            "type": "number",
+            "title": "Height"
+          },
+          "pixels_per_grid": {
+            "type": "integer",
+            "title": "Pixels Per Grid"
+          },
+          "walls": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Walls"
+          },
+          "doors": {
+            "items": {
+              "$ref": "#/components/schemas/DoorRead"
+            },
+            "type": "array",
+            "title": "Doors"
+          },
+          "tokens": {
+            "items": {
+              "$ref": "#/components/schemas/TokenRead"
+            },
+            "type": "array",
+            "title": "Tokens"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "width",
+          "height",
+          "pixels_per_grid",
+          "walls",
+          "doors",
+          "tokens"
+        ],
+        "title": "MapRead",
+        "description": "Carte de la room. `tokens` : pour un joueur, le serveur ne garde que les pions qu'un PJ voit (vision de\ngroupe) ; les PJ sont toujours là. L'image est sur `GET .../map/image?v=<id>`."
       },
       "Monitor": {
         "properties": {
@@ -5426,6 +5799,63 @@
         ],
         "title": "SubmitCharacter"
       },
+      "TokenMove": {
+        "properties": {
+          "x": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 10000.0,
+                "minimum": -10000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 10000.0,
+                "minimum": -10000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          }
+        },
+        "type": "object",
+        "title": "TokenMove",
+        "description": "Poser ou déplacer un pion ; `x` et `y` à null le retirent de la carte."
+      },
+      "TokenRead": {
+        "properties": {
+          "instance_id": {
+            "type": "integer",
+            "title": "Instance Id"
+          },
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id",
+          "x",
+          "y"
+        ],
+        "title": "TokenRead",
+        "description": "Pion d'un personnage en jeu sur la carte (centre, en cases)."
+      },
       "TraitChoice": {
         "properties": {
           "target": {
@@ -5794,6 +6224,125 @@
           "created_at"
         ],
         "title": "UserRead"
+      },
+      "UvttFile": {
+        "properties": {
+          "resolution": {
+            "$ref": "#/components/schemas/UvttResolution"
+          },
+          "line_of_sight": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/UvttPoint"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Line Of Sight",
+            "default": []
+          },
+          "objects_line_of_sight": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/UvttPoint"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Objects Line Of Sight",
+            "default": []
+          },
+          "portals": {
+            "items": {
+              "$ref": "#/components/schemas/UvttPortal"
+            },
+            "type": "array",
+            "title": "Portals",
+            "default": []
+          },
+          "image": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Image"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resolution",
+          "image"
+        ],
+        "title": "UvttFile"
+      },
+      "UvttPoint": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "maximum": 10000.0,
+            "minimum": -10000.0,
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "maximum": 10000.0,
+            "minimum": -10000.0,
+            "title": "Y"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "UvttPoint"
+      },
+      "UvttPortal": {
+        "properties": {
+          "bounds": {
+            "items": {
+              "$ref": "#/components/schemas/UvttPoint"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Bounds"
+          },
+          "closed": {
+            "type": "boolean",
+            "title": "Closed",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "bounds"
+        ],
+        "title": "UvttPortal"
+      },
+      "UvttResolution": {
+        "properties": {
+          "map_origin": {
+            "$ref": "#/components/schemas/UvttPoint",
+            "default": {
+              "x": 0.0,
+              "y": 0.0
+            }
+          },
+          "map_size": {
+            "$ref": "#/components/schemas/UvttPoint"
+          },
+          "pixels_per_grid": {
+            "type": "integer",
+            "maximum": 1024.0,
+            "minimum": 8.0,
+            "title": "Pixels Per Grid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "map_size",
+          "pixels_per_grid"
+        ],
+        "title": "UvttResolution"
       },
       "ValidationError": {
         "properties": {

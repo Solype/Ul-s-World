@@ -13,7 +13,9 @@ pour les personnages créés avant les comptes : ils sont rattachés au premier 
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, ForeignKeyConstraint, Integer, String, Text, false
+from sqlalchemy import (
+    JSON, Boolean, DateTime, Float, ForeignKey, ForeignKeyConstraint, Integer, LargeBinary, String, Text, false,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -105,6 +107,29 @@ class Room(Base):
     messages: Mapped[list["ChatMessage"]] = relationship(cascade="all, delete-orphan")
     groups: Mapped[list["RoomGroup"]] = relationship(cascade="all, delete-orphan", lazy="selectin",
                                                      order_by="RoomGroup.position")
+    map: Mapped["RoomMap | None"] = relationship(cascade="all, delete-orphan")
+
+
+class RoomMap(Base):
+    """Carte de la room (une à la fois), importée d'un fichier Universal VTT (Dungeon Alchemist, Dungeondraft...).
+    Coordonnées en cases, origine en haut à gauche de l'image. Une nouvelle carte remplace l'ancienne : nouvel id
+    (PostgreSQL ne réutilise pas un id), qui sert de version à l'URL de l'image."""
+
+    __tablename__ = "room_maps"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), unique=True)
+    # Chargée seulement quand on la sert : elle pèse plusieurs Mo.
+    image: Mapped[bytes] = mapped_column(LargeBinary, deferred=True)
+    image_type: Mapped[str] = mapped_column(String(20))
+    width: Mapped[float] = mapped_column(Float)
+    height: Mapped[float] = mapped_column(Float)
+    pixels_per_grid: Mapped[int] = mapped_column(Integer)
+    # Murs qui bloquent la vue : [[x1, y1, x2, y2], ...].
+    walls: Mapped[list] = mapped_column(JSON, default=list)
+    # Portes : [{"a": [x, y], "b": [x, y], "closed": bool}] ; une porte fermée bloque la vue. Id = rang dans la liste.
+    doors: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 class RoomMember(Base):
@@ -177,6 +202,9 @@ class CharacterInstance(Base):
         ForeignKey("room_groups.id", ondelete="SET NULL", name="fk_character_instances_group"))
     # Ce que voient les joueurs : cache | visible | revele (schemas.InstanceVisibility).
     visibility: Mapped[str] = mapped_column(String(10), default="revele", server_default="revele")
+    # Pion sur la carte de la room (centre, en cases) ; NULL : pas sur la carte.
+    map_x: Mapped[float | None] = mapped_column(Float)
+    map_y: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 

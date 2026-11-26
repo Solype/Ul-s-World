@@ -665,6 +665,84 @@ export interface paths {
         patch: operations["update_status_api_rooms__room_id__instances__instance_id__statuses__status_id__patch"];
         trace?: never;
     };
+    "/api/rooms/{room_id}/map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Carte de la room (null s'il n'y en a pas) */
+        get: operations["get_map_api_rooms__room_id__map_get"];
+        /**
+         * Envoyer la carte, fichier Universal VTT (MJ)
+         * @description Remplace la carte de la room et retire tous les pions.
+         */
+        put: operations["upload_map_api_rooms__room_id__map_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/map/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Image de la carte
+         * @description Réservée aux membres. Une nouvelle carte a un nouvel id : l'URL `?v=<id>` change, le cache est donc permanent.
+         */
+        get: operations["map_image_api_rooms__room_id__map_image_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/map/doors/{door_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Ouvrir ou fermer une porte (MJ) */
+        put: operations["set_door_api_rooms__room_id__map_doors__door_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/instances/{instance_id}/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Poser, déplacer ou retirer un pion de la carte
+         * @description Le MJ déplace tout pion ; un membre, ceux des PJ. Renvoie les pions tels que les voit l'appelant.
+         */
+        put: operations["move_token_api_rooms__room_id__instances__instance_id__token_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1461,6 +1539,25 @@ export interface components {
             instance: components["schemas"]["InstanceRead"];
         };
         /**
+         * DoorRead
+         * @description Porte (id : son rang sur la carte). Fermée, elle bloque la vue.
+         */
+        DoorRead: {
+            /** Id */
+            id: number;
+            /** A */
+            a: number[];
+            /** B */
+            b: number[];
+            /** Closed */
+            closed: boolean;
+        };
+        /** DoorUpdate */
+        DoorUpdate: {
+            /** Closed */
+            closed: boolean;
+        };
+        /**
          * ExtraPC
          * @description PC restants après les priorités, dépensés en relations, Magie ou bottes.
          */
@@ -1734,6 +1831,27 @@ export interface components {
              * @default 0
              */
             max?: number;
+        };
+        /**
+         * MapRead
+         * @description Carte de la room. `tokens` : pour un joueur, le serveur ne garde que les pions qu'un PJ voit (vision de
+         *     groupe) ; les PJ sont toujours là. L'image est sur `GET .../map/image?v=<id>`.
+         */
+        MapRead: {
+            /** Id */
+            id: number;
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
+            /** Pixels Per Grid */
+            pixels_per_grid: number;
+            /** Walls */
+            walls: number[][];
+            /** Doors */
+            doors: components["schemas"]["DoorRead"][];
+            /** Tokens */
+            tokens: components["schemas"]["TokenRead"][];
         };
         /** Monitor */
         Monitor: {
@@ -2369,6 +2487,28 @@ export interface components {
             character_id: number;
         };
         /**
+         * TokenMove
+         * @description Poser ou déplacer un pion ; `x` et `y` à null le retirent de la carte.
+         */
+        TokenMove: {
+            /** X */
+            x?: number | null;
+            /** Y */
+            y?: number | null;
+        };
+        /**
+         * TokenRead
+         * @description Pion d'un personnage en jeu sur la carte (centre, en cases).
+         */
+        TokenRead: {
+            /** Instance Id */
+            instance_id: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
+        /**
          * TraitChoice
          * @description Ce que le joueur choisit pour ce trait. `options` vide : tout le catalogue de `target`.
          */
@@ -2590,6 +2730,57 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** UvttFile */
+        UvttFile: {
+            resolution: components["schemas"]["UvttResolution"];
+            /**
+             * Line Of Sight
+             * @default []
+             */
+            line_of_sight?: components["schemas"]["UvttPoint"][][];
+            /**
+             * Objects Line Of Sight
+             * @default []
+             */
+            objects_line_of_sight?: components["schemas"]["UvttPoint"][][];
+            /**
+             * Portals
+             * @default []
+             */
+            portals?: components["schemas"]["UvttPortal"][];
+            /** Image */
+            image: string;
+        };
+        /** UvttPoint */
+        UvttPoint: {
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
+        /** UvttPortal */
+        UvttPortal: {
+            /** Bounds */
+            bounds: components["schemas"]["UvttPoint"][];
+            /**
+             * Closed
+             * @default true
+             */
+            closed?: boolean;
+        };
+        /** UvttResolution */
+        UvttResolution: {
+            /**
+             * @default {
+             *       "x": 0,
+             *       "y": 0
+             *     }
+             */
+            map_origin?: components["schemas"]["UvttPoint"];
+            map_size: components["schemas"]["UvttPoint"];
+            /** Pixels Per Grid */
+            pixels_per_grid: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -4052,6 +4243,177 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_map_api_rooms__room_id__map_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapRead"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_map_api_rooms__room_id__map_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UvttFile"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    map_image_api_rooms__room_id__map_image_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                    "image/jpeg": unknown;
+                    "image/webp": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_door_api_rooms__room_id__map_doors__door_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                door_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DoorUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_token_api_rooms__room_id__instances__instance_id__token_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                instance_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenMove"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenRead"][];
                 };
             };
             /** @description Validation Error */
