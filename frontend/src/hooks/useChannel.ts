@@ -14,10 +14,12 @@ export type ServerEvent =
   | { type: "room.instance.removed"; id: number }
   /** Le MJ a changé l'ordre ou les groupes des personnages en jeu : relire la liste et les groupes. */
   | { type: "room.instances.layout" }
-  /** La carte ou une porte a changé : relire la carte. */
-  | { type: "room.map" }
-  /** Un pion a bougé : les pions vus par ce compte (filtrés par le serveur). */
-  | { type: "room.tokens"; tokens: MapToken[] };
+  /** Carte ajoutée, supprimée, montrée aux joueurs ou plus : relire la liste des cartes. */
+  | { type: "room.maps" }
+  /** Une porte de cette carte a changé : la relire. */
+  | { type: "room.map"; id: number }
+  /** Un pion de cette carte a bougé : ses pions vus par ce compte (filtrés par le serveur). */
+  | { type: "room.tokens"; map_id: number; tokens: MapToken[] };
 
 /** Le serveur a refusé ou coupé l'accès au canal (pas connecté, exclu de la room...). */
 export const WS_FORBIDDEN = 4403;

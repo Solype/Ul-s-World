@@ -2077,13 +2077,14 @@
         }
       }
     },
-    "/api/rooms/{room_id}/map": {
+    "/api/rooms/{room_id}/maps": {
       "get": {
         "tags": [
-          "carte"
+          "cartes"
         ],
-        "summary": "Carte de la room (null s'il n'y en a pas)",
-        "operationId": "get_map_api_rooms__room_id__map_get",
+        "summary": "Cartes de la room",
+        "description": "Toutes pour le MJ ; pour un joueur, celle qu'on lui montre (ou aucune).",
+        "operationId": "list_maps_api_rooms__room_id__maps_get",
         "parameters": [
           {
             "name": "room_id",
@@ -2101,15 +2102,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/MapRead"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "title": "Response Get Map Api Rooms  Room Id  Map Get"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MapSummary"
+                  },
+                  "title": "Response List Maps Api Rooms  Room Id  Maps Get"
                 }
               }
             }
@@ -2126,13 +2123,13 @@
           }
         }
       },
-      "put": {
+      "post": {
         "tags": [
-          "carte"
+          "cartes"
         ],
-        "summary": "Envoyer la carte, fichier Universal VTT (MJ)",
-        "description": "Remplace la carte de la room et retire tous les pions.",
-        "operationId": "upload_map_api_rooms__room_id__map_put",
+        "summary": "Ajouter une carte, fichier Universal VTT (MJ)",
+        "description": "La première carte de la room est montrée aux joueurs d'office ; les suivantes attendent que le MJ les montre.",
+        "operationId": "add_map_api_rooms__room_id__maps_post",
         "parameters": [
           {
             "name": "room_id",
@@ -2141,6 +2138,18 @@
             "schema": {
               "type": "integer",
               "title": "Room Id"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "default": "Carte",
+              "title": "Name"
             }
           }
         ],
@@ -2155,7 +2164,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -2178,14 +2187,13 @@
         }
       }
     },
-    "/api/rooms/{room_id}/map/image": {
+    "/api/rooms/{room_id}/maps/{map_id}": {
       "get": {
         "tags": [
-          "carte"
+          "cartes"
         ],
-        "summary": "Image de la carte",
-        "description": "Réservée aux membres. Une nouvelle carte a un nouvel id : l'URL `?v=<id>` change, le cache est donc permanent.",
-        "operationId": "map_image_api_rooms__room_id__map_image_get",
+        "summary": "Une carte, avec ses portes et ses pions",
+        "operationId": "get_map_api_rooms__room_id__maps__map_id__get",
         "parameters": [
           {
             "name": "room_id",
@@ -2194,6 +2202,173 @@
             "schema": {
               "type": "integer",
               "title": "Room Id"
+            }
+          },
+          {
+            "name": "map_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Map Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "cartes"
+        ],
+        "summary": "Montrer une carte aux joueurs, ou ne plus leur en montrer (MJ)",
+        "operationId": "update_map_api_rooms__room_id__maps__map_id__patch",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "map_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Map Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MapSummary"
+                  },
+                  "title": "Response Update Map Api Rooms  Room Id  Maps  Map Id  Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "cartes"
+        ],
+        "summary": "Supprimer une carte (MJ)",
+        "description": "Ses pions partent avec elle. Si c'était la carte montrée, les joueurs n'en ont plus.",
+        "operationId": "delete_map_api_rooms__room_id__maps__map_id__delete",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "map_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Map Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rooms/{room_id}/maps/{map_id}/image": {
+      "get": {
+        "tags": [
+          "cartes"
+        ],
+        "summary": "Image d'une carte",
+        "description": "Mêmes droits que la carte. L'image d'une carte ne change jamais : cache sans revalidation. `private` : le\nnavigateur la garde, aucun cache partagé (elle est réservée aux membres).",
+        "operationId": "map_image_api_rooms__room_id__maps__map_id__image_get",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "map_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Map Id"
             }
           }
         ],
@@ -2219,13 +2394,13 @@
         }
       }
     },
-    "/api/rooms/{room_id}/map/doors/{door_id}": {
+    "/api/rooms/{room_id}/maps/{map_id}/doors/{door_id}": {
       "put": {
         "tags": [
-          "carte"
+          "cartes"
         ],
         "summary": "Ouvrir ou fermer une porte (MJ)",
-        "operationId": "set_door_api_rooms__room_id__map_doors__door_id__put",
+        "operationId": "set_door_api_rooms__room_id__maps__map_id__doors__door_id__put",
         "parameters": [
           {
             "name": "room_id",
@@ -2234,6 +2409,15 @@
             "schema": {
               "type": "integer",
               "title": "Room Id"
+            }
+          },
+          {
+            "name": "map_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Map Id"
             }
           },
           {
@@ -2280,14 +2464,14 @@
         }
       }
     },
-    "/api/rooms/{room_id}/instances/{instance_id}/token": {
+    "/api/rooms/{room_id}/maps/{map_id}/tokens/{instance_id}": {
       "put": {
         "tags": [
-          "carte"
+          "cartes"
         ],
-        "summary": "Poser, déplacer ou retirer un pion de la carte",
-        "description": "Le MJ déplace tout pion ; un membre, ceux des PJ. Renvoie les pions tels que les voit l'appelant.",
-        "operationId": "move_token_api_rooms__room_id__instances__instance_id__token_put",
+        "summary": "Poser, déplacer ou retirer un pion d'une carte",
+        "description": "Le MJ déplace tout pion ; un membre, ceux des PJ. Renvoie les pions de la carte tels que les voit l'appelant.",
+        "operationId": "move_token_api_rooms__room_id__maps__map_id__tokens__instance_id__put",
         "parameters": [
           {
             "name": "room_id",
@@ -2296,6 +2480,15 @@
             "schema": {
               "type": "integer",
               "title": "Room Id"
+            }
+          },
+          {
+            "name": "map_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Map Id"
             }
           },
           {
@@ -2328,7 +2521,7 @@
                   "items": {
                     "$ref": "#/components/schemas/TokenRead"
                   },
-                  "title": "Response Move Token Api Rooms  Room Id  Instances  Instance Id  Token Put"
+                  "title": "Response Move Token Api Rooms  Room Id  Maps  Map Id  Tokens  Instance Id  Put"
                 }
               }
             }
@@ -4427,6 +4620,14 @@
             "type": "integer",
             "title": "Id"
           },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
           "width": {
             "type": "number",
             "title": "Width"
@@ -4467,6 +4668,8 @@
         "type": "object",
         "required": [
           "id",
+          "name",
+          "active",
           "width",
           "height",
           "pixels_per_grid",
@@ -4475,7 +4678,45 @@
           "tokens"
         ],
         "title": "MapRead",
-        "description": "Carte de la room. `tokens` : pour un joueur, le serveur ne garde que les pions qu'un PJ voit (vision de\ngroupe) ; les PJ sont toujours là. L'image est sur `GET .../map/image?v=<id>`."
+        "description": "Une carte. `tokens` : pour un joueur, le serveur ne garde que les pions qu'un PJ voit (vision de groupe) ;\nles PJ sont toujours là. L'image est sur `GET .../maps/{id}/image`."
+      },
+      "MapSummary": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "active"
+        ],
+        "title": "MapSummary",
+        "description": "Carte dans la liste de la room. `active` : celle que voient les joueurs (une au plus)."
+      },
+      "MapUpdate": {
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "active"
+        ],
+        "title": "MapUpdate",
+        "description": "`active` à true montre la carte aux joueurs (à la place de l'autre) ; à false, plus aucune carte pour eux."
       },
       "Monitor": {
         "properties": {

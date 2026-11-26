@@ -1,7 +1,8 @@
-import { Eye, EyeOff, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Eye, EyeOff, Trash2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
-import type { CharacterKind, Instance, MapToken, RoomMap } from "@/api/client";
+import type { CharacterKind, Instance, MapSummary, MapToken, RoomMap } from "@/api/client";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { insidePolygon, visibilityPolygon, type Point, type Segment } from "@/lib/vision";
 
@@ -42,9 +43,8 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
   const [drag, setDrag] = useState<{ id: number; x: number; y: number } | null>(null);
   const [explored, setExplored] = useState<string[]>([]);
 
-  // Toute la largeur à l'ouverture et à chaque nouvelle carte.
-  useLayoutEffect(() => { if (box.current) setCell(box.current.clientWidth / map.width); }, [map.id, map.width]);
-  useEffect(() => setExplored([]), [map.id]);
+  // Toute la largeur à l'ouverture (le parent recrée la vue à chaque autre carte : `key`).
+  useLayoutEffect(() => { if (box.current) setCell(box.current.clientWidth / map.width); }, [map.width]);
 
   const byId = useMemo(() => new Map(instances.map((i) => [i.id, i])), [instances]);
   const placed = map.tokens.filter((t) => byId.has(t.instance_id));
@@ -121,7 +121,7 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
         <svg ref={svg} width={W * cell} height={H * cell} viewBox={`0 0 ${W} ${H}`} className={cn("block", placing !== null && "cursor-crosshair")}
           onClick={place} onPointerMove={(e) => drag && setDrag({ ...drag, ...toMap(e) })}
           onPointerUp={drop} onPointerCancel={() => setDrag(null)} onContextMenu={(e) => e.preventDefault()}>
-          <image href={`/api/rooms/${roomId}/map/image?v=${map.id}`} width={W} height={H} preserveAspectRatio="none" />
+          <image href={`/api/rooms/${roomId}/maps/${map.id}/image`} width={W} height={H} preserveAspectRatio="none" />
           {map.doors.map((d) => (
             <g key={d.id} className={cn(isGM && "cursor-pointer")}
               onClick={isGM ? (e) => { e.stopPropagation(); onDoor(d.id, !d.closed); } : undefined}>
@@ -184,8 +184,34 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
   );
 }
 
-/** MJ : envoyer la carte, un fichier Universal VTT. Pas de filtre d'extension : le sélecteur d'Android griserait le .dd2vtt. */
-export function MapUploadButton({ onUpload, replace }: { onUpload: (file: File) => void; replace?: boolean }) {
+/** MJ : la carte qu'il regarde (parmi toutes), la montrer aux joueurs ou non, la supprimer. */
+export function MapPicker({ maps, mapId, onPick, onShow, onDelete }: {
+  maps: MapSummary[]; mapId: number; onPick: (id: number) => void; onShow: (active: boolean) => void; onDelete: () => void;
+}) {
+  const shown = maps.find((m) => m.id === mapId)?.active ?? false;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Select value={String(mapId)} onValueChange={(v) => onPick(Number(v))}>
+        <SelectTrigger className="min-w-48"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {maps.map((m) => (
+            <SelectItem key={m.id} value={String(m.id)}>{m.name}{m.active && " · montrée aux joueurs"}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button variant={shown ? "secondary" : "outline"} size="sm" onClick={() => onShow(!shown)}
+        title={shown ? "Les joueurs n'auront plus de carte" : "Elle remplace la carte que voient les joueurs"}>
+        {shown ? <><EyeOff data-icon="inline-start" />Ne plus montrer</> : <><Eye data-icon="inline-start" />Montrer aux joueurs</>}
+      </Button>
+      <Button variant="ghost" size="icon-sm" aria-label="Supprimer la carte" title="Supprimer la carte" onClick={onDelete}>
+        <Trash2 />
+      </Button>
+    </div>
+  );
+}
+
+/** MJ : ajouter une carte, un fichier Universal VTT. Pas de filtre d'extension : le sélecteur d'Android griserait le .dd2vtt. */
+export function MapUploadButton({ onUpload }: { onUpload: (file: File) => void }) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <>
@@ -196,7 +222,7 @@ export function MapUploadButton({ onUpload, replace }: { onUpload: (file: File) 
       }} />
       <Button variant="outline" size="sm" onClick={() => input.current?.click()}
         title="Export « Universal VTT » de Dungeon Alchemist (.dd2vtt) : image, murs et portes">
-        <Upload data-icon="inline-start" />{replace ? "Changer de carte" : "Envoyer une carte"}
+        <Upload data-icon="inline-start" />Ajouter une carte
       </Button>
     </>
   );

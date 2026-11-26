@@ -1,29 +1,34 @@
-"""Carte de la room et pions des personnages en jeu.
+"""Cartes de la room et pions des personnages en jeu.
 
-Le MJ envoie un fichier Universal VTT (export « Universal VTT » de Dungeon Alchemist : .dd2vtt) : image, murs et
-portes. Une nouvelle carte remplace l'ancienne et retire tous les pions. Le MJ ouvre et ferme les portes.
+Le MJ ajoute des fichiers Universal VTT (export « Universal VTT » de Dungeon Alchemist : .dd2vtt) : image, murs et
+portes. Il en prépare autant qu'il veut et en montre une aux joueurs (`active`) ; la première ajoutée l'est
+d'office. Une carte qui n'est pas montrée n'existe pas pour un joueur (404). Le MJ ouvre et ferme les portes.
 
-Pions : le MJ pose et déplace tout le monde ; un membre, les PJ (comme leurs moniteurs). Vision de groupe : un
-joueur ne reçoit que les pions qu'au moins un PJ voit (`map_tokens`), calculé ici, côté serveur.
+Pions : chaque carte garde les siens (`MapToken`). Le MJ pose et déplace tout le monde, sur toute carte ; un membre,
+les PJ, sur la carte montrée. Vision de groupe : un joueur ne reçoit que les pions qu'au moins un PJ voit
+(`map_tokens`), calculé ici, côté serveur.
 
-Temps réel : `room.tokens` (pions, filtrés par destinataire) quand un pion bouge ; `room.map` quand la carte ou
-une porte change (les clients relisent `GET .../map` avec leurs droits).
+Temps réel : `room.maps` quand la liste change (ajout, suppression, carte montrée) ; `room.map` (`id`) quand une
+porte change ; `room.tokens` (`map_id`, pions filtrés par destinataire) quand un pion bouge.
 """
 
 import base64
 import binascii
+from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import current_user, room_or_404
-from app.api.instances import _instance_or_404, map_tokens, push_tokens
+from app.api.instances import _instance_or_404, active_map, map_tokens, push_tokens
 from app.db import get_session
-from app.models import Room, RoomMap, User
+from app.models import MapToken, Room, RoomMap, User
 from app.realtime.manager import manager, room_channel
-from app.schemas import DoorRead, DoorUpdate, MapRead, TokenMove, TokenRead, UvttFile, UvttPoint
+from app.schemas import (
+    DoorRead, DoorUpdate, MapRead, MapSummary, MapUpdate, TokenMove, TokenRead, UvttFile, UvttPoint,
+)
 
-router = APIRouter(prefix="/rooms", tags=["carte"])
+router = APIRouter(prefix="/rooms", tags=["cartes"])
 
 MAX_WALLS = 20_000
 MAX_DOORS = 2_000
@@ -38,29 +43,39 @@ def _image_type(data: bytes) -> str | None:
     return next((t for magic, t in IMAGE_TYPES.items() if data.startswith(magic)), None)
 
 
-def _read(room: Room, gm_view: bool) -> MapRead:
-    m = room.map
-    return MapRead(id=m.id, width=m.width, height=m.height, pixels_per_grid=m.pixels_per_grid, walls=m.walls,
+def _read(m: RoomMap, gm_view: bool) -> MapRead:
+    return MapRead(id=m.id, name=m.name, active=m.active, width=m.width, height=m.height,
+                   pixels_per_grid=m.pixels_per_grid, walls=m.walls,
                    doors=[DoorRead(id=n, a=d["a"], b=d["b"], closed=d["closed"]) for n, d in enumerate(m.doors)],
-                   tokens=map_tokens(room, gm_view))
+                   tokens=map_tokens(m, gm_view))
 
 
-def _map_or_404(room: Room) -> RoomMap:
-    if room.map is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pas de carte dans cette room")
-    return room.map
+def _map_or_404(room: Room, map_id: int, user: User) -> RoomMap:
+    """Une carte de la room ; pour un joueur, seulement celle qu'on lui montre."""
+    m = next((m for m in room.maps if m.id == map_id), None)
+    if m is None or (room.gm_id != user.id and not m.active):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Carte introuvable")
+    return m
 
 
-@router.get("/{room_id}/map", response_model=MapRead | None, summary="Carte de la room (null s'il n'y en a pas)")
-def get_map(room_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)) -> MapRead | None:
+def _notify_maps(background: BackgroundTasks, room_id: int) -> None:
+    background.add_task(manager.broadcast, room_channel(room_id), {"type": "room.maps"})
+
+
+@router.get("/{room_id}/maps", response_model=list[MapSummary], summary="Cartes de la room")
+def list_maps(room_id: int, user: User = Depends(current_user),
+              session: Session = Depends(get_session)) -> list[MapSummary]:
+    """Toutes pour le MJ ; pour un joueur, celle qu'on lui montre (ou aucune)."""
     room = room_or_404(session, room_id, user)
-    return _read(room, gm_view=room.gm_id == user.id) if room.map else None
+    return [MapSummary.model_validate(m) for m in room.maps if room.gm_id == user.id or m.active]
 
 
-@router.put("/{room_id}/map", response_model=MapRead, summary="Envoyer la carte, fichier Universal VTT (MJ)")
-def upload_map(room_id: int, payload: UvttFile, background: BackgroundTasks,
-               user: User = Depends(current_user), session: Session = Depends(get_session)) -> MapRead:
-    """Remplace la carte de la room et retire tous les pions."""
+@router.post("/{room_id}/maps", response_model=MapRead, status_code=status.HTTP_201_CREATED,
+             summary="Ajouter une carte, fichier Universal VTT (MJ)")
+def add_map(room_id: int, payload: UvttFile, background: BackgroundTasks,
+            name: Annotated[str, Query(min_length=1, max_length=100)] = "Carte",
+            user: User = Depends(current_user), session: Session = Depends(get_session)) -> MapRead:
+    """La première carte de la room est montrée aux joueurs d'office ; les suivantes attendent que le MJ les montre."""
     room = room_or_404(session, room_id, user, gm_only=True)
     res = payload.resolution
     if not (0 < res.map_size.x <= MAX_SIZE and 0 < res.map_size.y <= MAX_SIZE):
@@ -84,52 +99,88 @@ def upload_map(room_id: int, payload: UvttFile, background: BackgroundTasks,
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                             f"Trop de murs ou de portes (au plus {MAX_WALLS} murs, {MAX_DOORS} portes)")
 
-    room.map = None
-    session.flush()
-    room.map = RoomMap(image=image, image_type=image_type, width=res.map_size.x, height=res.map_size.y,
-                       pixels_per_grid=res.pixels_per_grid, walls=walls,
-                       doors=[{"a": at(p.bounds[0]), "b": at(p.bounds[1]), "closed": p.closed} for p in payload.portals])
-    for rc in room.characters:
-        for i in rc.instances:
-            i.map_x = i.map_y = None
+    m = RoomMap(name=" ".join(name.split()) or "Carte", active=active_map(room) is None, image=image,
+                image_type=image_type, width=res.map_size.x, height=res.map_size.y,
+                pixels_per_grid=res.pixels_per_grid, walls=walls,
+                doors=[{"a": at(p.bounds[0]), "b": at(p.bounds[1]), "closed": p.closed} for p in payload.portals])
+    room.maps.append(m)
     session.commit()
-    background.add_task(manager.broadcast, room_channel(room_id), {"type": "room.map"})
-    return _read(room, gm_view=True)
+    _notify_maps(background, room_id)
+    return _read(m, gm_view=True)
 
 
-@router.get("/{room_id}/map/image", summary="Image de la carte", response_class=Response,
+@router.get("/{room_id}/maps/{map_id}", response_model=MapRead, summary="Une carte, avec ses portes et ses pions")
+def get_map(room_id: int, map_id: int, user: User = Depends(current_user),
+            session: Session = Depends(get_session)) -> MapRead:
+    room = room_or_404(session, room_id, user)
+    return _read(_map_or_404(room, map_id, user), gm_view=room.gm_id == user.id)
+
+
+@router.patch("/{room_id}/maps/{map_id}", response_model=list[MapSummary],
+              summary="Montrer une carte aux joueurs, ou ne plus leur en montrer (MJ)")
+def update_map(room_id: int, map_id: int, payload: MapUpdate, background: BackgroundTasks,
+               user: User = Depends(current_user), session: Session = Depends(get_session)) -> list[MapSummary]:
+    room = room_or_404(session, room_id, user, gm_only=True)
+    target = _map_or_404(room, map_id, user)
+    for m in room.maps:
+        m.active = payload.active and m is target
+    session.commit()
+    _notify_maps(background, room_id)
+    return [MapSummary.model_validate(m) for m in room.maps]
+
+
+@router.delete("/{room_id}/maps/{map_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Supprimer une carte (MJ)")
+def delete_map(room_id: int, map_id: int, background: BackgroundTasks,
+               user: User = Depends(current_user), session: Session = Depends(get_session)) -> None:
+    """Ses pions partent avec elle. Si c'était la carte montrée, les joueurs n'en ont plus."""
+    room = room_or_404(session, room_id, user, gm_only=True)
+    room.maps.remove(_map_or_404(room, map_id, user))
+    session.commit()
+    _notify_maps(background, room_id)
+
+
+@router.get("/{room_id}/maps/{map_id}/image", summary="Image d'une carte", response_class=Response,
             responses={200: {"content": {"image/png": {}, "image/jpeg": {}, "image/webp": {}}}})
-def map_image(room_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)) -> Response:
-    """Réservée aux membres. Une nouvelle carte a un nouvel id : l'URL `?v=<id>` change, le cache est donc permanent."""
-    m = _map_or_404(room_or_404(session, room_id, user))
+def map_image(room_id: int, map_id: int, user: User = Depends(current_user),
+              session: Session = Depends(get_session)) -> Response:
+    """Mêmes droits que la carte. L'image d'une carte ne change jamais : cache sans revalidation. `private` : le
+    navigateur la garde, aucun cache partagé (elle est réservée aux membres)."""
+    m = _map_or_404(room_or_404(session, room_id, user), map_id, user)
     return Response(m.image, media_type=m.image_type,
                     headers={"Cache-Control": "private, max-age=31536000, immutable"})
 
 
-@router.put("/{room_id}/map/doors/{door_id}", response_model=MapRead, summary="Ouvrir ou fermer une porte (MJ)")
-def set_door(room_id: int, door_id: int, payload: DoorUpdate, background: BackgroundTasks,
+@router.put("/{room_id}/maps/{map_id}/doors/{door_id}", response_model=MapRead, summary="Ouvrir ou fermer une porte (MJ)")
+def set_door(room_id: int, map_id: int, door_id: int, payload: DoorUpdate, background: BackgroundTasks,
              user: User = Depends(current_user), session: Session = Depends(get_session)) -> MapRead:
     room = room_or_404(session, room_id, user, gm_only=True)
-    m = _map_or_404(room)
+    m = _map_or_404(room, map_id, user)
     if not 0 <= door_id < len(m.doors):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Porte introuvable")
     m.doors = [{**d, "closed": payload.closed} if n == door_id else d for n, d in enumerate(m.doors)]
     session.commit()
-    background.add_task(manager.broadcast, room_channel(room_id), {"type": "room.map"})
-    return _read(room, gm_view=True)
+    background.add_task(manager.broadcast, room_channel(room_id), {"type": "room.map", "id": m.id})
+    return _read(m, gm_view=True)
 
 
-@router.put("/{room_id}/instances/{instance_id}/token", response_model=list[TokenRead],
-            summary="Poser, déplacer ou retirer un pion de la carte")
-def move_token(room_id: int, instance_id: int, payload: TokenMove, background: BackgroundTasks,
+@router.put("/{room_id}/maps/{map_id}/tokens/{instance_id}", response_model=list[TokenRead],
+            summary="Poser, déplacer ou retirer un pion d'une carte")
+def move_token(room_id: int, map_id: int, instance_id: int, payload: TokenMove, background: BackgroundTasks,
                user: User = Depends(current_user), session: Session = Depends(get_session)) -> list[TokenRead]:
-    """Le MJ déplace tout pion ; un membre, ceux des PJ. Renvoie les pions tels que les voit l'appelant."""
+    """Le MJ déplace tout pion ; un membre, ceux des PJ. Renvoie les pions de la carte tels que les voit l'appelant."""
     instance = _instance_or_404(session, room_id, instance_id, user)
     room = instance.link.room
-    m = _map_or_404(room)
+    m = _map_or_404(room, map_id, user)
     if payload.x is not None and not (0 <= payload.x <= m.width and 0 <= payload.y <= m.height):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Pion hors de la carte")
-    instance.map_x, instance.map_y = payload.x, payload.y
+    token = next((t for t in m.tokens if t.instance_id == instance_id), None)
+    if payload.x is None:
+        if token is not None:
+            m.tokens.remove(token)
+    elif token is None:
+        m.tokens.append(MapToken(instance=instance, x=payload.x, y=payload.y))
+    else:
+        token.x, token.y = payload.x, payload.y
     session.commit()
-    push_tokens(background, room)
-    return map_tokens(room, gm_view=room.gm_id == user.id)
+    push_tokens(background, m, room.gm_id)
+    return map_tokens(m, gm_view=room.gm_id == user.id)

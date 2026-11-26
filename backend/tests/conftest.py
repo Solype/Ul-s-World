@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app import models  # noqa: F401
-from app.db import Base, get_session
+from app.db import Base, enforce_sqlite_foreign_keys, get_session
 from app.main import app
 
 
@@ -17,6 +17,7 @@ def make_client():
     Le premier compte inscrit est admin.
     """
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    enforce_sqlite_foreign_keys(engine)  # comme PostgreSQL en production
     Base.metadata.create_all(engine)
     TestSession = sessionmaker(bind=engine, expire_on_commit=False)
 

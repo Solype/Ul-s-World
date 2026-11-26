@@ -665,28 +665,53 @@ export interface paths {
         patch: operations["update_status_api_rooms__room_id__instances__instance_id__statuses__status_id__patch"];
         trace?: never;
     };
-    "/api/rooms/{room_id}/map": {
+    "/api/rooms/{room_id}/maps": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Carte de la room (null s'il n'y en a pas) */
-        get: operations["get_map_api_rooms__room_id__map_get"];
         /**
-         * Envoyer la carte, fichier Universal VTT (MJ)
-         * @description Remplace la carte de la room et retire tous les pions.
+         * Cartes de la room
+         * @description Toutes pour le MJ ; pour un joueur, celle qu'on lui montre (ou aucune).
          */
-        put: operations["upload_map_api_rooms__room_id__map_put"];
-        post?: never;
+        get: operations["list_maps_api_rooms__room_id__maps_get"];
+        put?: never;
+        /**
+         * Ajouter une carte, fichier Universal VTT (MJ)
+         * @description La première carte de la room est montrée aux joueurs d'office ; les suivantes attendent que le MJ les montre.
+         */
+        post: operations["add_map_api_rooms__room_id__maps_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/rooms/{room_id}/map/image": {
+    "/api/rooms/{room_id}/maps/{map_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Une carte, avec ses portes et ses pions */
+        get: operations["get_map_api_rooms__room_id__maps__map_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Supprimer une carte (MJ)
+         * @description Ses pions partent avec elle. Si c'était la carte montrée, les joueurs n'en ont plus.
+         */
+        delete: operations["delete_map_api_rooms__room_id__maps__map_id__delete"];
+        options?: never;
+        head?: never;
+        /** Montrer une carte aux joueurs, ou ne plus leur en montrer (MJ) */
+        patch: operations["update_map_api_rooms__room_id__maps__map_id__patch"];
+        trace?: never;
+    };
+    "/api/rooms/{room_id}/maps/{map_id}/image": {
         parameters: {
             query?: never;
             header?: never;
@@ -694,10 +719,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Image de la carte
-         * @description Réservée aux membres. Une nouvelle carte a un nouvel id : l'URL `?v=<id>` change, le cache est donc permanent.
+         * Image d'une carte
+         * @description Mêmes droits que la carte. L'image d'une carte ne change jamais : cache sans revalidation. `private` : le
+         *     navigateur la garde, aucun cache partagé (elle est réservée aux membres).
          */
-        get: operations["map_image_api_rooms__room_id__map_image_get"];
+        get: operations["map_image_api_rooms__room_id__maps__map_id__image_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -706,7 +732,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/rooms/{room_id}/map/doors/{door_id}": {
+    "/api/rooms/{room_id}/maps/{map_id}/doors/{door_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -715,7 +741,7 @@ export interface paths {
         };
         get?: never;
         /** Ouvrir ou fermer une porte (MJ) */
-        put: operations["set_door_api_rooms__room_id__map_doors__door_id__put"];
+        put: operations["set_door_api_rooms__room_id__maps__map_id__doors__door_id__put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -723,7 +749,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/rooms/{room_id}/instances/{instance_id}/token": {
+    "/api/rooms/{room_id}/maps/{map_id}/tokens/{instance_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -732,10 +758,10 @@ export interface paths {
         };
         get?: never;
         /**
-         * Poser, déplacer ou retirer un pion de la carte
-         * @description Le MJ déplace tout pion ; un membre, ceux des PJ. Renvoie les pions tels que les voit l'appelant.
+         * Poser, déplacer ou retirer un pion d'une carte
+         * @description Le MJ déplace tout pion ; un membre, ceux des PJ. Renvoie les pions de la carte tels que les voit l'appelant.
          */
-        put: operations["move_token_api_rooms__room_id__instances__instance_id__token_put"];
+        put: operations["move_token_api_rooms__room_id__maps__map_id__tokens__instance_id__put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1834,12 +1860,16 @@ export interface components {
         };
         /**
          * MapRead
-         * @description Carte de la room. `tokens` : pour un joueur, le serveur ne garde que les pions qu'un PJ voit (vision de
-         *     groupe) ; les PJ sont toujours là. L'image est sur `GET .../map/image?v=<id>`.
+         * @description Une carte. `tokens` : pour un joueur, le serveur ne garde que les pions qu'un PJ voit (vision de groupe) ;
+         *     les PJ sont toujours là. L'image est sur `GET .../maps/{id}/image`.
          */
         MapRead: {
             /** Id */
             id: number;
+            /** Name */
+            name: string;
+            /** Active */
+            active: boolean;
             /** Width */
             width: number;
             /** Height */
@@ -1852,6 +1882,26 @@ export interface components {
             doors: components["schemas"]["DoorRead"][];
             /** Tokens */
             tokens: components["schemas"]["TokenRead"][];
+        };
+        /**
+         * MapSummary
+         * @description Carte dans la liste de la room. `active` : celle que voient les joueurs (une au plus).
+         */
+        MapSummary: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Active */
+            active: boolean;
+        };
+        /**
+         * MapUpdate
+         * @description `active` à true montre la carte aux joueurs (à la place de l'autre) ; à false, plus aucune carte pour eux.
+         */
+        MapUpdate: {
+            /** Active */
+            active: boolean;
         };
         /** Monitor */
         Monitor: {
@@ -4256,7 +4306,7 @@ export interface operations {
             };
         };
     };
-    get_map_api_rooms__room_id__map_get: {
+    list_maps_api_rooms__room_id__maps_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4273,7 +4323,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MapRead"] | null;
+                    "application/json": components["schemas"]["MapSummary"][];
                 };
             };
             /** @description Validation Error */
@@ -4287,9 +4337,11 @@ export interface operations {
             };
         };
     };
-    upload_map_api_rooms__room_id__map_put: {
+    add_map_api_rooms__room_id__maps_post: {
         parameters: {
-            query?: never;
+            query?: {
+                name?: string;
+            };
             header?: never;
             path: {
                 room_id: number;
@@ -4301,6 +4353,38 @@ export interface operations {
                 "application/json": components["schemas"]["UvttFile"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_map_api_rooms__room_id__maps__map_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                map_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -4322,12 +4406,79 @@ export interface operations {
             };
         };
     };
-    map_image_api_rooms__room_id__map_image_get: {
+    delete_map_api_rooms__room_id__maps__map_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 room_id: number;
+                map_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_map_api_rooms__room_id__maps__map_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                map_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MapUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    map_image_api_rooms__room_id__maps__map_id__image_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                map_id: number;
             };
             cookie?: never;
         };
@@ -4355,12 +4506,13 @@ export interface operations {
             };
         };
     };
-    set_door_api_rooms__room_id__map_doors__door_id__put: {
+    set_door_api_rooms__room_id__maps__map_id__doors__door_id__put: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 room_id: number;
+                map_id: number;
                 door_id: number;
             };
             cookie?: never;
@@ -4391,12 +4543,13 @@ export interface operations {
             };
         };
     };
-    move_token_api_rooms__room_id__instances__instance_id__token_put: {
+    move_token_api_rooms__room_id__maps__map_id__tokens__instance_id__put: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 room_id: number;
+                map_id: number;
                 instance_id: number;
             };
             cookie?: never;

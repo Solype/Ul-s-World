@@ -5,11 +5,11 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { toast } from "sonner";
 import {
   api, type Character, type ChatMessage, type Instance, type InstanceVisibility, type Room, type RoomCharacter, type RoomGroup,
-  type RoomMap, type UserPublic,
+  type MapSummary, type RoomMap, type UserPublic,
 } from "@/api/client";
 import { useUser } from "@/auth/AuthContext";
 import type { DamageInput } from "@/components/room/DamagePopover";
-import MapView, { MapUploadButton } from "@/components/room/MapView";
+import MapView, { MapPicker, MapUploadButton } from "@/components/room/MapView";
 import RoomBoard, { newGroupLayout, type Layout } from "@/components/room/RoomBoard";
 import type { StatusActions, StatusColor } from "@/components/room/StatusTags";
 import { Badge } from "@/components/ui/badge";
@@ -62,8 +62,12 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
   const [mine, setMine] = useState<Character[]>([]);
   const [instances, setInstances] = useState<Instance[]>([]);
   const [groups, setGroups] = useState<RoomGroup[]>([]);
-  // Carte de la room : undefined en chargement, null s'il n'y en a pas.
+  // Cartes : le MJ les voit toutes et choisit celle qu'il regarde ; un joueur, celle qu'on lui montre.
+  const [maps, setMaps] = useState<MapSummary[] | undefined>(undefined);
+  const [mapId, setMapId] = useState<number | null>(null);
+  // Carte regardée : undefined en chargement, null s'il n'y en a pas.
   const [map, setMap] = useState<RoomMap | null | undefined>(undefined);
+  const [deletingMap, setDeletingMap] = useState(false);
   const [view, setView] = useState<"plaquettes" | "carte">("plaquettes");
   const [confirm, setConfirm] = useState<"leave" | "delete" | null>(null);
   // PJ que le MJ s'apprête à retirer de la room depuis sa carte.
@@ -88,9 +92,23 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
     api.GET("/api/rooms/{room_id}/groups", path(id)).then(({ data }) => data && setGroups(data));
   }, [id]);
   useEffect(loadGroups, [loadGroups]);
-  const loadMap = useCallback(() => {
-    api.GET("/api/rooms/{room_id}/map", path(id)).then(({ data }) => setMap(data ?? null));
+  const loadMaps = useCallback(() => {
+    api.GET("/api/rooms/{room_id}/maps", path(id)).then(({ data }) => setMaps(data ?? []));
   }, [id]);
+  useEffect(loadMaps, [loadMaps]);
+  // Le MJ reste sur la carte qu'il regarde tant qu'elle existe ; sinon (et pour un joueur), celle qui est montrée.
+  const isGMNow = room?.gm.id === user.id;
+  useEffect(() => {
+    if (!maps) return;
+    setMapId((current) => (isGMNow && maps.some((m) => m.id === current) ? current
+      : (maps.find((m) => m.active) ?? (isGMNow ? maps[0] : undefined))?.id ?? null));
+  }, [maps, isGMNow]);
+  const mapsLoaded = maps !== undefined;
+  const loadMap = useCallback(() => {
+    if (mapId === null) return setMap(mapsLoaded ? null : undefined);
+    api.GET("/api/rooms/{room_id}/maps/{map_id}", { params: { path: { room_id: id, map_id: mapId } } })
+      .then(({ data }) => setMap(data ?? null));
+  }, [id, mapId, mapsLoaded]);
   useEffect(loadMap, [loadMap]);
   useEffect(() => {
     api.GET("/api/rooms/{room_id}/messages", { params: { path: { room_id: id }, query: { limit: HISTORY_PAGE } } })
@@ -164,26 +182,46 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
     else toast.error("Resynchronisation impossible");
   };
 
-  // Carte : le MJ l'envoie et ouvre les portes ; les pions se posent et se déplacent (PJ par tout membre).
-  const uploadMap = async (file: File) => {
+  // Cartes : le MJ les ajoute, en montre une aux joueurs et ouvre les portes ; les pions se posent et se
+  // déplacent (PJ par tout membre).
+  const mapPath = (mapId: number) => ({ room_id: id, map_id: mapId });
+  const addMap = async (file: File) => {
     const text = await file.text();
     const loading = toast.loading("Envoi de la carte…");
-    const { data, response } = await api.PUT("/api/rooms/{room_id}/map",
-      { ...path(id), body: {} as never, bodySerializer: () => text });
+    const name = file.name.replace(/\.[^.]*$/, "").replace(/[_-]+/g, " ").trim().slice(0, 100) || "Carte";
+    const { data, response } = await api.POST("/api/rooms/{room_id}/maps",
+      { params: { path: { room_id: id }, query: { name } }, body: {} as never, bodySerializer: () => text });
     toast.dismiss(loading);
-    if (data) { setMap(data); toast.success("Carte chargée : pose les pions"); }
-    else toast.error(response.status === 413 ? "Fichier trop lourd (60 Mo au plus)"
+    if (data) {
+      setMaps((list) => [...(list ?? []).filter((m) => m.id !== data.id), data]);
+      setMapId(data.id);
+      toast.success(data.active ? "Carte ajoutée et montrée aux joueurs : pose les pions"
+        : "Carte ajoutée, pas encore montrée aux joueurs");
+    } else toast.error(response.status === 413 ? "Fichier trop lourd (60 Mo au plus)"
       : "Fichier non reconnu : il faut un export « Universal VTT » (.dd2vtt)");
   };
+  const showMap = async (mapId: number, active: boolean) => {
+    const { data } = await api.PATCH("/api/rooms/{room_id}/maps/{map_id}", { params: { path: mapPath(mapId) }, body: { active } });
+    if (data) setMaps(data);
+    else toast.error("Action impossible");
+  };
+  const deleteMap = async (mapId: number) => {
+    const { error } = await api.DELETE("/api/rooms/{room_id}/maps/{map_id}", { params: { path: mapPath(mapId) } });
+    if (error) toast.error("Suppression impossible");
+    else setMaps((list) => list?.filter((m) => m.id !== mapId));
+  };
   const moveToken = async (instanceId: number, x: number | null, y: number | null) => {
-    const { data } = await api.PUT("/api/rooms/{room_id}/instances/{instance_id}/token",
-      { params: { path: { room_id: id, instance_id: instanceId } }, body: { x, y } });
-    if (data) setMap((m) => m && { ...m, tokens: data });
+    if (!map) return;
+    const mapId = map.id;
+    const { data } = await api.PUT("/api/rooms/{room_id}/maps/{map_id}/tokens/{instance_id}",
+      { params: { path: { ...mapPath(mapId), instance_id: instanceId } }, body: { x, y } });
+    if (data) setMap((m) => m && m.id === mapId ? { ...m, tokens: data } : m);
     else toast.error("Déplacement impossible");
   };
   const setDoor = async (doorId: number, closed: boolean) => {
-    const { data } = await api.PUT("/api/rooms/{room_id}/map/doors/{door_id}",
-      { params: { path: { room_id: id, door_id: doorId } }, body: { closed } });
+    if (!map) return;
+    const { data } = await api.PUT("/api/rooms/{room_id}/maps/{map_id}/doors/{door_id}",
+      { params: { path: { ...mapPath(map.id), door_id: doorId } }, body: { closed } });
     if (data) setMap(data);
     else toast.error("Porte bloquée");
   };
@@ -248,8 +286,9 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
     if (event.type === "room.message") addMessage(event.message);
     // Un PJ qui entre ou sort change aussi ce que voit le groupe sur la carte.
     if (event.type === "room.characters") { refreshCharacters(); loadInstances(); loadMap(); }
-    if (event.type === "room.map") loadMap();
-    if (event.type === "room.tokens") setMap((m) => m && { ...m, tokens: event.tokens });
+    if (event.type === "room.maps") loadMaps();
+    if (event.type === "room.map" && event.id === mapId) loadMap();
+    if (event.type === "room.tokens") setMap((m) => m && m.id === event.map_id ? { ...m, tokens: event.tokens } : m);
     if (event.type === "room.instance") {
       putInstance(event.instance);
       // Un monstre qui apparaît pour un joueur dans un groupe qu'il ne voyait pas encore : relire les groupes.
@@ -373,22 +412,26 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
                 <FolderPlus data-icon="inline-start" />Nouveau groupe
               </Button>
             )}
-            {view === "carte" && isGM && map && <MapUploadButton replace onUpload={uploadMap} />}
+            {view === "carte" && isGM && !!maps?.length && <MapUploadButton onUpload={addMap} />}
           </div>
-          <TabsContent value="carte">
+          <TabsContent value="carte" className="flex flex-col gap-3">
+            {isGM && !!maps?.length && mapId !== null && (
+              <MapPicker maps={maps} mapId={mapId} onPick={setMapId} onShow={(active) => showMap(mapId, active)}
+                onDelete={() => setDeletingMap(true)} />
+            )}
             {map === undefined ? (
               <Skeleton className="h-96" />
             ) : map === null ? (
               <Card className="items-center gap-4 py-10 text-center">
                 <CardDescription className="max-w-sm">
                   {isGM ? "Pas encore de carte. Dans Dungeon Alchemist, exporte la carte au format « Universal VTT » (.dd2vtt) et envoie le fichier ici."
-                    : "Le MJ n'a pas encore mis de carte."}
+                    : "Le MJ ne montre pas de carte pour l'instant."}
                 </CardDescription>
-                {isGM && <MapUploadButton onUpload={uploadMap} />}
+                {isGM && <MapUploadButton onUpload={addMap} />}
               </Card>
             ) : (
-              <MapView roomId={id} map={map} instances={instances} isGM={isGM} onMove={moveToken} onDoor={setDoor}
-                canMove={(i) => isGM || i.character.kind === "pj"} />
+              <MapView key={map.id} roomId={id} map={map} instances={instances} isGM={isGM} onMove={moveToken}
+                onDoor={setDoor} canMove={(i) => isGM || i.character.kind === "pj"} />
             )}
           </TabsContent>
           <TabsContent value="plaquettes" className="flex flex-col gap-3">
@@ -515,6 +558,24 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
             <DialogClose asChild><Button variant="outline">Annuler</Button></DialogClose>
             <Button variant="destructive" onClick={() => { if (removingPc) removeCharacter(removingPc.id); setRemovingPc(null); }}>
               Retirer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deletingMap} onOpenChange={setDeletingMap}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Supprimer la carte {map?.name} ?</DialogTitle>
+            <DialogDescription>
+              Ses pions et l'état de ses portes sont perdus. Pour la retrouver, il faudra renvoyer le fichier.
+              {maps?.find((m) => m.id === mapId)?.active && " Les joueurs n'auront plus de carte."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Annuler</Button></DialogClose>
+            <Button variant="destructive" onClick={() => { if (mapId !== null) deleteMap(mapId); setDeletingMap(false); }}>
+              Supprimer
             </Button>
           </DialogFooter>
         </DialogContent>

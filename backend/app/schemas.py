@@ -562,11 +562,26 @@ class TokenMove(BaseModel):
         return self
 
 
-class MapRead(BaseModel):
-    """Carte de la room. `tokens` : pour un joueur, le serveur ne garde que les pions qu'un PJ voit (vision de
-    groupe) ; les PJ sont toujours là. L'image est sur `GET .../map/image?v=<id>`."""
+class MapSummary(BaseModel):
+    """Carte dans la liste de la room. `active` : celle que voient les joueurs (une au plus)."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
+    name: str
+    active: bool
+
+
+class MapUpdate(BaseModel):
+    """`active` à true montre la carte aux joueurs (à la place de l'autre) ; à false, plus aucune carte pour eux."""
+
+    active: bool
+
+
+class MapRead(MapSummary):
+    """Une carte. `tokens` : pour un joueur, le serveur ne garde que les pions qu'un PJ voit (vision de groupe) ;
+    les PJ sont toujours là. L'image est sur `GET .../maps/{id}/image`."""
+
     width: float
     height: float
     pixels_per_grid: int

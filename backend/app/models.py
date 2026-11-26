@@ -107,18 +107,20 @@ class Room(Base):
     messages: Mapped[list["ChatMessage"]] = relationship(cascade="all, delete-orphan")
     groups: Mapped[list["RoomGroup"]] = relationship(cascade="all, delete-orphan", lazy="selectin",
                                                      order_by="RoomGroup.position")
-    map: Mapped["RoomMap | None"] = relationship(cascade="all, delete-orphan")
+    maps: Mapped[list["RoomMap"]] = relationship(cascade="all, delete-orphan", order_by="RoomMap.id")
 
 
 class RoomMap(Base):
-    """Carte de la room (une à la fois), importée d'un fichier Universal VTT (Dungeon Alchemist, Dungeondraft...).
-    Coordonnées en cases, origine en haut à gauche de l'image. Une nouvelle carte remplace l'ancienne : nouvel id
-    (PostgreSQL ne réutilise pas un id), qui sert de version à l'URL de l'image."""
+    """Carte d'une room, importée d'un fichier Universal VTT (Dungeon Alchemist, Dungeondraft...). Coordonnées en
+    cases, origine en haut à gauche de l'image. Le MJ en prépare plusieurs ; une seule, `active`, est montrée aux
+    joueurs. Chaque carte garde ses pions (`MapToken`)."""
 
     __tablename__ = "room_maps"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), unique=True)
+    room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    active: Mapped[bool] = mapped_column(Boolean, default=False)
     # Chargée seulement quand on la sert : elle pèse plusieurs Mo.
     image: Mapped[bytes] = mapped_column(LargeBinary, deferred=True)
     image_type: Mapped[str] = mapped_column(String(20))
@@ -130,6 +132,25 @@ class RoomMap(Base):
     # Portes : [{"a": [x, y], "b": [x, y], "closed": bool}] ; une porte fermée bloque la vue. Id = rang dans la liste.
     doors: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    tokens: Mapped[list["MapToken"]] = relationship(back_populates="map", cascade="all, delete-orphan",
+                                                    lazy="selectin")
+
+
+class MapToken(Base):
+    """Pion d'un personnage en jeu sur une carte (centre, en cases). Une ligne par carte : un pion garde sa place
+    sur chaque carte. Une ligne à part (et pas du JSON sur la carte) : deux déplacements simultanés ne s'écrasent pas."""
+
+    __tablename__ = "map_tokens"
+
+    map_id: Mapped[int] = mapped_column(ForeignKey("room_maps.id", ondelete="CASCADE"), primary_key=True)
+    instance_id: Mapped[int] = mapped_column(ForeignKey("character_instances.id", ondelete="CASCADE"),
+                                             primary_key=True, index=True)
+    x: Mapped[float] = mapped_column(Float)
+    y: Mapped[float] = mapped_column(Float)
+
+    map: Mapped[RoomMap] = relationship(back_populates="tokens")
+    instance: Mapped["CharacterInstance"] = relationship(back_populates="map_tokens", lazy="joined")
 
 
 class RoomMember(Base):
@@ -202,14 +223,14 @@ class CharacterInstance(Base):
         ForeignKey("room_groups.id", ondelete="SET NULL", name="fk_character_instances_group"))
     # Ce que voient les joueurs : cache | visible | revele (schemas.InstanceVisibility).
     visibility: Mapped[str] = mapped_column(String(10), default="revele", server_default="revele")
-    # Pion sur la carte de la room (centre, en cases) ; NULL : pas sur la carte.
-    map_x: Mapped[float | None] = mapped_column(Float)
-    map_y: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
     link: Mapped[RoomCharacter] = relationship(back_populates="instances")
     group: Mapped[RoomGroup | None] = relationship()
+    # Ses pions, sur chaque carte : supprimés avec elle par la base (ON DELETE CASCADE).
+    map_tokens: Mapped[list[MapToken]] = relationship(back_populates="instance", cascade="all, delete-orphan",
+                                                      passive_deletes=True)
 
 
 class ChatMessage(Base):

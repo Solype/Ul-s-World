@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import current_user, room_or_404
 from app.db import get_session
-from app.models import Character, CharacterInstance, Room, RoomCharacter, RoomGroup, User
+from app.models import Character, CharacterInstance, Room, RoomCharacter, RoomGroup, RoomMap, User
 from app.realtime.manager import manager, room_channel
 from app.rules.catalogs import CATALOGS, GodResourceDef
 from app.rules.damage import damage_after_armor
@@ -136,29 +136,32 @@ def _player_event(instance: CharacterInstance) -> dict:
     return {"type": "room.instance", "instance": read_instance(instance, gm_view=False).model_dump(mode="json")}
 
 
-def map_tokens(room: Room, gm_view: bool) -> list[TokenRead]:
-    """Pions sur la carte. Le MJ les a tous ; un joueur, les PJ et les personnages visibles qu'un PJ voit
+def map_tokens(m: RoomMap, gm_view: bool) -> list[TokenRead]:
+    """Pions d'une carte. Le MJ les a tous ; un joueur, les PJ et les personnages visibles qu'un PJ voit
     (vision de groupe, `app/vision.py`). Un pion caché ou hors de vue n'est pas envoyé."""
-    if room.map is None:
-        return []
-    placed = [i for i in _ordered(room) if i.map_x is not None and i.map_y is not None]
-    is_pc = lambda i: i.link.character.kind == CharacterKind.PJ  # noqa: E731
+    placed = sorted(m.tokens, key=lambda t: (t.instance.position, t.instance_id))
+    is_pc = lambda t: t.instance.link.character.kind == CharacterKind.PJ  # noqa: E731
     if not gm_view:
-        segments = blocking_segments(room.map.walls, room.map.doors)
-        viewers = [(i.map_x, i.map_y) for i in placed if is_pc(i)]
-        placed = [i for i in placed if is_pc(i) or (
-            visible_to_players(i) and seen_by_any(viewers, i.map_x, i.map_y, segments))]
-    return [TokenRead(instance_id=i.id, x=i.map_x, y=i.map_y) for i in placed]
+        segments = blocking_segments(m.walls, m.doors)
+        viewers = [(t.x, t.y) for t in placed if is_pc(t)]
+        placed = [t for t in placed if is_pc(t) or (
+            visible_to_players(t.instance) and seen_by_any(viewers, t.x, t.y, segments))]
+    return [TokenRead(instance_id=t.instance_id, x=t.x, y=t.y) for t in placed]
 
 
-def push_tokens(background: BackgroundTasks, room: Room) -> None:
-    """Pousse les pions à la room (`room.tokens`) : tous au MJ, ceux que voient les PJ aux joueurs."""
-    if room.map is None:
-        return
-    events = {gm: {"type": "room.tokens", "tokens": [t.model_dump() for t in map_tokens(room, gm_view=gm)]}
-              for gm in (True, False)}
-    background.add_task(manager.broadcast_each, room_channel(room.id),
-                        lambda uid: events[uid == room.gm_id])
+def active_map(room: Room) -> RoomMap | None:
+    """La carte que voient les joueurs."""
+    return next((m for m in room.maps if m.active), None)
+
+
+def push_tokens(background: BackgroundTasks, m: RoomMap, gm_id: int) -> None:
+    """Pousse les pions d'une carte (`room.tokens`) : tous au MJ ; aux joueurs, ceux que voient les PJ, et
+    seulement pour la carte qu'on leur montre."""
+    event = lambda gm: {"type": "room.tokens", "map_id": m.id,  # noqa: E731
+                        "tokens": [t.model_dump() for t in map_tokens(m, gm_view=gm)]}
+    gm_event, player_event = event(True), (event(False) if m.active else None)
+    background.add_task(manager.broadcast_each, room_channel(m.room_id),
+                        lambda uid: gm_event if uid == gm_id else player_event)
 
 
 def _is_gm(instance: CharacterInstance, user: User) -> bool:
@@ -295,7 +298,8 @@ def set_visibility(room_id: int, instance_id: int, payload: VisibilityUpdate, ba
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Un PJ est toujours visible")
     instance.visibility = payload.visibility
     read = _save_and_push(session, background, instance, user)
-    push_tokens(background, instance.link.room)
+    if (m := active_map(instance.link.room)) is not None:
+        push_tokens(background, m, user.id)
     return read
 
 

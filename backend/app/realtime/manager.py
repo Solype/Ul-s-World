@@ -33,13 +33,15 @@ class ConnectionManager:
             except Exception:
                 self.disconnect(channel, ws)
 
-    async def broadcast_each(self, channel: str, build: Callable[[int | None], dict]) -> None:
+    async def broadcast_each(self, channel: str, build: Callable[[int | None], dict | None]) -> None:
         """Comme `broadcast`, mais l'événement est construit pour chaque destinataire (son compte) :
-        pour ne pas envoyer à un joueur ce que seul le MJ doit voir."""
-        cache: dict[int | None, dict] = {}
+        pour ne pas envoyer à un joueur ce que seul le MJ doit voir. `None` : rien pour ce compte."""
+        cache: dict[int | None, dict | None] = {}
         for ws, uid in list(self._channels.get(channel, {}).items()):
             if uid not in cache:
                 cache[uid] = build(uid)
+            if cache[uid] is None:
+                continue
             try:
                 await ws.send_json(cache[uid])
             except Exception:
