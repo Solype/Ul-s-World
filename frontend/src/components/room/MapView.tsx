@@ -1,5 +1,7 @@
-import { Eye, EyeOff, Trash2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { Box, Eye, EyeOff, Map as MapIcon, Trash2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
+import {
+  lazy, Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent,
+} from "react";
 import type { CharacterKind, Instance, MapSummary, MapToken, RoomMap } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,8 +26,16 @@ const EXPLORED_MAX = 300;
 /** Centre de la case qui contient v. */
 const snap = (v: number, size: number) => Math.min(Math.max(Math.floor(v) + 0.5, 0.5), Math.max(size - 0.5, 0.5));
 const svgPoints = (p: Point[]) => p.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
+const parsePoints = (s: string) => s.split(" ").map((p) => p.split(",").map(Number) as Point);
 const tokenLabel = (i: Instance) => `${i.character.name.slice(0, 2)}${i.number ?? ""}`;
 const fullName = (i: Instance) => `${i.character.name}${i.number ? ` ${i.number}` : ""}`;
+
+// Three.js (~150 Ko gzip) n'est chargé qu'à la première bascule en 3D.
+const MapScene3D = lazy(() => import("./MapScene3D"));
+const VIEW_KEY = "newmannheim.map-view";
+const savedView = (): "2d" | "3d" => {
+  try { return localStorage.getItem(VIEW_KEY) === "3d" ? "3d" : "2d"; } catch { return "2d"; }
+};
 
 /**
  * Carte de la room : image, portes, pions. Brouillard pour les joueurs (et le MJ en « vue des joueurs ») :
@@ -42,9 +52,15 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
   const [placing, setPlacing] = useState<number | null>(null);
   const [drag, setDrag] = useState<{ id: number; x: number; y: number } | null>(null);
   const [explored, setExplored] = useState<string[]>([]);
+  const [view, setView] = useState(savedView);
+  const toggleView = () => setView((v) => {
+    const next = v === "3d" ? "2d" : "3d";
+    try { localStorage.setItem(VIEW_KEY, next); } catch { /* navigation privée : choix non retenu */ }
+    return next;
+  });
 
-  // Toute la largeur à l'ouverture (le parent recrée la vue à chaque autre carte : `key`).
-  useLayoutEffect(() => { if (box.current) setCell(box.current.clientWidth / map.width); }, [map.width]);
+  // Toute la largeur à l'ouverture et au retour de la 3D (le parent recrée la vue à chaque autre carte : `key`).
+  useLayoutEffect(() => { if (box.current) setCell(box.current.clientWidth / map.width); }, [map.width, view]);
 
   const byId = useMemo(() => new Map(instances.map((i) => [i.id, i])), [instances]);
   const placed = map.tokens.filter((t) => byId.has(t.instance_id));
@@ -98,11 +114,38 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
   const movable = instances.filter(canMove);
   const placingName = placing !== null && byId.has(placing) ? fullName(byId.get(placing)!) : null;
 
+  // Vue 3D : mêmes pions (déjà filtrés), même brouillard ; recalculés seulement quand ils changent.
+  const tokenKey = tokens.map((t) => `${t.instance_id}:${t.x}:${t.y}`).join(";");
+  const tokens3d = useMemo(() => tokens.map((t) => {
+    const i = byId.get(t.instance_id)!;
+    return { id: t.instance_id, x: t.x, y: t.y, color: COLORS[i.character.kind], label: tokenLabel(i),
+      hidden: i.visibility === "cache", movable: canMove(i) };
+  }), [tokenKey, byId]); // `tokens` est un nouveau tableau à chaque rendu : la clé dit s'il a vraiment changé
+  const fog3d = useMemo(() => fog ? { seen, explored: explored.map(parsePoints) } : null, [fog, seen, explored]);
+  const walls3d = useMemo(() => map.walls as Segment[], [map.walls]);
+  const drop3d = async (id: number, px: number, py: number) => {
+    const before = map.tokens.find((t) => t.instance_id === id);
+    const x = snap(px, W), y = snap(py, H);
+    if (before && (before.x !== x || before.y !== y)) await onMove(id, x, y);
+  };
+  const ground3d = async (px: number, py: number) => {
+    if (placing === null) return;
+    const id = placing;
+    setPlacing(null);
+    await onMove(id, snap(px, W), snap(py, H));
+  };
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="icon-sm" aria-label="Zoom arrière" onClick={() => setCell((c) => c / 1.25)}><ZoomOut /></Button>
-        <Button variant="outline" size="icon-sm" aria-label="Zoom avant" onClick={() => setCell((c) => c * 1.25)}><ZoomIn /></Button>
+        <Button variant="outline" size="sm" onClick={toggleView}
+          title={view === "3d" ? "Revenir à la carte à plat" : "Carte en relief : tourner d'un doigt, déplacer à deux, pincer pour zoomer"}>
+          {view === "3d" ? <><MapIcon data-icon="inline-start" />2D</> : <><Box data-icon="inline-start" />3D</>}
+        </Button>
+        {view === "2d" && <>
+          <Button variant="outline" size="icon-sm" aria-label="Zoom arrière" onClick={() => setCell((c) => c / 1.25)}><ZoomOut /></Button>
+          <Button variant="outline" size="icon-sm" aria-label="Zoom avant" onClick={() => setCell((c) => c * 1.25)}><ZoomIn /></Button>
+        </>}
         {isGM && (
           <Button variant={playerView ? "secondary" : "ghost"} size="sm" onClick={() => setPlayerView((v) => !v)}
             title="Ce que voient les joueurs : la vision de leurs PJ posés sur la carte">
@@ -117,6 +160,14 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
         )}
       </div>
 
+      {view === "3d" ? (
+        <Suspense fallback={<div className="flex h-[75svh] items-center justify-center rounded-lg border text-sm text-muted-foreground">
+          Chargement de la 3D…</div>}>
+          <MapScene3D imageUrl={`/api/rooms/${roomId}/maps/${map.id}/image`} width={W} height={H} walls={walls3d}
+            doors={map.doors} tokens={tokens3d} fog={fog3d} placing={placing !== null}
+            onDoor={isGM ? onDoor : undefined} onGround={ground3d} onDrop={drop3d} />
+        </Suspense>
+      ) : (
       <div ref={box} className="max-h-[75svh] overflow-auto rounded-lg border bg-neutral-950">
         <svg ref={svg} width={W * cell} height={H * cell} viewBox={`0 0 ${W} ${H}`} className={cn("block", placing !== null && "cursor-crosshair")}
           onClick={place} onPointerMove={(e) => drag && setDrag({ ...drag, ...toMap(e) })}
@@ -158,6 +209,7 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
           })}
         </svg>
       </div>
+      )}
 
       {movable.length > 0 && (
         <div className="flex flex-wrap gap-1">
