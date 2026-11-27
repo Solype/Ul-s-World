@@ -9,7 +9,7 @@ import {
 } from "@/api/client";
 import { useUser } from "@/auth/AuthContext";
 import type { DamageInput } from "@/components/room/DamagePopover";
-import MapView, { MapPicker, MapUploadButton } from "@/components/room/MapView";
+import MapView, { MapPicker, MapUploadButton, type MapPingMark } from "@/components/room/MapView";
 import RoomBoard, { newGroupLayout, type Layout } from "@/components/room/RoomBoard";
 import type { StatusActions, StatusColor } from "@/components/room/StatusTags";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +68,9 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
   // Carte regardée : undefined en chargement, null s'il n'y en a pas.
   const [map, setMap] = useState<RoomMap | null | undefined>(undefined);
   const [deletingMap, setDeletingMap] = useState(false);
+  // Pings reçus sur la carte regardée, effacés après quelques secondes.
+  const [pings, setPings] = useState<(MapPingMark & { mapId: number })[]>([]);
+  const pingKey = useRef(0);
   const [view, setView] = useState<"plaquettes" | "carte">("plaquettes");
   const [confirm, setConfirm] = useState<"leave" | "delete" | null>(null);
   // PJ que le MJ s'apprête à retirer de la room depuis sa carte.
@@ -218,6 +221,11 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
     if (data) setMap((m) => m && m.id === mapId ? { ...m, tokens: data } : m);
     else toast.error("Déplacement impossible");
   };
+  const sendPing = async (x: number, y: number) => {
+    if (!map) return;
+    const { error } = await api.POST("/api/rooms/{room_id}/maps/{map_id}/ping", { params: { path: mapPath(map.id) }, body: { x, y } });
+    if (error) toast.error("Signal impossible");
+  };
   const setDoor = async (doorId: number, closed: boolean) => {
     if (!map) return;
     const { data } = await api.PUT("/api/rooms/{room_id}/maps/{map_id}/doors/{door_id}",
@@ -289,6 +297,11 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
     if (event.type === "room.maps") loadMaps();
     if (event.type === "room.map" && event.id === mapId) loadMap();
     if (event.type === "room.tokens") setMap((m) => m && m.id === event.map_id ? { ...m, tokens: event.tokens } : m);
+    if (event.type === "room.ping" && event.map_id === mapId) {
+      const key = ++pingKey.current;
+      setPings((list) => [...list.slice(-9), { key, mapId: event.map_id, x: event.x, y: event.y, fromGM: event.user_id === room?.gm.id }]);
+      window.setTimeout(() => setPings((list) => list.filter((p) => p.key !== key)), 2600);
+    }
     if (event.type === "room.instance") {
       putInstance(event.instance);
       // Un monstre qui apparaît pour un joueur dans un groupe qu'il ne voyait pas encore : relire les groupes.
@@ -431,7 +444,8 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
               </Card>
             ) : (
               <MapView key={map.id} roomId={id} map={map} instances={instances} isGM={isGM} onMove={moveToken}
-                onDoor={setDoor} canMove={(i) => isGM || i.character.kind === "pj"} />
+                onDoor={setDoor} canMove={(i) => isGM || i.character.kind === "pj"}
+                pings={pings.filter((p) => p.mapId === map.id)} onPing={sendPing} />
             )}
           </TabsContent>
           <TabsContent value="plaquettes" className="flex flex-col gap-3">

@@ -1,12 +1,16 @@
-import { Box, Eye, EyeOff, Map as MapIcon, Trash2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Box, Eye, EyeOff, Grid3x3, Map as MapIcon, Maximize2, Ruler, Trash2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
 import {
-  lazy, Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent,
+  lazy, Suspense, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
+  type MouseEvent, type PointerEvent,
 } from "react";
 import type { CharacterKind, Instance, MapSummary, MapToken, RoomMap } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { insidePolygon, visibilityPolygon, type Point, type Segment } from "@/lib/vision";
+
+/** Signal éphémère sur la carte (`room.ping`) : qui l'a lancé dit sa couleur. */
+export type MapPingMark = { key: number; x: number; y: number; fromGM: boolean };
 
 type Props = {
   roomId: number;
@@ -18,49 +22,132 @@ type Props = {
   /** `null` : retirer le pion de la carte. */
   onMove: (instanceId: number, x: number | null, y: number | null) => Promise<void>;
   onDoor: (doorId: number, closed: boolean) => void;
+  /** Pings reçus pour cette carte, encore affichés. */
+  pings?: MapPingMark[];
+  /** Montrer un endroit de la carte aux autres. */
+  onPing?: (x: number, y: number) => void;
 };
 
 const COLORS: Record<CharacterKind, string> = { pj: "#2563eb", pnj: "#d97706", monstre: "#dc2626" };
-// Zones déjà vues pendant la séance (perdues au rechargement de la page).
+// Zones déjà vues : gardées par carte dans le navigateur, pour survivre à un rechargement.
 const EXPLORED_MAX = 300;
+const CELL_MIN = 4, CELL_MAX = 240; // pixels par case
+const CLICK_SLOP = 6; // pixels : au-delà, on fait glisser la carte, ce n'est plus un clic
+const LONG_PRESS_MS = 550; // appui long au doigt : ping
 /** Centre de la case qui contient v. */
 const snap = (v: number, size: number) => Math.min(Math.max(Math.floor(v) + 0.5, 0.5), Math.max(size - 0.5, 0.5));
 const svgPoints = (p: Point[]) => p.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
 const parsePoints = (s: string) => s.split(" ").map((p) => p.split(",").map(Number) as Point);
 const tokenLabel = (i: Instance) => `${i.character.name.slice(0, 2)}${i.number ?? ""}`;
 const fullName = (i: Instance) => `${i.character.name}${i.number ? ` ${i.number}` : ""}`;
+const clampCell = (c: number) => Math.min(Math.max(c, CELL_MIN), CELL_MAX);
 
 // Three.js (~150 Ko gzip) n'est chargé qu'à la première bascule en 3D.
 const MapScene3D = lazy(() => import("./MapScene3D"));
 const VIEW_KEY = "newmannheim.map-view";
-const savedView = (): "2d" | "3d" => {
-  try { return localStorage.getItem(VIEW_KEY) === "3d" ? "3d" : "2d"; } catch { return "2d"; }
+const GRID_KEY = "newmannheim.map-grid";
+const exploredKey = (roomId: number, mapId: number) => `newmannheim.explored.${roomId}.${mapId}`;
+const load = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
+const save = (key: string, value: string) => {
+  try { localStorage.setItem(key, value); } catch { /* navigation privée ou stockage plein : non retenu */ }
+};
+const loadExplored = (key: string): string[] => {
+  try {
+    const v = JSON.parse(load(key) ?? "[]");
+    return Array.isArray(v) ? v.filter((p) => typeof p === "string") : [];
+  } catch { return []; }
 };
 
+type Gesture =
+  | { kind: "pan"; id: number; x: number; y: number; left: number; top: number; moved: boolean }
+  | { kind: "pinch"; dist: number; mid: { x: number; y: number } }
+  | { kind: "measure"; id: number };
+
 /**
- * Carte de la room : image, portes, pions. Brouillard pour les joueurs (et le MJ en « vue des joueurs ») :
- * ce que voient l'ensemble des PJ posés, le reste noir, le déjà vu assombri. Les pions hors de vue n'arrivent
- * pas aux joueurs (filtrés par le serveur). On glisse un pion pour le déplacer, ou on le choisit sous la carte
- * puis on touche une case. La carte défile au doigt, le zoom est aux boutons.
+ * Carte de la room : image, grille, portes, pions. Brouillard pour les joueurs (et le MJ en « vue des joueurs ») :
+ * ce que voient l'ensemble des PJ posés, le reste noir, le déjà vu assombri (retenu par le navigateur). Les pions
+ * hors de vue n'arrivent pas aux joueurs (filtrés par le serveur). On glisse un pion pour le déplacer, ou on le
+ * choisit sous la carte puis on touche une case. On glisse le fond pour faire défiler, molette ou pincer pour
+ * zoomer ; double-clic ou appui long pour montrer un endroit aux autres ; la règle mesure en cases.
  */
-export default function MapView({ roomId, map, instances, isGM, canMove, onMove, onDoor }: Props) {
+export default function MapView({ roomId, map, instances, isGM, canMove, onMove, onDoor, pings = [], onPing }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
-  const maskId = useId();
+  const maskId = useId(), gridId = useId();
   const [cell, setCell] = useState(0); // pixels par case
+  const cellRef = useRef(0);
+  cellRef.current = cell;
   const [playerView, setPlayerView] = useState(false);
   const [placing, setPlacing] = useState<number | null>(null);
   const [drag, setDrag] = useState<{ id: number; x: number; y: number } | null>(null);
-  const [explored, setExplored] = useState<string[]>([]);
-  const [view, setView] = useState(savedView);
-  const toggleView = () => setView((v) => {
-    const next = v === "3d" ? "2d" : "3d";
-    try { localStorage.setItem(VIEW_KEY, next); } catch { /* navigation privée : choix non retenu */ }
-    return next;
-  });
+  const storeKey = exploredKey(roomId, map.id);
+  const [explored, setExplored] = useState<string[]>(() => loadExplored(storeKey));
+  const [view, setView] = useState<"2d" | "3d">(() => load(VIEW_KEY) === "3d" ? "3d" : "2d");
+  const [grid, setGrid] = useState(() => load(GRID_KEY) === "1");
+  const [measuring, setMeasuring] = useState(false);
+  const [ruler, setRuler] = useState<{ a: Point; b: Point } | null>(null);
+  const toggleView = () => setView((v) => { const next = v === "3d" ? "2d" : "3d"; save(VIEW_KEY, next); return next; });
+  const toggleGrid = () => setGrid((g) => { save(GRID_KEY, g ? "0" : "1"); return !g; });
 
   // Toute la largeur à l'ouverture et au retour de la 3D (le parent recrée la vue à chaque autre carte : `key`).
-  useLayoutEffect(() => { if (box.current) setCell(box.current.clientWidth / map.width); }, [map.width, view]);
+  useLayoutEffect(() => { if (box.current) setCell(clampCell(box.current.clientWidth / map.width)); }, [map.width, view]);
+
+  // Zoom autour d'un point : le point de la carte sous `from` se retrouve sous `to` (pixels écran).
+  const anchor = useRef<{ mx: number; my: number; ox: number; oy: number } | null>(null);
+  const zoomAt = useCallback((factor: number, from: { x: number; y: number }, to = from) => {
+    const b = box.current, c = cellRef.current;
+    if (!b || !c) return;
+    const r = b.getBoundingClientRect();
+    const next = clampCell(c * factor);
+    anchor.current = { mx: (b.scrollLeft + from.x - r.left) / c, my: (b.scrollTop + from.y - r.top) / c,
+      ox: to.x - r.left, oy: to.y - r.top };
+    cellRef.current = next;
+    setCell(next);
+  }, []);
+  useLayoutEffect(() => {
+    const b = box.current, a = anchor.current;
+    if (!b || !a) return;
+    anchor.current = null;
+    b.scrollLeft = a.mx * cell - a.ox;
+    b.scrollTop = a.my * cell - a.oy;
+  }, [cell]);
+  const zoomCenter = (factor: number) => {
+    const r = box.current?.getBoundingClientRect();
+    if (r) zoomAt(factor, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+  };
+  const fit = () => {
+    const b = box.current;
+    if (!b) return;
+    // La boîte fait au plus 75 % de la hauteur de l'écran : la carte entière y tient.
+    const h = Math.min(window.innerHeight * 0.75, window.visualViewport?.height ?? Infinity) - 2;
+    setCell(clampCell(Math.min(b.clientWidth / map.width, h / map.height)));
+    b.scrollTo(0, 0);
+  };
+
+  // Molette (et pincer d'un pavé tactile, qui arrive en molette + Ctrl) : zoom sous le pointeur. Écouteur natif
+  // non passif : React n'en pose que des passifs, qui ne peuvent pas empêcher la page de défiler.
+  useEffect(() => {
+    const b = box.current;
+    if (!b || view !== "2d") return;
+    const wheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const dy = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1);
+      zoomAt(Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0015)), { x: e.clientX, y: e.clientY });
+    };
+    b.addEventListener("wheel", wheel, { passive: false });
+    return () => b.removeEventListener("wheel", wheel);
+  }, [view, zoomAt]);
+
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setPlacing(null);
+      setRuler(null);
+      setMeasuring(false);
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
 
   const byId = useMemo(() => new Map(instances.map((i) => [i.id, i])), [instances]);
   const placed = map.tokens.filter((t) => byId.has(t.instance_id));
@@ -74,8 +161,17 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
     return visibilityPolygon(x, y, walls, map.width, map.height);
   }), [fog, viewers, walls, map.width, map.height]);
   useEffect(() => {
-    if (seen.length) setExplored((prev) => [...new Set([...prev, ...seen.map(svgPoints)])].slice(-EXPLORED_MAX));
-  }, [seen]);
+    if (!seen.length) return;
+    setExplored((prev) => {
+      const next = [...new Set([...prev, ...seen.map(svgPoints)])].slice(-EXPLORED_MAX);
+      if (next.length !== prev.length || next.some((p, n) => p !== prev[n])) save(storeKey, JSON.stringify(next));
+      return next;
+    });
+  }, [seen, storeKey]);
+  const forgetExplored = () => {
+    setExplored([]);
+    try { localStorage.removeItem(storeKey); } catch { /* rien à oublier */ }
+  };
 
   const tokens = placed
     .map((t) => (drag?.id === t.instance_id ? { ...t, x: drag.x, y: drag.y } : t))
@@ -91,7 +187,7 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
     return { x: p.x, y: p.y };
   };
   const grab = (e: PointerEvent, t: MapToken) => {
-    if (!canMove(byId.get(t.instance_id)!)) return;
+    if (measuring || !canMove(byId.get(t.instance_id)!)) return;
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     setDrag({ id: t.instance_id, x: t.x, y: t.y });
@@ -103,7 +199,93 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
     if (before && (before.x !== x || before.y !== y)) await onMove(drag.id, x, y);
     setDrag(null);
   };
-  const place = async (e: MouseEvent) => {
+
+  // Gestes sur le fond de la carte : glisser = défiler, deux doigts = zoom, appui long = ping, règle = mesurer.
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const gesture = useRef<Gesture | null>(null);
+  const swallowClick = useRef(false); // le clic qui suit un glisser ou un ping ne pose rien
+  const pressTimer = useRef(0);
+  const cancelPress = () => { window.clearTimeout(pressTimer.current); pressTimer.current = 0; };
+  const ping = (p: { x: number; y: number }) => {
+    if (onPing && p.x >= 0 && p.y >= 0 && p.x <= map.width && p.y <= map.height) onPing(+p.x.toFixed(2), +p.y.toFixed(2));
+  };
+  const midpoint = () => {
+    const [a, b] = [...pointers.current.values()];
+    return { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+  };
+
+  const pointerDown = (e: PointerEvent<SVGSVGElement>) => {
+    if (drag || (e.pointerType === "mouse" && e.button !== 0)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    cancelPress();
+    if (pointers.current.size === 2) {
+      // Deuxième doigt : on zoome, la règle ou le glisser en cours s'arrêtent.
+      if (gesture.current?.kind === "measure") setRuler(null);
+      gesture.current = { kind: "pinch", ...midpoint() };
+      swallowClick.current = true;
+      return;
+    }
+    if (pointers.current.size > 2) return;
+    if (measuring) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      const p = toMap(e), a: Point = [snap(p.x, map.width), snap(p.y, map.height)];
+      setRuler({ a, b: a });
+      gesture.current = { kind: "measure", id: e.pointerId };
+      return;
+    }
+    const b = box.current!;
+    gesture.current = { kind: "pan", id: e.pointerId, x: e.clientX, y: e.clientY, left: b.scrollLeft, top: b.scrollTop, moved: false };
+    if (e.pointerType !== "mouse" && onPing && placing === null) {
+      const at = toMap(e);
+      pressTimer.current = window.setTimeout(() => {
+        pressTimer.current = 0;
+        swallowClick.current = true;
+        ping(at);
+      }, LONG_PRESS_MS);
+    }
+  };
+  const pointerMove = (e: PointerEvent<SVGSVGElement>) => {
+    if (drag) return setDrag({ ...drag, ...toMap(e) });
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const g = gesture.current;
+    if (g?.kind === "pinch" && pointers.current.size === 2) {
+      const { dist, mid } = midpoint();
+      zoomAt(dist / g.dist, g.mid, mid);
+      gesture.current = { kind: "pinch", dist, mid };
+    } else if (g?.kind === "measure" && g.id === e.pointerId) {
+      const p = toMap(e);
+      setRuler((r) => r && { a: r.a, b: [snap(p.x, map.width), snap(p.y, map.height)] });
+    } else if (g?.kind === "pan" && g.id === e.pointerId) {
+      const dx = e.clientX - g.x, dy = e.clientY - g.y;
+      if (!g.moved && Math.hypot(dx, dy) > CLICK_SLOP) {
+        g.moved = true;
+        swallowClick.current = true;
+        cancelPress();
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }
+      if (g.moved) {
+        box.current!.scrollLeft = g.left - dx;
+        box.current!.scrollTop = g.top - dy;
+      }
+    }
+  };
+  const pointerUp = (e: PointerEvent<SVGSVGElement>) => {
+    if (drag) return void drop();
+    pointers.current.delete(e.pointerId);
+    cancelPress();
+    // Un doigt reste après un pincement : il ne défile pas (sa position de départ n'a plus de sens).
+    if (gesture.current?.kind !== "pinch" || pointers.current.size === 0) gesture.current = null;
+  };
+  const pointerCancel = (e: PointerEvent<SVGSVGElement>) => {
+    setDrag(null);
+    pointers.current.delete(e.pointerId);
+    cancelPress();
+    gesture.current = null;
+  };
+
+  const click = async (e: MouseEvent) => {
+    if (swallowClick.current) { swallowClick.current = false; return; }
     if (placing === null) return;
     const id = placing, p = toMap(e);
     setPlacing(null);
@@ -113,6 +295,7 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
   const W = map.width, H = map.height;
   const movable = instances.filter(canMove);
   const placingName = placing !== null && byId.has(placing) ? fullName(byId.get(placing)!) : null;
+  const px = cell ? 1 / cell : 0.02; // un pixel écran, en cases : traits et textes de taille constante
 
   // Vue 3D : mêmes pions (déjà filtrés), même brouillard ; recalculés seulement quand ils changent.
   const tokenKey = tokens.map((t) => `${t.instance_id}:${t.x}:${t.y}`).join(";");
@@ -123,17 +306,24 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
   }), [tokenKey, byId]); // `tokens` est un nouveau tableau à chaque rendu : la clé dit s'il a vraiment changé
   const fog3d = useMemo(() => fog ? { seen, explored: explored.map(parsePoints) } : null, [fog, seen, explored]);
   const walls3d = useMemo(() => map.walls as Segment[], [map.walls]);
-  const drop3d = async (id: number, px: number, py: number) => {
+  const drop3d = async (id: number, x3: number, y3: number) => {
     const before = map.tokens.find((t) => t.instance_id === id);
-    const x = snap(px, W), y = snap(py, H);
+    const x = snap(x3, W), y = snap(y3, H);
     if (before && (before.x !== x || before.y !== y)) await onMove(id, x, y);
   };
-  const ground3d = async (px: number, py: number) => {
+  const ground3d = async (x3: number, y3: number) => {
     if (placing === null) return;
     const id = placing;
     setPlacing(null);
-    await onMove(id, snap(px, W), snap(py, H));
+    await onMove(id, snap(x3, W), snap(y3, H));
   };
+
+  const rulerText = ruler && (() => {
+    const dx = Math.abs(ruler.b[0] - ruler.a[0]), dy = Math.abs(ruler.b[1] - ruler.a[1]);
+    const straight = Math.hypot(dx, dy).toFixed(1).replace(".", ",").replace(",0", "");
+    // Cases traversées en comptant une diagonale pour une case, et la distance à vol d'oiseau.
+    return `${Math.max(dx, dy)} case${Math.max(dx, dy) > 1 ? "s" : ""} · ${straight} en ligne droite`;
+  })();
 
   return (
     <div className="flex flex-col gap-2">
@@ -143,13 +333,31 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
           {view === "3d" ? <><MapIcon data-icon="inline-start" />2D</> : <><Box data-icon="inline-start" />3D</>}
         </Button>
         {view === "2d" && <>
-          <Button variant="outline" size="icon-sm" aria-label="Zoom arrière" onClick={() => setCell((c) => c / 1.25)}><ZoomOut /></Button>
-          <Button variant="outline" size="icon-sm" aria-label="Zoom avant" onClick={() => setCell((c) => c * 1.25)}><ZoomIn /></Button>
+          <Button variant="outline" size="icon-sm" aria-label="Zoom arrière" title="Zoom arrière (ou molette, ou pincer)"
+            onClick={() => zoomCenter(1 / 1.25)}><ZoomOut /></Button>
+          <Button variant="outline" size="icon-sm" aria-label="Zoom avant" title="Zoom avant (ou molette, ou pincer)"
+            onClick={() => zoomCenter(1.25)}><ZoomIn /></Button>
+          <Button variant="outline" size="icon-sm" aria-label="Voir toute la carte" title="Voir toute la carte" onClick={fit}>
+            <Maximize2 />
+          </Button>
+          <Button variant={grid ? "secondary" : "ghost"} size="icon-sm" aria-label="Grille" aria-pressed={grid}
+            title={grid ? "Cacher la grille" : "Afficher la grille"} onClick={toggleGrid}><Grid3x3 /></Button>
+          <Button variant={measuring ? "secondary" : "ghost"} size="sm" aria-pressed={measuring}
+            title="Glisser d'une case à une autre pour mesurer la distance (Échap pour arrêter)"
+            onClick={() => { setMeasuring((m) => !m); setRuler(null); setPlacing(null); }}>
+            <Ruler data-icon="inline-start" />Mesurer
+          </Button>
         </>}
         {isGM && (
           <Button variant={playerView ? "secondary" : "ghost"} size="sm" onClick={() => setPlayerView((v) => !v)}
             title="Ce que voient les joueurs : la vision de leurs PJ posés sur la carte">
             {playerView ? <EyeOff data-icon="inline-start" /> : <Eye data-icon="inline-start" />}Vue des joueurs
+          </Button>
+        )}
+        {fog && explored.length > 0 && (
+          <Button variant="ghost" size="sm" onClick={forgetExplored}
+            title="Effacer sur cet appareil les zones déjà vues : seul reste ce que les PJ voient maintenant">
+            Oublier le déjà-vu
           </Button>
         )}
         {placingName && (
@@ -168,14 +376,24 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
             onDoor={isGM ? onDoor : undefined} onGround={ground3d} onDrop={drop3d} />
         </Suspense>
       ) : (
-      <div ref={box} className="max-h-[75svh] overflow-auto rounded-lg border bg-neutral-950">
-        <svg ref={svg} width={W * cell} height={H * cell} viewBox={`0 0 ${W} ${H}`} className={cn("block", placing !== null && "cursor-crosshair")}
-          onClick={place} onPointerMove={(e) => drag && setDrag({ ...drag, ...toMap(e) })}
-          onPointerUp={drop} onPointerCancel={() => setDrag(null)} onContextMenu={(e) => e.preventDefault()}>
+      <div ref={box} className="max-h-[75svh] overflow-auto overscroll-contain rounded-lg border bg-neutral-950">
+        <svg ref={svg} width={W * cell} height={H * cell} viewBox={`0 0 ${W} ${H}`}
+          className={cn("block touch-none select-none", placing !== null || measuring ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing")}
+          onClick={click} onDoubleClick={(e) => { if (placing === null && !measuring) ping(toMap(e)); }}
+          onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel}
+          onContextMenu={(e) => e.preventDefault()}>
           <image href={`/api/rooms/${roomId}/maps/${map.id}/image`} width={W} height={H} preserveAspectRatio="none" />
+          {grid && (
+            <>
+              <pattern id={gridId} width={1} height={1} patternUnits="userSpaceOnUse">
+                <path d="M 1 0 L 0 0 0 1" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth={px} />
+              </pattern>
+              <rect width={W} height={H} fill={`url(#${gridId})`} pointerEvents="none" />
+            </>
+          )}
           {map.doors.map((d) => (
-            <g key={d.id} className={cn(isGM && "cursor-pointer")}
-              onClick={isGM ? (e) => { e.stopPropagation(); onDoor(d.id, !d.closed); } : undefined}>
+            <g key={d.id} className={cn(isGM && !measuring && "cursor-pointer")}
+              onClick={isGM && !measuring ? (e) => { e.stopPropagation(); if (!swallowClick.current) onDoor(d.id, !d.closed); swallowClick.current = false; } : undefined}>
               <title>{`Porte ${d.closed ? "fermée" : "ouverte"}${isGM ? " : clic pour l'ouvrir ou la fermer" : ""}`}</title>
               <line x1={d.a[0]} y1={d.a[1]} x2={d.b[0]} y2={d.b[1]} stroke="transparent" strokeWidth={0.6} />
               <line x1={d.a[0]} y1={d.a[1]} x2={d.b[0]} y2={d.b[1]} strokeLinecap="round" strokeWidth={0.18}
@@ -194,19 +412,41 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
           )}
           {tokens.map((t) => {
             const i = byId.get(t.instance_id)!;
-            const movableToken = canMove(i);
+            const movableToken = canMove(i) && !measuring;
             return (
               <g key={t.instance_id} transform={`translate(${t.x} ${t.y})`} opacity={i.visibility === "cache" ? 0.5 : 1}
-                className={cn(movableToken && "cursor-grab")} style={movableToken ? { touchAction: "none" } : undefined}
-                onPointerDown={(e) => grab(e, t)}>
+                className={cn(movableToken && "cursor-grab")} onPointerDown={(e) => grab(e, t)}>
                 <title>{fullName(i)}{i.visibility === "cache" ? " (caché aux joueurs)" : ""}</title>
                 <circle r={0.42} fill={COLORS[i.character.kind]} strokeWidth={0.06}
                   stroke={drag?.id === t.instance_id ? "#facc15" : "white"} />
-                <text fontSize={0.3} textAnchor="middle" dominantBaseline="central" fill="white" pointerEvents="none"
-                  className="select-none">{tokenLabel(i)}</text>
+                <text fontSize={0.3} textAnchor="middle" dominantBaseline="central" fill="white" pointerEvents="none">
+                  {tokenLabel(i)}</text>
               </g>
             );
           })}
+          {pings.map((p) => (
+            <g key={p.key} transform={`translate(${p.x} ${p.y})`} pointerEvents="none"
+              stroke={p.fromGM ? "#f43f5e" : "#facc15"} fill="none">
+              {[0, 0.5].map((delay) => (
+                <circle key={delay} r={0.2} strokeWidth={0.12} opacity={0}>
+                  <animate attributeName="r" from="0.2" to="1.6" dur="1.2s" begin={`${delay}s`} repeatCount="2" />
+                  <animate attributeName="opacity" from="1" to="0" dur="1.2s" begin={`${delay}s`} repeatCount="2" />
+                </circle>
+              ))}
+              <circle r={0.18} fill={p.fromGM ? "#f43f5e" : "#facc15"} stroke="black" strokeWidth={0.04} />
+            </g>
+          ))}
+          {ruler && rulerText && (
+            <g pointerEvents="none">
+              <line x1={ruler.a[0]} y1={ruler.a[1]} x2={ruler.b[0]} y2={ruler.b[1]} stroke="black" strokeWidth={px * 5}
+                strokeLinecap="round" opacity={0.6} />
+              <line x1={ruler.a[0]} y1={ruler.a[1]} x2={ruler.b[0]} y2={ruler.b[1]} stroke="#facc15" strokeWidth={px * 2.5}
+                strokeLinecap="round" strokeDasharray={`${px * 8} ${px * 5}`} />
+              {[ruler.a, ruler.b].map(([x, y], n) => <circle key={n} cx={x} cy={y} r={px * 5} fill="#facc15" stroke="black" strokeWidth={px} />)}
+              <text x={ruler.b[0]} y={ruler.b[1] - px * 14} fontSize={px * 15} fontWeight={700} textAnchor="middle"
+                fill="white" stroke="black" strokeWidth={px * 3.5} paintOrder="stroke">{rulerText}</text>
+            </g>
+          )}
         </svg>
       </div>
       )}
@@ -219,7 +459,7 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
               <span key={i.id} className="inline-flex items-center">
                 <Button size="xs" variant={placing === i.id ? "default" : "outline"}
                   title={on ? "Déplacer : choisis puis touche une case" : "Poser sur la carte : choisis puis touche une case"}
-                  onClick={() => setPlacing(placing === i.id ? null : i.id)}>
+                  onClick={() => { setMeasuring(false); setRuler(null); setPlacing(placing === i.id ? null : i.id); }}>
                   <span className="size-2 rounded-full" style={{ background: COLORS[i.character.kind] }} />
                   {fullName(i)}{!on && " (hors carte)"}
                 </Button>
@@ -231,6 +471,12 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
             );
           })}
         </div>
+      )}
+      {view === "2d" && (
+        <p className="text-xs text-muted-foreground">
+          Glisser le fond pour faire défiler · molette ou pincer pour zoomer
+          {onPing && " · double-clic ou appui long pour montrer un endroit aux autres"}
+        </p>
       )}
     </div>
   );

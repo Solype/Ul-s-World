@@ -2539,6 +2539,61 @@
         }
       }
     },
+    "/api/rooms/{room_id}/maps/{map_id}/ping": {
+      "post": {
+        "tags": [
+          "cartes"
+        ],
+        "summary": "Montrer un endroit de la carte aux autres",
+        "description": "Signal éphémère, rien n'est enregistré. Le MJ le reçoit toujours ; les joueurs, seulement sur la carte qu'on\nleur montre : un ping du MJ sur une carte qu'il prépare ne leur dit rien.",
+        "operationId": "ping_api_rooms__room_id__maps__map_id__ping_post",
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Room Id"
+            }
+          },
+          {
+            "name": "map_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Map Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapPing"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -4647,6 +4702,29 @@
         "type": "object",
         "title": "Mana",
         "description": "Ressource commune à la magie et à la religion."
+      },
+      "MapPing": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "maximum": 10000.0,
+            "minimum": -10000.0,
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "maximum": 10000.0,
+            "minimum": -10000.0,
+            "title": "Y"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "MapPing",
+        "description": "Un endroit de la carte que l'on montre aux autres (en cases)."
       },
       "MapRead": {
         "properties": {

@@ -137,6 +137,25 @@ def test_token_moves_are_pushed_filtered(on_map):
         assert event["type"] == "room.tokens" and [t["instance_id"] for t in event["tokens"]] == [on_map["pc"]]
 
 
+def test_ping_reaches_who_sees_the_map(on_map):
+    gm, alice, bob, room = on_map["gm"], on_map["alice"], on_map["bob"], on_map["room"]
+    cave = gm.post(f"/api/rooms/{room}/maps?name=Grotte", json=_uvtt()).json()
+    with gm.websocket_connect(f"/ws/room:{room}") as gm_ws, bob.websocket_connect(f"/ws/room:{room}") as bob_ws:
+        for _ in range(2):
+            gm_ws.receive_json()  # présence
+        bob_ws.receive_json()
+        # Sur la carte qu'il prépare, le MJ ne montre rien aux joueurs.
+        assert gm.post(f"/api/rooms/{room}/maps/{cave['id']}/ping", json={"x": 1, "y": 1}).status_code == 204
+        assert gm_ws.receive_json()["map_id"] == cave["id"]
+        assert alice.post(f"/api/rooms/{room}/maps/{cave['id']}/ping", json={"x": 1, "y": 1}).status_code == 404
+        assert alice.post(f"{on_map['url']}/ping", json={"x": 11, "y": 1}).status_code == 422
+        assert alice.post(f"{on_map['url']}/ping", json={"x": 2.5, "y": 3}).status_code == 204
+        for ws in (gm_ws, bob_ws):
+            event = ws.receive_json()
+            assert (event["type"], event["x"], event["y"]) == ("room.ping", 2.5, 3)
+    assert on_map["outsider"].post(f"{on_map['url']}/ping", json={"x": 1, "y": 1}).status_code == 404
+
+
 def test_who_moves_which_token(on_map):
     gm, bob, url, token = on_map["gm"], on_map["bob"], on_map["url"], on_map["token"]
     # Un membre déplace un PJ (comme ses moniteurs), pas un monstre.

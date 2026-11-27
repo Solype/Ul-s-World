@@ -18,23 +18,35 @@ function rayHit(x: number, y: number, dx: number, dy: number, [x1, y1, x2, y2]: 
 
 /**
  * Polygone visible depuis (x, y) : un rayon vers chaque extrémité de mur, et juste à côté, pour voir derrière
- * les coins. shortcut: O(murs²) par pion, assez pour quelques centaines de murs ; au-delà, trier les murs par angle.
+ * les coins. Les murs d'une même ligne partagent leurs extrémités : un seul rayon par point distinct (près de
+ * deux fois moins de rayons sur un export Dungeon Alchemist). shortcut: O(points × murs) par pion ; au-delà
+ * de quelques milliers de murs, trier les murs par angle (balayage).
  */
 export function visibilityPolygon(x: number, y: number, walls: Segment[], width: number, height: number): Point[] {
   const segments: Segment[] = [...walls, [0, 0, width, 0], [width, 0, width, height], [width, height, 0, height], [0, height, 0, 0]];
+  const ends = new Set<string>();
   const angles: number[] = [];
   for (const [x1, y1, x2, y2] of segments) {
     for (const [px, py] of [[x1, y1], [x2, y2]]) {
+      const key = `${px},${py}`;
+      if (ends.has(key)) continue;
+      ends.add(key);
       const a = Math.atan2(py - y, px - x);
       angles.push(a - 1e-4, a, a + 1e-4);
     }
   }
   angles.sort((a, b) => a - b);
-  return angles.map((a) => {
+  const polygon: Point[] = [];
+  for (const a of angles) {
     const dx = Math.cos(a), dy = Math.sin(a);
-    const t = Math.min(...segments.map((s) => rayHit(x, y, dx, dy, s)));
-    return [x + dx * t, y + dy * t] as Point;
-  });
+    let t = Infinity;
+    for (const s of segments) {
+      const hit = rayHit(x, y, dx, dy, s);
+      if (hit < t) t = hit;
+    }
+    polygon.push([x + dx * t, y + dy * t]);
+  }
+  return polygon;
 }
 
 export function insidePolygon([x, y]: Point, polygon: Point[]) {

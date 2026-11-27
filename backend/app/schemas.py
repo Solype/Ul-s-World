@@ -582,6 +582,13 @@ class TokenMove(BaseModel):
         return self
 
 
+class MapPing(BaseModel):
+    """Un endroit de la carte que l'on montre aux autres (en cases)."""
+
+    x: Coord
+    y: Coord
+
+
 class MapSummary(BaseModel):
     """Carte dans la liste de la room. `active` : celle que voient les joueurs (une au plus)."""
 

@@ -9,7 +9,8 @@ les PJ, sur la carte montrée. Vision de groupe : un joueur ne reçoit que les p
 (`map_tokens`), calculé ici, côté serveur.
 
 Temps réel : `room.maps` quand la liste change (ajout, suppression, carte montrée) ; `room.map` (`id`) quand une
-porte change ; `room.tokens` (`map_id`, pions filtrés par destinataire) quand un pion bouge.
+porte change ; `room.tokens` (`map_id`, pions filtrés par destinataire) quand un pion bouge ; `room.ping` (`map_id`,
+`x`, `y`, `user_id`) quand quelqu'un montre un endroit de la carte.
 """
 
 import base64
@@ -26,7 +27,7 @@ from app.db import get_session
 from app.models import MapToken, Room, RoomMap, User
 from app.realtime.manager import manager, room_channel
 from app.schemas import (
-    DoorRead, DoorUpdate, LightRead, MapRead, MapSummary, MapUpdate, TokenMove, TokenRead, UvttFile, UvttPoint,
+    DoorRead, DoorUpdate, LightRead, MapPing, MapRead, MapSummary, MapUpdate, TokenMove, TokenRead, UvttFile, UvttPoint,
 )
 
 router = APIRouter(prefix="/rooms", tags=["cartes"])
@@ -199,3 +200,19 @@ def move_token(room_id: int, map_id: int, instance_id: int, payload: TokenMove, 
     session.commit()
     push_tokens(background, m, room.gm_id)
     return map_tokens(m, gm_view=room.gm_id == user.id)
+
+
+@router.post("/{room_id}/maps/{map_id}/ping", status_code=status.HTTP_204_NO_CONTENT,
+             summary="Montrer un endroit de la carte aux autres")
+def ping(room_id: int, map_id: int, payload: MapPing, background: BackgroundTasks,
+         user: User = Depends(current_user), session: Session = Depends(get_session)) -> None:
+    """Signal éphémère, rien n'est enregistré. Le MJ le reçoit toujours ; les joueurs, seulement sur la carte qu'on
+    leur montre : un ping du MJ sur une carte qu'il prépare ne leur dit rien."""
+    room = room_or_404(session, room_id, user)
+    m = _map_or_404(room, map_id, user)
+    if not (0 <= payload.x <= m.width and 0 <= payload.y <= m.height):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Endroit hors de la carte")
+    event = {"type": "room.ping", "map_id": m.id, "x": payload.x, "y": payload.y, "user_id": user.id}
+    gm_id, shown = room.gm_id, m.active
+    background.add_task(manager.broadcast_each, room_channel(room_id),
+                        lambda uid: event if uid == gm_id or shown else None)

@@ -769,6 +769,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/rooms/{room_id}/maps/{map_id}/ping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Montrer un endroit de la carte aux autres
+         * @description Signal éphémère, rien n'est enregistré. Le MJ le reçoit toujours ; les joueurs, seulement sur la carte qu'on
+         *     leur montre : un ping du MJ sur une carte qu'il prépare ne leur dit rien.
+         */
+        post: operations["ping_api_rooms__room_id__maps__map_id__ping_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1873,6 +1894,16 @@ export interface components {
              * @default 0
              */
             max?: number;
+        };
+        /**
+         * MapPing
+         * @description Un endroit de la carte que l'on montre aux autres (en cases).
+         */
+        MapPing: {
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
         };
         /**
          * MapRead
@@ -4613,6 +4644,40 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TokenRead"][];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ping_api_rooms__room_id__maps__map_id__ping_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                room_id: number;
+                map_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MapPing"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

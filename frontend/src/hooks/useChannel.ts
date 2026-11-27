@@ -19,7 +19,9 @@ export type ServerEvent =
   /** Une porte de cette carte a changé : la relire. */
   | { type: "room.map"; id: number }
   /** Un pion de cette carte a bougé : ses pions vus par ce compte (filtrés par le serveur). */
-  | { type: "room.tokens"; map_id: number; tokens: MapToken[] };
+  | { type: "room.tokens"; map_id: number; tokens: MapToken[] }
+  /** Quelqu'un montre un endroit de cette carte (signal éphémère). */
+  | { type: "room.ping"; map_id: number; x: number; y: number; user_id: number };
 
 /** Le serveur a refusé ou coupé l'accès au canal (pas connecté, exclu de la room...). */
 export const WS_FORBIDDEN = 4403;
