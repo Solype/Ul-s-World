@@ -25,6 +25,8 @@ type Props = {
   onGround: (x: number, y: number) => void;
   /** Fin d'un glisser de pion, à l'endroit lâché (pas encore calé sur la case). */
   onDrop: (id: number, x: number, y: number) => void;
+  /** Plein écran : toute la hauteur du parent au lieu de 75 % de l'écran. */
+  fill?: boolean;
 };
 
 // Mesures en cases (1 case = 1 unité 3D). x de la carte -> X, y de la carte -> Z.
@@ -77,7 +79,7 @@ export default function MapScene3D(props: Props) {
       Vue 3D indisponible sur cet appareil (WebGL) : {error}
     </div>;
   }
-  return <div ref={box} className="relative h-[75svh] touch-none overflow-hidden rounded-lg border bg-neutral-950"
+  return <div ref={box} className={`relative ${props.fill ? "min-h-0 flex-1" : "h-[75svh]"} touch-none overflow-hidden rounded-lg border bg-neutral-950`}
     onContextMenu={(e) => e.preventDefault()} />;
 }
 

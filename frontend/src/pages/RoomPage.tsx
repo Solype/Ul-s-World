@@ -411,7 +411,7 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <Tabs value={view} onValueChange={(v) => setView(v as typeof view)} className="gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <TabsList>
@@ -445,7 +445,7 @@ export default function RoomPage({ id, onBack, onGone }: Props) {
             ) : (
               <MapView key={map.id} roomId={id} map={map} instances={instances} isGM={isGM} onMove={moveToken}
                 onDoor={setDoor} canMove={(i) => isGM || i.character.kind === "pj"}
-                pings={pings.filter((p) => p.mapId === map.id)} onPing={sendPing} />
+                pings={pings.filter((p) => p.mapId === map.id)} onPing={sendPing} userId={user.id} />
             )}
           </TabsContent>
           <TabsContent value="plaquettes" className="flex flex-col gap-3">

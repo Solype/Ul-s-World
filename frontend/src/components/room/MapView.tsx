@@ -1,4 +1,7 @@
-import { Box, Eye, EyeOff, Grid3x3, Map as MapIcon, Maximize2, Ruler, Trash2, Upload, X, ZoomIn, ZoomOut } from "lucide-react";
+import {
+  Box, Eye, EyeOff, Grid3x3, LocateFixed, Map as MapIcon, Maximize, Maximize2, Minimize, Ruler, Trash2, Upload, X, ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import {
   lazy, Suspense, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
   type MouseEvent, type PointerEvent,
@@ -26,6 +29,8 @@ type Props = {
   pings?: MapPingMark[];
   /** Montrer un endroit de la carte aux autres. */
   onPing?: (x: number, y: number) => void;
+  /** Compte connecté : « mon perso » centre la carte sur ses pions. */
+  userId?: number;
 };
 
 const COLORS: Record<CharacterKind, string> = { pj: "#2563eb", pnj: "#d97706", monstre: "#dc2626" };
@@ -34,6 +39,8 @@ const EXPLORED_MAX = 300;
 const CELL_MIN = 4, CELL_MAX = 240; // pixels par case
 const CLICK_SLOP = 6; // pixels : au-delà, on fait glisser la carte, ce n'est plus un clic
 const LONG_PRESS_MS = 550; // appui long au doigt : ping
+const TOUCH_CELL = 34; // pixels par case au moins, à l'ouverture sur écran tactile : un pion se prend au doigt
+const coarse = () => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
 /** Centre de la case qui contient v. */
 const snap = (v: number, size: number) => Math.min(Math.max(Math.floor(v) + 0.5, 0.5), Math.max(size - 0.5, 0.5));
 const svgPoints = (p: Point[]) => p.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
@@ -70,7 +77,7 @@ type Gesture =
  * choisit sous la carte puis on touche une case. On glisse le fond pour faire défiler, molette ou pincer pour
  * zoomer ; double-clic ou appui long pour montrer un endroit aux autres ; la règle mesure en cases.
  */
-export default function MapView({ roomId, map, instances, isGM, canMove, onMove, onDoor, pings = [], onPing }: Props) {
+export default function MapView({ roomId, map, instances, isGM, canMove, onMove, onDoor, pings = [], onPing, userId }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const maskId = useId(), gridId = useId();
@@ -88,9 +95,37 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
   const [ruler, setRuler] = useState<{ a: Point; b: Point } | null>(null);
   const toggleView = () => setView((v) => { const next = v === "3d" ? "2d" : "3d"; save(VIEW_KEY, next); return next; });
   const toggleGrid = () => setGrid((g) => { save(GRID_KEY, g ? "0" : "1"); return !g; });
+  const [full, setFull] = useState(false); // plein écran (dans la page : l'app Android n'a pas l'API Fullscreen)
+  const [info, setInfo] = useState<number | null>(null); // pion touché : son nom s'affiche (pas d'infobulle au doigt)
+  const touch = useMemo(coarse, []);
+
+  // Plein écran : la page ne défile plus derrière, et le bouton retour d'Android (historique) le referme.
+  useEffect(() => {
+    if (!full) return;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    history.pushState({ mapFull: true }, "");
+    const back = () => setFull(false);
+    window.addEventListener("popstate", back);
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener("popstate", back);
+      if (history.state?.mapFull) history.back();
+    };
+  }, [full]);
 
   // Toute la largeur à l'ouverture et au retour de la 3D (le parent recrée la vue à chaque autre carte : `key`).
-  useLayoutEffect(() => { if (box.current) setCell(clampCell(box.current.clientWidth / map.width)); }, [map.width, view]);
+  // Au doigt sur un petit écran, toute la largeur rendrait les pions minuscules : on zoome sur son perso.
+  const center = useRef<Point | null>(null);
+  useLayoutEffect(() => {
+    if (!box.current) return;
+    const width = box.current.clientWidth / map.width;
+    if (touch && width < TOUCH_CELL) {
+      setCell(TOUCH_CELL);
+      const t = focusTokens()[0];
+      center.current = t ? [t.x, t.y] : [map.width / 2, map.height / 2];
+    } else setCell(clampCell(width));
+  }, [map.width, view]); // seulement à l'ouverture : pas à chaque pion qui bouge
 
   // Zoom autour d'un point : le point de la carte sous `from` se retrouve sous `to` (pixels écran).
   const anchor = useRef<{ mx: number; my: number; ox: number; oy: number } | null>(null);
@@ -105,7 +140,12 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
     setCell(next);
   }, []);
   useLayoutEffect(() => {
-    const b = box.current, a = anchor.current;
+    const b = box.current, a = anchor.current, c = center.current;
+    if (b && c && cell) { // pas au tout premier rendu : la carte n'a pas encore sa taille
+      center.current = null;
+      b.scrollLeft = c[0] * cell - b.clientWidth / 2;
+      b.scrollTop = c[1] * cell - b.clientHeight / 2;
+    }
     if (!b || !a) return;
     anchor.current = null;
     b.scrollLeft = a.mx * cell - a.ox;
@@ -118,8 +158,8 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
   const fit = () => {
     const b = box.current;
     if (!b) return;
-    // La boîte fait au plus 75 % de la hauteur de l'écran : la carte entière y tient.
-    const h = Math.min(window.innerHeight * 0.75, window.visualViewport?.height ?? Infinity) - 2;
+    // Plein écran : la boîte a sa hauteur. Sinon elle fait au plus 75 % de l'écran : la carte entière y tient.
+    const h = full ? b.clientHeight : Math.min(window.innerHeight * 0.75, window.visualViewport?.height ?? Infinity) - 2;
     setCell(clampCell(Math.min(b.clientWidth / map.width, h / map.height)));
     b.scrollTo(0, 0);
   };
@@ -151,6 +191,25 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
 
   const byId = useMemo(() => new Map(instances.map((i) => [i.id, i])), [instances]);
   const placed = map.tokens.filter((t) => byId.has(t.instance_id));
+  /** Pions sur lesquels centrer : ceux de mes PJ (le MJ : tous les PJ), à défaut tous les PJ posés. */
+  const focusTokens = () => {
+    const pcs = placed.filter((t) => byId.get(t.instance_id)!.character.kind === "pj");
+    const mine = isGM ? [] : pcs.filter((t) => byId.get(t.instance_id)!.character.owner?.id === userId);
+    return mine.length ? mine : pcs;
+  };
+  const locateTurn = useRef(0);
+  const locate = () => {
+    const list = focusTokens(), b = box.current;
+    if (!list.length || !b) return;
+    const t = list[locateTurn.current++ % list.length];
+    b.scrollTo({ left: t.x * cell - b.clientWidth / 2, top: t.y * cell - b.clientHeight / 2, behavior: "smooth" });
+    setInfo(t.instance_id);
+  };
+  useEffect(() => {
+    if (info === null) return;
+    const timer = window.setTimeout(() => setInfo(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [info]);
   const fog = !isGM || playerView;
   const walls = useMemo(() => [...map.walls, ...map.doors.filter((d) => d.closed).map((d) => [...d.a, ...d.b])] as Segment[],
     [map.walls, map.doors]);
@@ -240,6 +299,7 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
       pressTimer.current = window.setTimeout(() => {
         pressTimer.current = 0;
         swallowClick.current = true;
+        navigator.vibrate?.(25); // sans effet si l'appareil (ou l'app) ne le permet pas
         ping(at);
       }, LONG_PRESS_MS);
     }
@@ -325,60 +385,78 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
     return `${Math.max(dx, dy)} case${Math.max(dx, dy) > 1 ? "s" : ""} · ${straight} en ligne droite`;
   })();
 
+  // Au doigt : boutons plus grands (cible d'au moins 36 px) ; sur petit écran, icônes seules.
+  const tool = "pointer-coarse:size-9";
+  const label = "max-sm:sr-only";
+  const dragCell = drag && { x: Math.floor(Math.min(Math.max(drag.x, 0), W - 0.01)), y: Math.floor(Math.min(Math.max(drag.y, 0), H - 0.01)) };
+  const infoToken = info !== null ? tokens.find((t) => t.instance_id === info) : undefined;
+
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" onClick={toggleView}
+    <div className={cn("flex flex-col gap-2",
+      full && "fixed inset-0 z-50 bg-background p-2 pt-[max(env(safe-area-inset-top),0.5rem)] pb-[max(env(safe-area-inset-bottom),0.5rem)]")}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Button variant="outline" size="sm" className="pointer-coarse:h-9" onClick={toggleView}
           title={view === "3d" ? "Revenir à la carte à plat" : "Carte en relief : tourner d'un doigt, déplacer à deux, pincer pour zoomer"}>
           {view === "3d" ? <><MapIcon data-icon="inline-start" />2D</> : <><Box data-icon="inline-start" />3D</>}
         </Button>
+        <Button variant={full ? "secondary" : "outline"} size="icon-sm" className={tool} aria-pressed={full}
+          aria-label={full ? "Quitter le plein écran" : "Plein écran"} title={full ? "Quitter le plein écran" : "Plein écran"}
+          onClick={() => setFull((f) => !f)}>{full ? <Minimize /> : <Maximize />}</Button>
         {view === "2d" && <>
-          <Button variant="outline" size="icon-sm" aria-label="Zoom arrière" title="Zoom arrière (ou molette, ou pincer)"
+          <Button variant="outline" size="icon-sm" className={tool} aria-label="Mon perso" title="Centrer sur mon perso (encore : le suivant)"
+            disabled={!placed.some((t) => byId.get(t.instance_id)!.character.kind === "pj")} onClick={locate}><LocateFixed /></Button>
+          <Button variant="outline" size="icon-sm" className={tool} aria-label="Zoom arrière" title="Zoom arrière (ou molette, ou pincer)"
             onClick={() => zoomCenter(1 / 1.25)}><ZoomOut /></Button>
-          <Button variant="outline" size="icon-sm" aria-label="Zoom avant" title="Zoom avant (ou molette, ou pincer)"
+          <Button variant="outline" size="icon-sm" className={tool} aria-label="Zoom avant" title="Zoom avant (ou molette, ou pincer)"
             onClick={() => zoomCenter(1.25)}><ZoomIn /></Button>
-          <Button variant="outline" size="icon-sm" aria-label="Voir toute la carte" title="Voir toute la carte" onClick={fit}>
+          <Button variant="outline" size="icon-sm" className={tool} aria-label="Voir toute la carte" title="Voir toute la carte" onClick={fit}>
             <Maximize2 />
           </Button>
-          <Button variant={grid ? "secondary" : "ghost"} size="icon-sm" aria-label="Grille" aria-pressed={grid}
+          <Button variant={grid ? "secondary" : "ghost"} size="icon-sm" className={tool} aria-label="Grille" aria-pressed={grid}
             title={grid ? "Cacher la grille" : "Afficher la grille"} onClick={toggleGrid}><Grid3x3 /></Button>
-          <Button variant={measuring ? "secondary" : "ghost"} size="sm" aria-pressed={measuring}
-            title="Glisser d'une case à une autre pour mesurer la distance (Échap pour arrêter)"
+          <Button variant={measuring ? "secondary" : "ghost"} size="sm" className="pointer-coarse:h-9" aria-pressed={measuring}
+            aria-label="Mesurer" title="Glisser d'une case à une autre pour mesurer la distance (Échap pour arrêter)"
             onClick={() => { setMeasuring((m) => !m); setRuler(null); setPlacing(null); }}>
-            <Ruler data-icon="inline-start" />Mesurer
+            <Ruler data-icon="inline-start" /><span className={label}>Mesurer</span>
           </Button>
         </>}
         {isGM && (
-          <Button variant={playerView ? "secondary" : "ghost"} size="sm" onClick={() => setPlayerView((v) => !v)}
+          <Button variant={playerView ? "secondary" : "ghost"} size="sm" className="pointer-coarse:h-9" aria-pressed={playerView}
+            aria-label="Vue des joueurs" onClick={() => setPlayerView((v) => !v)}
             title="Ce que voient les joueurs : la vision de leurs PJ posés sur la carte">
-            {playerView ? <EyeOff data-icon="inline-start" /> : <Eye data-icon="inline-start" />}Vue des joueurs
+            {playerView ? <EyeOff data-icon="inline-start" /> : <Eye data-icon="inline-start" />}<span className={label}>Vue des joueurs</span>
           </Button>
         )}
         {fog && explored.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={forgetExplored}
+          <Button variant="ghost" size="sm" className="pointer-coarse:h-9" onClick={forgetExplored}
             title="Effacer sur cet appareil les zones déjà vues : seul reste ce que les PJ voient maintenant">
             Oublier le déjà-vu
           </Button>
         )}
-        {placingName && (
-          <span className="flex items-center gap-1 text-sm text-muted-foreground">
-            Touche une case pour poser {placingName}
-            <Button variant="ghost" size="icon-xs" aria-label="Annuler" onClick={() => setPlacing(null)}><X /></Button>
-          </span>
-        )}
       </div>
+      {(placingName || measuring) && (
+        <div className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-sm">
+          <span className="flex-1">
+            {placingName ? `Touche une case pour poser ${placingName}` : "Glisse d'une case à une autre pour mesurer"}
+          </span>
+          <Button variant="ghost" size="icon-xs" className="pointer-coarse:size-8" aria-label="Annuler"
+            onClick={() => { setPlacing(null); setMeasuring(false); setRuler(null); }}><X /></Button>
+        </div>
+      )}
 
       {view === "3d" ? (
         <Suspense fallback={<div className="flex h-[75svh] items-center justify-center rounded-lg border text-sm text-muted-foreground">
           Chargement de la 3D…</div>}>
           <MapScene3D imageUrl={`/api/rooms/${roomId}/maps/${map.id}/image`} width={W} height={H} walls={walls3d}
             doors={map.doors} lights={map.lights} tokens={tokens3d} fog={fog3d} placing={placing !== null}
-            onDoor={isGM ? onDoor : undefined} onGround={ground3d} onDrop={drop3d} />
+            onDoor={isGM ? onDoor : undefined} onGround={ground3d} onDrop={drop3d} fill={full} />
         </Suspense>
       ) : (
-      <div ref={box} className="max-h-[75svh] overflow-auto overscroll-contain rounded-lg border bg-neutral-950">
+      <div ref={box} className={cn("overflow-auto overscroll-contain rounded-lg border bg-neutral-950",
+        full ? "min-h-0 flex-1" : "max-h-[75svh]")}>
         <svg ref={svg} width={W * cell} height={H * cell} viewBox={`0 0 ${W} ${H}`}
-          className={cn("block touch-none select-none", placing !== null || measuring ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing")}
+          className={cn("block touch-none select-none [-webkit-touch-callout:none]",
+            placing !== null || measuring ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing")}
           onClick={click} onDoubleClick={(e) => { if (placing === null && !measuring) ping(toMap(e)); }}
           onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerCancel}
           onContextMenu={(e) => e.preventDefault()}>
@@ -395,7 +473,8 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
             <g key={d.id} className={cn(isGM && !measuring && "cursor-pointer")}
               onClick={isGM && !measuring ? (e) => { e.stopPropagation(); if (!swallowClick.current) onDoor(d.id, !d.closed); swallowClick.current = false; } : undefined}>
               <title>{`Porte ${d.closed ? "fermée" : "ouverte"}${isGM ? " : clic pour l'ouvrir ou la fermer" : ""}`}</title>
-              <line x1={d.a[0]} y1={d.a[1]} x2={d.b[0]} y2={d.b[1]} stroke="transparent" strokeWidth={0.6} />
+              {/* Zone de clic plus large au doigt. */}
+              <line x1={d.a[0]} y1={d.a[1]} x2={d.b[0]} y2={d.b[1]} stroke="transparent" strokeWidth={touch ? 1 : 0.6} />
               <line x1={d.a[0]} y1={d.a[1]} x2={d.b[0]} y2={d.b[1]} strokeLinecap="round" strokeWidth={0.18}
                 stroke={d.closed ? "#b45309" : "#22c55e"} strokeDasharray={d.closed ? undefined : "0.2 0.15"} />
             </g>
@@ -410,13 +489,20 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
               <rect width={W} height={H} fill="black" mask={`url(#${maskId})`} pointerEvents="none" />
             </>
           )}
+          {/* Pendant un glisser, la case d'arrivée : le doigt cache le pion. */}
+          {dragCell && <rect x={dragCell.x} y={dragCell.y} width={1} height={1} fill="rgba(250,204,21,0.25)" stroke="#facc15"
+            strokeWidth={px * 2} pointerEvents="none" />}
           {tokens.map((t) => {
             const i = byId.get(t.instance_id)!;
             const movableToken = canMove(i) && !measuring;
+            const lifted = touch && drag?.id === t.instance_id; // au doigt, le pion glissé passe au-dessus du doigt
             return (
-              <g key={t.instance_id} transform={`translate(${t.x} ${t.y})`} opacity={i.visibility === "cache" ? 0.5 : 1}
-                className={cn(movableToken && "cursor-grab")} onPointerDown={(e) => grab(e, t)}>
+              <g key={t.instance_id} transform={`translate(${t.x} ${t.y - (lifted ? 0.9 : 0)})${lifted ? " scale(1.3)" : ""}`}
+                opacity={i.visibility === "cache" ? 0.5 : 1}
+                className={cn(movableToken && "cursor-grab")} onPointerDown={(e) => grab(e, t)}
+                onClick={() => setInfo(t.instance_id)}>
                 <title>{fullName(i)}{i.visibility === "cache" ? " (caché aux joueurs)" : ""}</title>
+                {touch && <circle r={0.5} fill="transparent" />}
                 <circle r={0.42} fill={COLORS[i.character.kind]} strokeWidth={0.06}
                   stroke={drag?.id === t.instance_id ? "#facc15" : "white"} />
                 <text fontSize={0.3} textAnchor="middle" dominantBaseline="central" fill="white" pointerEvents="none">
@@ -424,6 +510,13 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
               </g>
             );
           })}
+          {infoToken && !drag && (
+            <text x={infoToken.x} y={infoToken.y - 0.5 - px * 6} fontSize={px * 14} fontWeight={600} textAnchor="middle"
+              fill="white" stroke="black" strokeWidth={px * 3.5} paintOrder="stroke" pointerEvents="none">
+              {fullName(byId.get(infoToken.instance_id)!)}
+              {byId.get(infoToken.instance_id)!.visibility === "cache" ? " (caché)" : ""}
+            </text>
+          )}
           {pings.map((p) => (
             <g key={p.key} transform={`translate(${p.x} ${p.y})`} pointerEvents="none"
               stroke={p.fromGM ? "#f43f5e" : "#facc15"} fill="none">
@@ -443,7 +536,8 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
               <line x1={ruler.a[0]} y1={ruler.a[1]} x2={ruler.b[0]} y2={ruler.b[1]} stroke="#facc15" strokeWidth={px * 2.5}
                 strokeLinecap="round" strokeDasharray={`${px * 8} ${px * 5}`} />
               {[ruler.a, ruler.b].map(([x, y], n) => <circle key={n} cx={x} cy={y} r={px * 5} fill="#facc15" stroke="black" strokeWidth={px} />)}
-              <text x={ruler.b[0]} y={ruler.b[1] - px * 14} fontSize={px * 15} fontWeight={700} textAnchor="middle"
+              {/* Au doigt, le texte au-dessus du doigt plutôt que dessous. */}
+              <text x={ruler.b[0]} y={ruler.b[1] - px * (touch ? 48 : 14)} fontSize={px * 15} fontWeight={700} textAnchor="middle"
                 fill="white" stroke="black" strokeWidth={px * 3.5} paintOrder="stroke">{rulerText}</text>
             </g>
           )}
@@ -452,30 +546,32 @@ export default function MapView({ roomId, map, instances, isGM, canMove, onMove,
       )}
 
       {movable.length > 0 && (
-        <div className="flex flex-wrap gap-1">
+        // Plein écran : une seule ligne qui défile, pour laisser la place à la carte.
+        <div className={cn("flex gap-1", full ? "shrink-0 overflow-x-auto pb-1" : "flex-wrap")}>
           {movable.map((i) => {
             const on = map.tokens.some((t) => t.instance_id === i.id);
             return (
-              <span key={i.id} className="inline-flex items-center">
-                <Button size="xs" variant={placing === i.id ? "default" : "outline"}
+              <span key={i.id} className="inline-flex shrink-0 items-center">
+                <Button size="xs" className="pointer-coarse:h-9 pointer-coarse:px-3" variant={placing === i.id ? "default" : "outline"}
                   title={on ? "Déplacer : choisis puis touche une case" : "Poser sur la carte : choisis puis touche une case"}
                   onClick={() => { setMeasuring(false); setRuler(null); setPlacing(placing === i.id ? null : i.id); }}>
                   <span className="size-2 rounded-full" style={{ background: COLORS[i.character.kind] }} />
                   {fullName(i)}{!on && " (hors carte)"}
                 </Button>
                 {on && (
-                  <Button variant="ghost" size="icon-xs" aria-label={`Retirer ${fullName(i)} de la carte`} title="Retirer de la carte"
-                    onClick={() => onMove(i.id, null, null)}><X /></Button>
+                  <Button variant="ghost" size="icon-xs" className="pointer-coarse:size-9" aria-label={`Retirer ${fullName(i)} de la carte`}
+                    title="Retirer de la carte" onClick={() => onMove(i.id, null, null)}><X /></Button>
                 )}
               </span>
             );
           })}
         </div>
       )}
-      {view === "2d" && (
+      {view === "2d" && !full && (
         <p className="text-xs text-muted-foreground">
-          Glisser le fond pour faire défiler · molette ou pincer pour zoomer
-          {onPing && " · double-clic ou appui long pour montrer un endroit aux autres"}
+          {touch ? "Glisser pour défiler · pincer pour zoomer · toucher un pion pour son nom"
+            : "Glisser le fond pour faire défiler · molette ou pincer pour zoomer"}
+          {onPing && (touch ? " · appui long pour montrer un endroit" : " · double-clic pour montrer un endroit aux autres")}
         </p>
       )}
     </div>
